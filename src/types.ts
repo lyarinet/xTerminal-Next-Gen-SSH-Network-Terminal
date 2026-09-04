@@ -150,6 +150,10 @@ export interface TerminalTab {
   bytesIn?: number;
   bytesOut?: number;
   uptimeSeconds?: number;
+  multiplayerSessionId?: string;
+  multiplayerParticipants?: MultiplayerParticipant[];
+  multiplayerRole?: MultiplayerRole;
+  isMultiplayerActive?: boolean;
 }
 
 export interface SftpEntry {
@@ -409,5 +413,68 @@ export interface MultiHostExecution {
   createdAt: string;
   targetHostIds: string[];
   results: MultiHostResult[];
+}
+
+export type MultiplayerRole = 'host' | 'controller' | 'participant' | 'viewer';
+export type MultiplayerControlMode = 'one_controller' | 'host_only' | 'shared' | 'read_only';
+export type MultiplayerAccessMode = 'link_only' | 'passcode' | 'approval_required' | 'open';
+
+export interface MultiplayerParticipant {
+  id: string;
+  name: string;
+  avatar: string;
+  color: string;
+  role: MultiplayerRole;
+  isController: boolean;
+  isTyping: boolean;
+  cursorPosition?: { x: number; y: number };
+  latencyMs?: number;
+  isOnline: boolean;
+  joinedAt: string;
+}
+
+export interface MultiplayerChatMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar: string;
+  senderColor: string;
+  text: string;
+  timestamp: string;
+  isSystem?: boolean;
+}
+
+export interface MultiplayerActivityEvent {
+  id: string;
+  timestamp: string;
+  description: string;
+  type: 'join' | 'leave' | 'control_request' | 'control_grant' | 'control_revoke' | 'system';
+  userId?: string;
+  userName?: string;
+}
+
+export interface MultiplayerSession {
+  id: string; // e.g. XT-984210
+  tabId: string;
+  title: string;
+  hostUserId: string;
+  hostName: string;
+  hostAvatar: string;
+  controllerId: string;
+  controlMode: MultiplayerControlMode;
+  accessMode: MultiplayerAccessMode;
+  passcode?: string;
+  status: 'active' | 'paused' | 'ended';
+  participants: MultiplayerParticipant[];
+  createdAt: string;
+  pendingRequests?: {
+    userId: string;
+    userName: string;
+    userAvatar: string;
+    requestedAt: string;
+  }[];
+  chatMessages?: MultiplayerChatMessage[];
+  activityLog?: MultiplayerActivityEvent[];
+  isDemo?: boolean;
 }
 

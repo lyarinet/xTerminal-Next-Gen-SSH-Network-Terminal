@@ -103,6 +103,10 @@ interface XTermPaneProps {
   keepaliveInterval: number; // in seconds
   onExecuteCommand: (cmd: string) => void;
   onOpenAiWithContext: (text: string) => void;
+  isMultiplayerActive?: boolean;
+  isController?: boolean;
+  onTerminalOutput?: (chunk: string) => void;
+  onCursorMove?: (cursor: { x: number; y: number }, isTyping: boolean) => void;
 }
 
 export const XTermPane: React.FC<XTermPaneProps> = ({
@@ -113,6 +117,10 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
   keepaliveInterval,
   onExecuteCommand,
   onOpenAiWithContext,
+  isMultiplayerActive = false,
+  isController = true,
+  onTerminalOutput,
+  onCursorMove,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -271,8 +279,15 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
           }
         } catch {}
         term.write(event.data);
+        if (onTerminalOutput) onTerminalOutput(event.data);
       } else if (event.data instanceof ArrayBuffer) {
         term.write(new Uint8Array(event.data));
+        if (onTerminalOutput) {
+          try {
+            const str = new TextDecoder().decode(event.data);
+            onTerminalOutput(str);
+          } catch {}
+        }
       }
     };
 
@@ -286,8 +301,17 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
 
     // User typing into xterm
     const onDataDisposable = term.onData((data) => {
+      if (isMultiplayerActive && isController === false) {
+        showToast('Terminal control is held by another user. Request control to type.', 'copy');
+        return;
+      }
       if (socket.readyState === WebSocket.OPEN) {
         socket.send(data);
+      }
+      if (onCursorMove) {
+        const cursorX = term.buffer?.active?.cursorX || 0;
+        const cursorY = term.buffer?.active?.cursorY || 0;
+        onCursorMove({ x: cursorX, y: cursorY }, true);
       }
     });
 
@@ -331,6 +355,26 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       termRef.current.options.theme = TERMINAL_THEMES[themeKey] || TERMINAL_THEMES.nexus;
     }
   }, [themeKey]);
+
+  // Listen for remote input from multiplayer peers and simulated terminal writes
+  useEffect(() => {
+    const handleRemoteInput = (e: any) => {
+      if (e.detail?.data && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(e.detail.data);
+      }
+    };
+    const handleTerminalWrite = (e: any) => {
+      if (e.detail?.data && termRef.current) {
+        termRef.current.write(e.detail.data);
+      }
+    };
+    window.addEventListener('xterminal:remote-input', handleRemoteInput);
+    window.addEventListener('xterminal:terminal-write', handleTerminalWrite);
+    return () => {
+      window.removeEventListener('xterminal:remote-input', handleRemoteInput);
+      window.removeEventListener('xterminal:terminal-write', handleTerminalWrite);
+    };
+  }, []);
 
   // Keepalive Heartbeat Timer
   useEffect(() => {

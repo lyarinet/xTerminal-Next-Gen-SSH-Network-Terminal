@@ -28,6 +28,7 @@ import {
   Cpu,
   Smartphone,
   Sliders,
+  Users,
   X
 } from 'lucide-react';
 import { VaultSettings } from '../types';
@@ -66,6 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'hosts', label: 'Hosts & Groups', icon: Server },
         { id: 'terminal', label: 'Terminal', icon: Terminal, badge: activeTabsCount > 0 ? activeTabsCount : undefined },
+        { id: 'terminal', label: 'Multiplayer Collab', icon: Users, badge: 'Live', badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' },
         { id: 'multihost', label: 'Multi-Host Runner', icon: Layers },
         { id: 'sftp', label: 'SFTP Explorer', icon: FolderSync },
         { id: 'serial', label: 'Serial TTY Console', icon: Cpu },

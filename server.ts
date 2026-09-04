@@ -1181,6 +1181,224 @@ app.post("/api/sync/workspaces", async (req, res) => {
   }
 });
 
+// ==========================================
+// xTerminal Multiplayer Session Engine
+// ==========================================
+
+interface SessionParticipant {
+  id: string;
+  name: string;
+  avatar: string;
+  color: string;
+  role: 'host' | 'controller' | 'participant' | 'viewer';
+  isController: boolean;
+  isTyping: boolean;
+  cursorPosition?: { x: number; y: number };
+  latencyMs?: number;
+  isOnline: boolean;
+  joinedAt: string;
+  ws?: WebSocket;
+}
+
+interface StoredMultiplayerSession {
+  id: string;
+  tabId: string;
+  title: string;
+  hostUserId: string;
+  hostName: string;
+  hostAvatar: string;
+  controllerId: string;
+  controlMode: 'one_controller' | 'host_only' | 'shared' | 'read_only';
+  accessMode: 'link_only' | 'passcode' | 'approval_required' | 'open';
+  passcode?: string;
+  status: 'active' | 'paused' | 'ended';
+  participants: Map<string, SessionParticipant>;
+  chatMessages: {
+    id: string;
+    senderId: string;
+    senderName: string;
+    senderAvatar: string;
+    senderColor: string;
+    text: string;
+    timestamp: string;
+    isSystem?: boolean;
+  }[];
+  activityLog: {
+    id: string;
+    timestamp: string;
+    description: string;
+    type: 'join' | 'leave' | 'control_request' | 'control_grant' | 'control_revoke' | 'system';
+    userId?: string;
+    userName?: string;
+  }[];
+  snapshotBuffer: string[];
+  pendingRequests: {
+    userId: string;
+    userName: string;
+    userAvatar: string;
+    requestedAt: string;
+  }[];
+  createdAt: string;
+}
+
+const activeMultiplayerSessions = new Map<string, StoredMultiplayerSession>();
+
+function generateMultiplayerSessionId(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `XT-${code}`;
+}
+
+function sanitizeParticipant(p: SessionParticipant) {
+  return {
+    id: p.id,
+    name: p.name,
+    avatar: p.avatar,
+    color: p.color,
+    role: p.role,
+    isController: p.isController,
+    isTyping: p.isTyping,
+    cursorPosition: p.cursorPosition,
+    latencyMs: p.latencyMs,
+    isOnline: p.isOnline,
+    joinedAt: p.joinedAt,
+  };
+}
+
+function sanitizeMultiplayerSession(session: StoredMultiplayerSession) {
+  return {
+    id: session.id,
+    tabId: session.tabId,
+    title: session.title,
+    hostUserId: session.hostUserId,
+    hostName: session.hostName,
+    hostAvatar: session.hostAvatar,
+    controllerId: session.controllerId,
+    controlMode: session.controlMode,
+    accessMode: session.accessMode,
+    status: session.status,
+    createdAt: session.createdAt,
+    participants: Array.from(session.participants.values()).map(sanitizeParticipant),
+    pendingRequests: session.pendingRequests,
+    chatMessages: session.chatMessages,
+    activityLog: session.activityLog,
+  };
+}
+
+function broadcastToSession(session: StoredMultiplayerSession, payload: any, excludeWs?: WebSocket) {
+  const raw = JSON.stringify(payload);
+  session.participants.forEach((p) => {
+    if (p.ws && p.ws !== excludeWs && p.ws.readyState === WebSocket.OPEN) {
+      try {
+        p.ws.send(raw);
+      } catch (err) {
+        console.error("Failed to broadcast message to participant:", p.id, err);
+      }
+    }
+  });
+}
+
+// REST Endpoints for Multiplayer
+app.post("/api/multiplayer/sessions", (req, res) => {
+  try {
+    const {
+      tabId = `tab-${Date.now()}`,
+      title = "Remote Terminal Session",
+      hostUserId = `user-${Date.now()}`,
+      hostName = "Admin",
+      hostAvatar = "",
+      controlMode = "one_controller",
+      accessMode = "link_only",
+      passcode = "",
+    } = req.body;
+
+    const sessionId = generateMultiplayerSessionId();
+    const hostParticipant: SessionParticipant = {
+      id: hostUserId,
+      name: hostName,
+      avatar: hostAvatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
+      color: "#10b981",
+      role: "host",
+      isController: true,
+      isTyping: false,
+      latencyMs: 12,
+      isOnline: true,
+      joinedAt: new Date().toISOString(),
+    };
+
+    const participants = new Map<string, SessionParticipant>();
+    participants.set(hostUserId, hostParticipant);
+
+    const session: StoredMultiplayerSession = {
+      id: sessionId,
+      tabId,
+      title,
+      hostUserId,
+      hostName,
+      hostAvatar: hostParticipant.avatar,
+      controllerId: hostUserId,
+      controlMode,
+      accessMode,
+      passcode,
+      status: "active",
+      participants,
+      chatMessages: [
+        {
+          id: `msg-${Date.now()}`,
+          senderId: "system",
+          senderName: "xTerminal System",
+          senderAvatar: "",
+          senderColor: "#64748b",
+          text: `Multiplayer session initialized. Share Session ID ${sessionId} with teammates.`,
+          timestamp: new Date().toISOString(),
+          isSystem: true,
+        },
+      ],
+      activityLog: [
+        {
+          id: `act-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          description: `Session ${sessionId} created by ${hostName}`,
+          type: "system",
+        },
+      ],
+      snapshotBuffer: [],
+      pendingRequests: [],
+      createdAt: new Date().toISOString(),
+    };
+
+    activeMultiplayerSessions.set(sessionId, session);
+    res.json({ success: true, session: sanitizeMultiplayerSession(session) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/multiplayer/sessions", (_req, res) => {
+  const list = Array.from(activeMultiplayerSessions.values()).map(sanitizeMultiplayerSession);
+  res.json({ sessions: list });
+});
+
+app.get("/api/multiplayer/sessions/:id", (req, res) => {
+  const session = activeMultiplayerSessions.get(req.params.id);
+  if (!session) {
+    return res.status(404).json({ error: "Multiplayer session not found" });
+  }
+  res.json({ session: sanitizeMultiplayerSession(session) });
+});
+
+app.delete("/api/multiplayer/sessions/:id", (req, res) => {
+  const session = activeMultiplayerSessions.get(req.params.id);
+  if (session) {
+    broadcastToSession(session, { type: "session:terminated", message: "Session ended by host" });
+    activeMultiplayerSessions.delete(req.params.id);
+  }
+  res.json({ success: true });
+});
+
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const { createServer } = await import("vite");
@@ -1283,11 +1501,403 @@ async function startServer() {
     });
   }
 
-  // Real SSH & Local Terminal WebSocket Bridge
+  // Real SSH & Local Terminal WebSocket Bridge + Multiplayer Gateway
   function setupWebSocketServer(httpServer: http.Server) {
-    const wss = new WebSocketServer({ server: httpServer, path: "/ws/ssh" });
+    const sshWss = new WebSocketServer({ noServer: true });
+    const multiplayerWss = new WebSocketServer({ noServer: true });
 
-    wss.on("connection", (ws: WebSocket) => {
+    httpServer.on("upgrade", (request, socket, head) => {
+      try {
+        const url = new URL(request.url || "", `http://${request.headers.host || "localhost"}`);
+        const pathname = url.pathname;
+
+        if (pathname === "/ws/ssh") {
+          sshWss.handleUpgrade(request, socket, head, (ws) => {
+            sshWss.emit("connection", ws, request);
+          });
+        } else if (pathname === "/ws/multiplayer") {
+          multiplayerWss.handleUpgrade(request, socket, head, (ws) => {
+            multiplayerWss.emit("connection", ws, request);
+          });
+        } else {
+          socket.destroy();
+        }
+      } catch (err) {
+        socket.destroy();
+      }
+    });
+
+    // Multiplayer Gateway Connection Handler
+    multiplayerWss.on("connection", (ws: WebSocket) => {
+      let currentSessionId: string | null = null;
+      let currentUserId: string | null = null;
+
+      ws.on("message", (raw: any) => {
+        try {
+          const msg = JSON.parse(raw.toString());
+          if (!msg || !msg.type) return;
+
+          if (msg.type === "ping") {
+            ws.send(JSON.stringify({ type: "pong", clientTime: msg.clientTime, serverTime: Date.now() }));
+            return;
+          }
+
+          if (msg.type === "join") {
+            const { sessionId, user, passcode } = msg;
+            const session = activeMultiplayerSessions.get(sessionId);
+            if (!session) {
+              ws.send(JSON.stringify({ type: "error", message: "Session not found" }));
+              return;
+            }
+
+            if (session.accessMode === "passcode" && session.passcode && session.passcode !== passcode && user.id !== session.hostUserId) {
+              ws.send(JSON.stringify({ type: "error", message: "Invalid session passcode" }));
+              return;
+            }
+
+            currentSessionId = sessionId;
+            currentUserId = user.id;
+
+            let participant = session.participants.get(user.id);
+            if (!participant) {
+              participant = {
+                id: user.id,
+                name: user.name || "Anonymous",
+                avatar: user.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
+                color: user.color || "#38bdf8",
+                role: user.id === session.hostUserId ? "host" : (session.controlMode === "read_only" ? "viewer" : "participant"),
+                isController: user.id === session.controllerId,
+                isTyping: false,
+                latencyMs: 20,
+                isOnline: true,
+                joinedAt: new Date().toISOString(),
+                ws,
+              };
+              session.participants.set(user.id, participant);
+
+              const joinEvent = {
+                id: `act-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                timestamp: new Date().toISOString(),
+                description: `${participant.name} joined the session`,
+                type: "join" as const,
+                userId: participant.id,
+                userName: participant.name,
+              };
+              session.activityLog.unshift(joinEvent);
+              if (session.activityLog.length > 100) session.activityLog.pop();
+
+              broadcastToSession(session, {
+                type: "participant:joined",
+                participant: sanitizeParticipant(participant),
+              }, ws);
+
+              broadcastToSession(session, {
+                type: "activity:event",
+                event: joinEvent,
+              });
+            } else {
+              participant.isOnline = true;
+              participant.ws = ws;
+              broadcastToSession(session, {
+                type: "participant:updated",
+                participant: sanitizeParticipant(participant),
+              });
+            }
+
+            // Send full initial state to the newly joined client
+            ws.send(JSON.stringify({
+              type: "session:state",
+              session: sanitizeMultiplayerSession(session),
+              snapshot: session.snapshotBuffer.join(""),
+            }));
+            return;
+          }
+
+          if (!currentSessionId) return;
+          const session = activeMultiplayerSessions.get(currentSessionId);
+          if (!session) return;
+          const participant = session.participants.get(currentUserId || "");
+
+          if (msg.type === "terminal:output") {
+            // Output from host terminal
+            if (msg.data) {
+              session.snapshotBuffer.push(msg.data);
+              if (session.snapshotBuffer.length > 500) session.snapshotBuffer.shift();
+              broadcastToSession(session, { type: "terminal:output", data: msg.data }, ws);
+            }
+            return;
+          }
+
+          if (msg.type === "terminal:input") {
+            // Check if sender has control permission
+            const hasControl = session.controlMode === "shared" || session.controllerId === currentUserId;
+            if (hasControl && msg.data) {
+              // Broadcast input to room, particularly to host terminal
+              broadcastToSession(session, {
+                type: "terminal:input",
+                data: msg.data,
+                fromUserId: currentUserId,
+              }, ws);
+            }
+            return;
+          }
+
+          if (msg.type === "terminal:typing") {
+            if (participant) {
+              participant.isTyping = Boolean(msg.isTyping);
+              if (msg.cursor) participant.cursorPosition = msg.cursor;
+              broadcastToSession(session, {
+                type: "participant:typing",
+                userId: participant.id,
+                name: participant.name,
+                avatar: participant.avatar,
+                color: participant.color,
+                isTyping: participant.isTyping,
+                cursor: participant.cursorPosition,
+              }, ws);
+            }
+            return;
+          }
+
+          if (msg.type === "control:request") {
+            if (!participant) return;
+            const alreadyPending = session.pendingRequests.some((r) => r.userId === participant.id);
+            if (!alreadyPending) {
+              const req = {
+                userId: participant.id,
+                userName: participant.name,
+                userAvatar: participant.avatar,
+                requestedAt: new Date().toISOString(),
+              };
+              session.pendingRequests.push(req);
+
+              const actEvent = {
+                id: `act-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                timestamp: new Date().toISOString(),
+                description: `${participant.name} requested terminal control`,
+                type: "control_request" as const,
+                userId: participant.id,
+                userName: participant.name,
+              };
+              session.activityLog.unshift(actEvent);
+              if (session.activityLog.length > 100) session.activityLog.pop();
+
+              broadcastToSession(session, { type: "control:requested", request: req });
+              broadcastToSession(session, { type: "activity:event", event: actEvent });
+            }
+            return;
+          }
+
+          if (msg.type === "control:grant") {
+            // Only host or current controller can grant
+            if (currentUserId === session.hostUserId || currentUserId === session.controllerId) {
+              const targetUserId = msg.targetUserId;
+              const target = session.participants.get(targetUserId);
+              if (target) {
+                session.controllerId = targetUserId;
+                session.pendingRequests = session.pendingRequests.filter((r) => r.userId !== targetUserId);
+
+                session.participants.forEach((p) => {
+                  p.isController = (p.id === targetUserId);
+                  if (p.id === targetUserId) {
+                    p.role = "controller";
+                  } else if (p.role === "controller") {
+                    p.role = "participant";
+                  }
+                });
+
+                const grantEvent = {
+                  id: `act-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                  timestamp: new Date().toISOString(),
+                  description: `${target.name} was granted terminal control`,
+                  type: "control_grant" as const,
+                  userId: target.id,
+                  userName: target.name,
+                };
+                session.activityLog.unshift(grantEvent);
+                if (session.activityLog.length > 100) session.activityLog.pop();
+
+                broadcastToSession(session, {
+                  type: "session:controller-changed",
+                  controllerId: targetUserId,
+                  controllerName: target.name,
+                });
+                broadcastToSession(session, {
+                  type: "participants:update",
+                  participants: Array.from(session.participants.values()).map(sanitizeParticipant),
+                });
+                broadcastToSession(session, { type: "activity:event", event: grantEvent });
+              }
+            }
+            return;
+          }
+
+          if (msg.type === "control:deny") {
+            if (currentUserId === session.hostUserId) {
+              const targetUserId = msg.targetUserId;
+              session.pendingRequests = session.pendingRequests.filter((r) => r.userId !== targetUserId);
+              broadcastToSession(session, { type: "control:denied", targetUserId });
+            }
+            return;
+          }
+
+          if (msg.type === "control:take") {
+            // Host reclaims control
+            if (currentUserId === session.hostUserId) {
+              session.controllerId = session.hostUserId;
+              session.participants.forEach((p) => {
+                p.isController = (p.id === session.hostUserId);
+                if (p.role === "controller" && p.id !== session.hostUserId) {
+                  p.role = "participant";
+                }
+              });
+
+              const actEvent = {
+                id: `act-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                timestamp: new Date().toISOString(),
+                description: `Host (${session.hostName}) reclaimed terminal control`,
+                type: "control_revoke" as const,
+                userId: session.hostUserId,
+                userName: session.hostName,
+              };
+              session.activityLog.unshift(actEvent);
+
+              broadcastToSession(session, {
+                type: "session:controller-changed",
+                controllerId: session.hostUserId,
+                controllerName: session.hostName,
+              });
+              broadcastToSession(session, {
+                type: "participants:update",
+                participants: Array.from(session.participants.values()).map(sanitizeParticipant),
+              });
+              broadcastToSession(session, { type: "activity:event", event: actEvent });
+            }
+            return;
+          }
+
+          if (msg.type === "control:release") {
+            // Controller voluntarily releases control back to host
+            if (currentUserId === session.controllerId) {
+              const prevName = participant?.name || "Participant";
+              session.controllerId = session.hostUserId;
+              session.participants.forEach((p) => {
+                p.isController = (p.id === session.hostUserId);
+                if (p.role === "controller" && p.id !== session.hostUserId) {
+                  p.role = "participant";
+                }
+              });
+
+              const actEvent = {
+                id: `act-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                timestamp: new Date().toISOString(),
+                description: `${prevName} released terminal control to Host`,
+                type: "control_revoke" as const,
+                userId: currentUserId,
+                userName: prevName,
+              };
+              session.activityLog.unshift(actEvent);
+
+              broadcastToSession(session, {
+                type: "session:controller-changed",
+                controllerId: session.hostUserId,
+                controllerName: session.hostName,
+              });
+              broadcastToSession(session, {
+                type: "participants:update",
+                participants: Array.from(session.participants.values()).map(sanitizeParticipant),
+              });
+              broadcastToSession(session, { type: "activity:event", event: actEvent });
+            }
+            return;
+          }
+
+          if (msg.type === "chat:message") {
+            if (msg.text && participant) {
+              const chatMsg = {
+                id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                senderId: participant.id,
+                senderName: participant.name,
+                senderAvatar: participant.avatar,
+                senderColor: participant.color,
+                text: String(msg.text).trim(),
+                timestamp: new Date().toISOString(),
+              };
+              session.chatMessages.push(chatMsg);
+              if (session.chatMessages.length > 200) session.chatMessages.shift();
+              broadcastToSession(session, { type: "chat:message", message: chatMsg });
+            }
+            return;
+          }
+
+          if (msg.type === "session:update-mode") {
+            if (currentUserId === session.hostUserId) {
+              if (msg.controlMode) session.controlMode = msg.controlMode;
+              if (msg.accessMode) session.accessMode = msg.accessMode;
+              broadcastToSession(session, {
+                type: "session:mode-updated",
+                controlMode: session.controlMode,
+                accessMode: session.accessMode,
+              });
+            }
+            return;
+          }
+        } catch (err) {
+          console.error("Error processing multiplayer WebSocket message:", err);
+        }
+      });
+
+      ws.on("close", () => {
+        if (!currentSessionId || !currentUserId) return;
+        const session = activeMultiplayerSessions.get(currentSessionId);
+        if (!session) return;
+        const participant = session.participants.get(currentUserId);
+        if (participant) {
+          participant.isOnline = false;
+          participant.ws = undefined;
+
+          // If the disconnected user had control and wasn't the host, auto-revert to host
+          if (session.controllerId === currentUserId && currentUserId !== session.hostUserId) {
+            session.controllerId = session.hostUserId;
+            session.participants.forEach((p) => {
+              p.isController = (p.id === session.hostUserId);
+            });
+            const revertEvent = {
+              id: `act-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+              timestamp: new Date().toISOString(),
+              description: `${participant.name} disconnected. Control reverted to Host.`,
+              type: "control_revoke" as const,
+              userId: session.hostUserId,
+              userName: session.hostName,
+            };
+            session.activityLog.unshift(revertEvent);
+
+            broadcastToSession(session, {
+              type: "session:controller-changed",
+              controllerId: session.hostUserId,
+              controllerName: session.hostName,
+            });
+            broadcastToSession(session, { type: "activity:event", event: revertEvent });
+          }
+
+          const leaveEvent = {
+            id: `act-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            timestamp: new Date().toISOString(),
+            description: `${participant.name} left the session`,
+            type: "leave" as const,
+            userId: participant.id,
+            userName: participant.name,
+          };
+          session.activityLog.unshift(leaveEvent);
+
+          broadcastToSession(session, { type: "participant:left", userId: participant.id });
+          broadcastToSession(session, { type: "activity:event", event: leaveEvent });
+        }
+      });
+    });
+
+    // Real SSH & Local Terminal WebSocket Bridge
+    sshWss.on("connection", (ws: WebSocket) => {
       let sshClient: SSHClient | null = null;
       let localProcess: any = null;
       let stream: any = null;

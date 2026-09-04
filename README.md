@@ -26,6 +26,15 @@
 - **Serial Console**: Hardware serial communication (COM/TTY ports, baud rate, data bits, parity, stop bits).
 - **TFTP Engine**: Built-in TFTP client and server for router/switch firmware and configuration management.
 
+### 👥 xTerminal Multiplayer (Collaborative Remote Terminal)
+- **Real-Time Multi-User Collaboration**: Multiple authorized engineers join the same SSH, Telnet, or Local terminal session in real time with synchronized output and ordered keystroke processing.
+- **Active Tab Participant Stack**: Circular participant avatar stack displayed right on the active terminal tab with latency indicators and active remote control keyboard badges.
+- **Floating Cursor Presence Marker**: Dynamic rounded avatar badge with a directional pointer triangle indicating exactly where a teammate is typing in real time.
+- **Terminal Control System**: Single-controller arbitration by default with "Request Control", host approval/denial prompts, and instant host "Take Control" override.
+- **Collaboration Drawer**: Built-in 3-tab drawer containing live participant directory, team text chat, and security audit log.
+- **Share & Join Modals**: Easy invite modal with Session ID (`XT-XXXXXX`), direct shareable join URL, and custom nickname & avatar selection.
+- **Interactive Demo Playground**: Built-in simulation of teammates (Stan and Sarah) for instant testing of presence, chat, control requests, and typing badges without needing a second machine.
+
 ### 🔒 Persistent Session Architecture
 - **Zero Reconnect on Tab Switch**: Terminal sessions stay persistently mounted in background memory and the DOM. Switching between tabs or navigating across views (Hosts, SFTP, Vault, Settings) **never drops your active connection**.
 - **Multi-Tab & Split Panes**: Run multiple concurrent sessions side-by-side or stacked vertically/horizontally.

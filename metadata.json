@@ -1,0 +1,6 @@
+{
+  "name": "xTerminal",
+  "description": "Enterprise cross-platform remote access suite inspired by Termius, SecureCRT, and MobaXterm. Featuring SSH, SFTP dual-pane, RDP/VNC, Serial TTY, Docker/K8s, Multi-Host execution, Cisco/MikroTik tools, and AES-256 vault.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

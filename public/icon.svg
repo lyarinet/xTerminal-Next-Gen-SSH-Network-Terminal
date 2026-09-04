@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background Gradients -->
+    <radialGradient id="bgGrad" cx="50%" cy="30%" r="85%" fx="50%" fy="15%">
+      <stop offset="0%" stop-color="#181A20" />
+      <stop offset="60%" stop-color="#0E1015" />
+      <stop offset="100%" stop-color="#060709" />
+    </radialGradient>
+
+    <!-- Outer Ring Gradient -->
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34D399" />
+      <stop offset="30%" stop-color="#10B981" />
+      <stop offset="70%" stop-color="#06B6D4" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+
+    <!-- Brand Accent Gradients -->
+    <linearGradient id="cyanToEmerald" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22D3EE" />
+      <stop offset="50%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+
+    <linearGradient id="emeraldToTeal" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#34D399" />
+      <stop offset="100%" stop-color="#0E7490" />
+    </linearGradient>
+
+    <!-- Glow Effect -->
+    <filter id="neonGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="16" result="blur1" />
+      <feGaussianBlur stdDeviation="6" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur1" />
+        <feMergeNode in="blur2" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <filter id="subtleGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Base Dark Squircle with Neon Border -->
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#bgGrad)" stroke="url(#ringGrad)" stroke-width="8" />
+
+  <!-- Subtle Cyber Grid Texture inside Icon -->
+  <g opacity="0.07" stroke="#10B981" stroke-width="1.5">
+    <line x1="24" y1="128" x2="488" y2="128" />
+    <line x1="24" y1="256" x2="488" y2="256" />
+    <line x1="24" y1="384" x2="488" y2="384" />
+    <line x1="128" y1="24" x2="128" y2="488" />
+    <line x1="256" y1="24" x2="256" y2="488" />
+    <line x1="384" y1="24" x2="384" y2="488" />
+  </g>
+
+  <!-- Sleek Top Header Dot Accents (Terminal Window UI) -->
+  <g transform="translate(68, 64)">
+    <circle cx="16" cy="16" r="7" fill="#EF4444" opacity="0.85" />
+    <circle cx="38" cy="16" r="7" fill="#F59E0B" opacity="0.85" />
+    <circle cx="60" cy="16" r="7" fill="#10B981" opacity="0.85" />
+    <line x1="90" y1="16" x2="310" y2="16" stroke="#26282E" stroke-width="2" stroke-linecap="round" />
+  </g>
+
+  <!-- Core "X" Terminal Glyph -->
+  <!-- Left-to-Right Diagonal Line of the "X" (Formed with prompt chevrons) -->
+  <g filter="url(#neonGlow)">
+    <!-- Main Left Arm (Terminal Chevron >) -->
+    <path d="M 130 156 L 226 256 L 130 356" fill="none" stroke="url(#cyanToEmerald)" stroke-width="38" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- Opposing Arm Intersecting to complete the "X" -->
+    <path d="M 382 156 L 286 256 L 382 356" fill="none" stroke="url(#emeraldToTeal)" stroke-width="38" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- Prompt Underscore Cursor underneath intersection -->
+    <line x1="210" y1="390" x2="302" y2="390" stroke="#34D399" stroke-width="24" stroke-linecap="round" filter="url(#subtleGlow)" />
+  </g>
+
+  <!-- Tech Status Dot Matrix in Corner -->
+  <circle cx="410" cy="100" r="5" fill="#34D399" opacity="0.8" />
+  <circle cx="430" cy="100" r="3" fill="#34D399" opacity="0.4" />
+</svg>

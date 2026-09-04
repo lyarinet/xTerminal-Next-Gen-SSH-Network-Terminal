@@ -2045,9 +2045,11 @@ async function startServer() {
         ws.send(`\r\n\x1b[36m[xTerminal] Connecting to Telnet host ${params.host}:${port}...\x1b[0m\r\n`);
 
         const socket = new net.Socket();
-        socket.setTimeout(25000);
+        socket.setTimeout(25000); // 25s connection handshake timeout
 
         socket.connect(port, params.host, () => {
+          socket.setTimeout(0); // Disable idle timeout once connected
+          socket.setKeepAlive(true, 15000); // Keep TCP connection alive
           ws.send(`\x1b[32m[xTerminal] ✔ Telnet Connection Established to ${params.host}:${port}\x1b[0m\r\n\r\n`);
 
           let sentUser = false;

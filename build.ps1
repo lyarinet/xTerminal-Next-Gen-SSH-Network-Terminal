@@ -140,32 +140,40 @@ function Build-MacOS {
 
 function Build-Android {
     Show-Banner
-    Write-Host ">>> TARGET: Android Mobile Application (Capacitor / PWA)`n" -ForegroundColor Yellow
+    Write-Host ">>> TARGET: Android Mobile Application (Capacitor Native APK & PWA)`n" -ForegroundColor Yellow
+
+    if (-not $env:ANDROID_HOME -and (Test-Path "$env:LOCALAPPDATA\Android\Sdk")) {
+        $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+    }
 
     Write-Host "[1/3] Building Web Distribution for Android WebView..." -ForegroundColor Cyan
     npm run build
     if ($LASTEXITCODE -ne 0) { return }
 
-    # Check if Capacitor CLI is available
-    Write-Host "`n[2/3] Checking Capacitor Android Bridge..." -ForegroundColor Cyan
-    $hasCap = $null
-    try { $hasCap = npx cap --version } catch {}
-
-    if ($hasCap) {
-        Write-Host "  [+] Capacitor CLI detected (v$hasCap)" -ForegroundColor Green
-        Write-Host "  Syncing assets to Android native shell..." -ForegroundColor Cyan
-        npx cap sync android
-        Write-Host "`n[3/3] Opening Android Studio / Gradle project..." -ForegroundColor Cyan
-        npx cap open android
-    } else {
-        Write-Host "  [+] Progressive Web App (PWA) Android package prepared in 'dist/'." -ForegroundColor Green
-        Write-Host "  To compile native APK via Android Studio:" -ForegroundColor Yellow
-        Write-Host "    1. Run: npm install @capacitor/core @capacitor/cli @capacitor/android" -ForegroundColor DarkGray
-        Write-Host "    2. Run: npx cap add android" -ForegroundColor DarkGray
-        Write-Host "    3. Run: npx cap sync android && npx cap open android" -ForegroundColor DarkGray
+    Write-Host "`n[2/3] Syncing Capacitor Android Project..." -ForegroundColor Cyan
+    npx cap sync android
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Capacitor sync failed." -ForegroundColor Red
+        return
     }
 
-    Write-Host "`n[SUCCESS] Android web assets compiled and bundled with high-res adaptive icons." -ForegroundColor Green
+    Write-Host "`n[3/3] Compiling Native Android APK with Gradle..." -ForegroundColor Cyan
+    if (Test-Path "$ScriptDir\android\gradlew.bat") {
+        Push-Location "$ScriptDir\android"
+        .\gradlew.bat assembleDebug
+        Pop-Location
+
+        $apkPath = "$ScriptDir\android\app\build\outputs\apk\debug\app-debug.apk"
+        if (Test-Path $apkPath) {
+            Write-Host "`n=====================================================================" -ForegroundColor Green
+            Write-Host " [SUCCESS] Android APK built successfully!" -ForegroundColor Green
+            Write-Host "=====================================================================" -ForegroundColor Green
+            Write-Host "  APK Location: $apkPath" -ForegroundColor Cyan
+            Write-Host ""
+        }
+    } else {
+        Write-Host "Android project synced. Run: npx cap open android to build in Android Studio." -ForegroundColor Yellow
+    }
 }
 
 function Build-All {

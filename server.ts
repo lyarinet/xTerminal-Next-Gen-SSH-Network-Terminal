@@ -17,7 +17,8 @@ const execPromise = util.promisify(exec);
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "100mb" }));
+app.use(express.urlencoded({ extended: true, limit: "100mb" }));
 
 // Lazy Gemini client helper
 function getGeminiClient(): GoogleGenAI | null {
@@ -1051,6 +1052,500 @@ app.post("/api/fs/upload", async (req, res) => {
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Failed to upload file" });
+  }
+});
+
+// ==========================================
+// REAL SSH2 SFTP ENGINE & REMOTE FILE MANAGER
+// ==========================================
+interface SftpSession {
+  client: SSHClient;
+  sftp: any;
+  hostId: string;
+  hostParams: any;
+  lastUsed: number;
+  homeDir: string;
+}
+
+const sftpSessions = new Map<string, SftpSession>();
+const sftpDownloadTickets = new Map<string, { hostParams: any; remotePath: string; expires: number }>();
+
+// Periodically clean up idle SFTP sessions and expired download tickets
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, session] of sftpSessions.entries()) {
+    if (now - session.lastUsed > 10 * 60 * 1000) {
+      try {
+        session.client.end();
+      } catch {}
+      sftpSessions.delete(id);
+    }
+  }
+  for (const [ticket, item] of sftpDownloadTickets.entries()) {
+    if (now > item.expires) {
+      sftpDownloadTickets.delete(ticket);
+    }
+  }
+}, 30 * 1000);
+
+function formatSftpMode(mode: number) {
+  const isDir = (mode & 0o170000) === 0o040000;
+  const isSymlink = (mode & 0o170000) === 0o120000;
+  let type = "-";
+  if (isDir) type = "d";
+  else if (isSymlink) type = "l";
+
+  const uR = mode & 0o400 ? "r" : "-";
+  const uW = mode & 0o200 ? "w" : "-";
+  const uX = mode & 0o100 ? "x" : "-";
+  const gR = mode & 0o040 ? "r" : "-";
+  const gW = mode & 0o020 ? "w" : "-";
+  const gX = mode & 0o010 ? "x" : "-";
+  const oR = mode & 0o004 ? "r" : "-";
+  const oW = mode & 0o002 ? "w" : "-";
+  const oX = mode & 0o001 ? "x" : "-";
+
+  const permissions = `${type}${uR}${uW}${uX}${gR}${gW}${gX}${oR}${oW}${oX}`;
+  const octal = "0" + (mode & 0o777).toString(8);
+  return { permissions, octal, isDirectory: isDir, isSymlink };
+}
+
+function getSftpSession(hostParams: any): Promise<SftpSession> {
+  const hostId = hostParams.id || `${hostParams.username || "root"}@${hostParams.hostname}:${hostParams.port || 22}`;
+  const existing = sftpSessions.get(hostId);
+  if (existing) {
+    existing.lastUsed = Date.now();
+    return Promise.resolve(existing);
+  }
+
+  return new Promise((resolve, reject) => {
+    const client = new SSHClient();
+    let timeout: NodeJS.Timeout | null = setTimeout(() => {
+      try {
+        client.end();
+      } catch {}
+      reject(new Error("SFTP connection timed out after 12s. Check server IP, port & credentials."));
+    }, 12000);
+
+    client.on("ready", () => {
+      client.sftp((err, sftp) => {
+        if (timeout) {
+          clearTimeout(timeout);
+          timeout = null;
+        }
+        if (err) {
+          try {
+            client.end();
+          } catch {}
+          return reject(err);
+        }
+
+        const defaultHome = hostParams.username === "root" ? "/root" : `/home/${hostParams.username || "user"}`;
+        const resolveHome = (cb: (home: string) => void) => {
+          if (sftp && typeof sftp.realpath === "function") {
+            sftp.realpath(".", (rErr: any, rPath: string) => {
+              cb(!rErr && rPath ? rPath : defaultHome);
+            });
+          } else {
+            cb(defaultHome);
+          }
+        };
+
+        resolveHome((homeDir) => {
+          const session: SftpSession = {
+            client,
+            sftp,
+            hostId,
+            hostParams,
+            lastUsed: Date.now(),
+            homeDir,
+          };
+          sftpSessions.set(hostId, session);
+          resolve(session);
+        });
+      });
+    });
+
+    client.on("error", (err) => {
+      if (timeout) {
+        clearTimeout(timeout);
+        timeout = null;
+      }
+      sftpSessions.delete(hostId);
+      reject(err);
+    });
+
+    client.on("close", () => {
+      sftpSessions.delete(hostId);
+    });
+
+    client.connect({
+      host: hostParams.hostname || hostParams.host || "127.0.0.1",
+      port: Number(hostParams.port) || 22,
+      username: hostParams.username || "root",
+      password: hostParams.password || undefined,
+      privateKey: hostParams.privateKey || undefined,
+      passphrase: hostParams.passphrase || undefined,
+      readyTimeout: 10000,
+      keepaliveInterval: 15000,
+    });
+  });
+}
+
+// 1. Connect / Test SFTP Session
+app.post("/api/sftp/connect", async (req, res) => {
+  const { host } = req.body;
+  if (!host || !host.hostname) {
+    return res.status(400).json({ error: "Host configuration with hostname is required" });
+  }
+
+  try {
+    const session = await getSftpSession(host);
+    res.json({
+      success: true,
+      hostId: session.hostId,
+      homeDir: session.homeDir,
+      status: "connected",
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to establish SFTP connection" });
+  }
+});
+
+// 2. Disconnect SFTP Session
+app.post("/api/sftp/disconnect", (req, res) => {
+  const { hostId } = req.body;
+  if (hostId && sftpSessions.has(hostId)) {
+    const session = sftpSessions.get(hostId);
+    try {
+      session?.client.end();
+    } catch {}
+    sftpSessions.delete(hostId);
+  }
+  res.json({ success: true });
+});
+
+// 3. List Directory Entries (Remote via SFTP)
+app.post("/api/sftp/list", async (req, res) => {
+  const { host, path: requestedPath } = req.body;
+  if (!host || !host.hostname) {
+    return res.status(400).json({ error: "Host configuration is required" });
+  }
+
+  try {
+    const session = await getSftpSession(host);
+    const sftp = session.sftp;
+
+    // Resolve target path
+    let targetPath = requestedPath || session.homeDir || "/";
+    if (targetPath === "~" || targetPath === ".") {
+      targetPath = session.homeDir || "/";
+    }
+
+    sftp.readdir(targetPath, (err: any, list: any[]) => {
+      if (err) {
+        return res.status(500).json({
+          error: `Failed to read remote directory "${targetPath}": ${err.message || err}`,
+        });
+      }
+
+      const entries = list.map((item) => {
+        const fullPath = targetPath === "/" ? `/${item.filename}` : `${targetPath}/${item.filename}`;
+        const mode = item.attrs?.mode || 0;
+        const { permissions, octal, isDirectory, isSymlink } = formatSftpMode(mode);
+
+        const mtime = item.attrs?.mtime ? new Date(item.attrs.mtime * 1000) : new Date();
+        const modifiedTime = mtime.toISOString().replace("T", " ").substring(0, 16);
+
+        return {
+          name: item.filename,
+          path: fullPath,
+          size: item.attrs?.size || 0,
+          isDirectory,
+          isSymlink,
+          permissions,
+          octal,
+          owner: String(item.attrs?.uid ?? "0"),
+          group: String(item.attrs?.gid ?? "0"),
+          modifiedTime,
+        };
+      });
+
+      // Filter out self '.' entry
+      const filtered = entries.filter((e) => e.name !== ".");
+
+      // Sort: folders first, then files alphabetically
+      filtered.sort((a, b) => {
+        if (a.isDirectory && !b.isDirectory) return -1;
+        if (!a.isDirectory && b.isDirectory) return 1;
+        return a.name.localeCompare(b.name);
+      });
+
+      // Add parent '..' directory if not at root
+      const parentPath = targetPath !== "/" ? path.posix.dirname(targetPath) : null;
+      if (parentPath !== null && !filtered.some((e) => e.name === "..")) {
+        filtered.unshift({
+          name: "..",
+          path: parentPath,
+          size: 0,
+          isDirectory: true,
+          isSymlink: false,
+          permissions: "drwxr-xr-x",
+          octal: "0755",
+          owner: "root",
+          group: "root",
+          modifiedTime: "-",
+        });
+      }
+
+      res.json({
+        currentPath: targetPath,
+        parentPath,
+        entriesCount: filtered.length,
+        entries: filtered,
+      });
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "SFTP list error" });
+  }
+});
+
+// 4. Read File Content (for Editor or Preview)
+app.post("/api/sftp/read", async (req, res) => {
+  const { host, path: remotePath } = req.body;
+  if (!host || !remotePath) {
+    return res.status(400).json({ error: "host and path are required" });
+  }
+
+  try {
+    const session = await getSftpSession(host);
+    const sftp = session.sftp;
+
+    sftp.stat(remotePath, (statErr: any, stats: any) => {
+      if (statErr) {
+        return res.status(404).json({ error: `File not found: ${statErr.message}` });
+      }
+
+      if (stats.size > 8 * 1024 * 1024) {
+        return res.status(400).json({ error: "File exceeds 8MB limit for inline Monaco editor. Use Download instead." });
+      }
+
+      const stream = sftp.createReadStream(remotePath);
+      const chunks: Buffer[] = [];
+
+      stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+      stream.on("end", () => {
+        const fullBuf = Buffer.concat(chunks);
+        res.json({
+          path: remotePath,
+          name: path.posix.basename(remotePath),
+          size: stats.size,
+          content: fullBuf.toString("utf8"),
+          modifiedTime: new Date(stats.mtime * 1000).toISOString(),
+        });
+      });
+      stream.on("error", (err: any) => {
+        res.status(500).json({ error: `Read stream error: ${err.message}` });
+      });
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to read remote file" });
+  }
+});
+
+// 5. Write / Save File Content
+app.post("/api/sftp/write", async (req, res) => {
+  const { host, path: remotePath, content } = req.body;
+  if (!host || !remotePath) {
+    return res.status(400).json({ error: "host and path are required" });
+  }
+
+  try {
+    const session = await getSftpSession(host);
+    const sftp = session.sftp;
+    const writeStream = sftp.createWriteStream(remotePath);
+
+    writeStream.on("close", () => {
+      res.json({ success: true, path: remotePath });
+    });
+    writeStream.on("error", (err: any) => {
+      res.status(500).json({ error: `Write failed: ${err.message}` });
+    });
+
+    writeStream.write(Buffer.from(content || "", "utf8"));
+    writeStream.end();
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to save file over SFTP" });
+  }
+});
+
+// 6. Create Remote Directory
+app.post("/api/sftp/mkdir", async (req, res) => {
+  const { host, path: remoteDir } = req.body;
+  if (!host || !remoteDir) {
+    return res.status(400).json({ error: "host and path are required" });
+  }
+
+  try {
+    const session = await getSftpSession(host);
+    session.sftp.mkdir(remoteDir, (err: any) => {
+      if (err) return res.status(500).json({ error: `mkdir failed: ${err.message}` });
+      res.json({ success: true, path: remoteDir });
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to create directory" });
+  }
+});
+
+// 7. Delete File or Directory
+app.post("/api/sftp/delete", async (req, res) => {
+  const { host, path: targetPath, isDirectory } = req.body;
+  if (!host || !targetPath) {
+    return res.status(400).json({ error: "host and path are required" });
+  }
+
+  try {
+    const session = await getSftpSession(host);
+    const sftp = session.sftp;
+
+    if (isDirectory) {
+      sftp.rmdir(targetPath, (err: any) => {
+        if (err) return res.status(500).json({ error: `Delete folder failed: ${err.message}` });
+        res.json({ success: true, path: targetPath });
+      });
+    } else {
+      sftp.unlink(targetPath, (err: any) => {
+        if (err) return res.status(500).json({ error: `Delete file failed: ${err.message}` });
+        res.json({ success: true, path: targetPath });
+      });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to delete target" });
+  }
+});
+
+// 8. Rename / Move File or Directory
+app.post("/api/sftp/rename", async (req, res) => {
+  const { host, oldPath, newPath } = req.body;
+  if (!host || !oldPath || !newPath) {
+    return res.status(400).json({ error: "host, oldPath, and newPath are required" });
+  }
+
+  try {
+    const session = await getSftpSession(host);
+    session.sftp.rename(oldPath, newPath, (err: any) => {
+      if (err) return res.status(500).json({ error: `Rename failed: ${err.message}` });
+      res.json({ success: true, oldPath, newPath });
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to rename" });
+  }
+});
+
+// 9. Change Permissions (chmod)
+app.post("/api/sftp/chmod", async (req, res) => {
+  const { host, path: targetPath, mode } = req.body;
+  if (!host || !targetPath || mode === undefined) {
+    return res.status(400).json({ error: "host, path, and mode are required" });
+  }
+
+  try {
+    const session = await getSftpSession(host);
+    const modeNum = typeof mode === "string" ? parseInt(mode, 8) : Number(mode);
+
+    session.sftp.chmod(targetPath, modeNum, (err: any) => {
+      if (err) return res.status(500).json({ error: `chmod failed: ${err.message}` });
+      res.json({ success: true, path: targetPath, mode: modeNum });
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to change permissions" });
+  }
+});
+
+// 10. Upload File to Remote Directory (Base64 chunk / buffer)
+app.post("/api/sftp/upload", async (req, res) => {
+  const { host, targetDirectory, fileName, contentBase64, textContent } = req.body;
+  if (!host || !targetDirectory || !fileName) {
+    return res.status(400).json({ error: "host, targetDirectory, and fileName are required" });
+  }
+
+  try {
+    const session = await getSftpSession(host);
+    const sftp = session.sftp;
+    const destPath = targetDirectory === "/" ? `/${fileName}` : `${targetDirectory}/${fileName}`;
+    const writeStream = sftp.createWriteStream(destPath);
+
+    writeStream.on("close", () => {
+      res.json({ success: true, path: destPath, fileName });
+    });
+    writeStream.on("error", (err: any) => {
+      res.status(500).json({ error: `Upload stream failed: ${err.message}` });
+    });
+
+    if (contentBase64) {
+      writeStream.write(Buffer.from(contentBase64, "base64"));
+    } else {
+      writeStream.write(Buffer.from(textContent || "", "utf8"));
+    }
+    writeStream.end();
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to upload file over SFTP" });
+  }
+});
+
+// 11. Create One-Time Download Ticket
+app.post("/api/sftp/download-ticket", (req, res) => {
+  const { host, path: remotePath } = req.body;
+  if (!host || !remotePath) {
+    return res.status(400).json({ error: "host and path are required" });
+  }
+
+  const ticket = `dl-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+  sftpDownloadTickets.set(ticket, {
+    hostParams: host,
+    remotePath,
+    expires: Date.now() + 60 * 1000,
+  });
+
+  res.json({ ticket });
+});
+
+// 12. Direct Browser Download Endpoint (streams file with attachment header)
+app.get("/api/sftp/download", async (req, res) => {
+  const ticket = req.query.ticket as string;
+  if (!ticket || !sftpDownloadTickets.has(ticket)) {
+    return res.status(404).send("Download ticket expired or invalid. Please click Download again.");
+  }
+
+  const info = sftpDownloadTickets.get(ticket)!;
+  sftpDownloadTickets.delete(ticket);
+
+  try {
+    const session = await getSftpSession(info.hostParams);
+    const sftp = session.sftp;
+    const fileName = path.posix.basename(info.remotePath);
+
+    sftp.stat(info.remotePath, (err: any, stats: any) => {
+      if (err) {
+        return res.status(404).send(`Remote file not found: ${err.message}`);
+      }
+
+      res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(fileName)}"`);
+      res.setHeader("Content-Type", "application/octet-stream");
+      if (stats.size) {
+        res.setHeader("Content-Length", stats.size);
+      }
+
+      const stream = sftp.createReadStream(info.remotePath);
+      stream.pipe(res);
+      stream.on("error", (sErr: any) => {
+        if (!res.headersSent) {
+          res.status(500).send(`Download stream error: ${sErr.message}`);
+        }
+      });
+    });
+  } catch (err: any) {
+    res.status(500).send(`SFTP Connection Error: ${err.message}`);
   }
 });
 

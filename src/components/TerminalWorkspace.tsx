@@ -169,11 +169,25 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
   useEffect(() => {
     const handleToggleChat = () => setSidebarOpen((prev) => !prev);
     const handleOpenChat = () => setSidebarOpen(true);
+    const handleRequestRemoteSnapshot = () => {
+      const sendReq = () => {
+        Object.values(wsSocketsRef.current).forEach((ws) => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'terminal:request-snapshot' }));
+          }
+        });
+      };
+      sendReq();
+      setTimeout(sendReq, 400);
+      setTimeout(sendReq, 1200);
+    };
     window.addEventListener('xterminal:toggle-chat', handleToggleChat);
     window.addEventListener('xterminal:open-chat', handleOpenChat);
+    window.addEventListener('xterminal:request-remote-snapshot', handleRequestRemoteSnapshot);
     return () => {
       window.removeEventListener('xterminal:toggle-chat', handleToggleChat);
       window.removeEventListener('xterminal:open-chat', handleOpenChat);
+      window.removeEventListener('xterminal:request-remote-snapshot', handleRequestRemoteSnapshot);
     };
   }, []);
 
@@ -217,6 +231,11 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
       if (role === 'participant') {
         socket.send(JSON.stringify({ type: 'terminal:request-snapshot' }));
       }
+      if (role === 'host') {
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('xterminal:request-snapshot', { detail: { tabId } }));
+        }, 300);
+      }
     };
 
     socket.onmessage = (event) => {
@@ -241,7 +260,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
 
         if (msg.type === 'terminal:request-snapshot') {
           if (role === 'host') {
-            window.dispatchEvent(new CustomEvent('xterminal:request-snapshot'));
+            window.dispatchEvent(new CustomEvent('xterminal:request-snapshot', { detail: { tabId } }));
           }
           return;
         }
@@ -249,8 +268,11 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
         if (msg.type === 'participant:joined' || msg.type === 'participant:updated') {
           if (role === 'host') {
             setTimeout(() => {
-              window.dispatchEvent(new CustomEvent('xterminal:request-snapshot'));
+              window.dispatchEvent(new CustomEvent('xterminal:request-snapshot', { detail: { tabId } }));
             }, 100);
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('xterminal:request-snapshot', { detail: { tabId } }));
+            }, 600);
           }
           setMultiplayerSessions((prev) => {
             const sess = prev[tabId];
@@ -310,10 +332,10 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
         }
 
         if (msg.type === 'terminal:input') {
-          // Host receives remote controller keystrokes and forwards to SSH stream
+          // Host receives remote controller keystrokes and forwards ONLY to the matching session tab
           window.dispatchEvent(
             new CustomEvent('xterminal:remote-input', {
-              detail: { data: msg.data },
+              detail: { data: msg.data, tabId },
             })
           );
           return;
@@ -465,7 +487,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
         connectMultiplayerWs(data.session.id, activeTab.id, 'host');
         setShareModalOpen(true);
         setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('xterminal:request-snapshot'));
+          window.dispatchEvent(new CustomEvent('xterminal:request-snapshot', { detail: { tabId: activeTab.id } }));
         }, 250);
       }
     } catch (err) {
@@ -730,19 +752,18 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
   const handleTerminalOutput = (tabId: string, chunk: string) => {
     if (!chunk) return;
     const sessions = multiplayerSessionsRef.current;
+    // CRITICAL: Only broadcast if THIS tab has an active multiplayer session!
+    // Prevents Windows PowerShell (tab-local) from leaking output to remote mobile client
     const session =
       sessions[tabId] ||
-      Object.values(sessions).find((s) => s.hostUserId === currentUserId) ||
-      Object.values(sessions)[0];
-
+      Object.values(sessions).find((s) => s.tabId === tabId || s.id === tabId);
     if (!session) return;
 
-    // Send on the open multiplayer WebSocket
+    // Send on the open multiplayer WebSocket for THIS session
     const socket =
       wsSocketsRef.current[tabId] ||
       wsSocketsRef.current[session.tabId] ||
-      Object.values(wsSocketsRef.current).find((ws) => ws.readyState === WebSocket.OPEN);
-
+      wsSocketsRef.current[session.id];
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'terminal:output', data: chunk }));
     }
@@ -1197,7 +1218,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
                     keepaliveInterval={keepaliveInterval}
                     onExecuteCommand={(cmd) => onExecuteCommand(tab.id, cmd)}
                     onOpenAiWithContext={onOpenAiWithContext}
-                    isMultiplayerActive={Boolean(currentSession)}
+                    isMultiplayerActive={Boolean(multiplayerSessions[tab.id] || tab.isMultiplayerActive || tab.multiplayerRole === 'participant')}
                     isController={isCurrentController}
                     isMultiplayerParticipant={tab.multiplayerRole === 'participant'}
                     typingBadge={currentTypingBadge}

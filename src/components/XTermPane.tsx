@@ -158,6 +158,9 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
   const isControllerRef = useRef(isController);
   isControllerRef.current = isController;
 
+  const isMultiplayerActiveRef = useRef(isMultiplayerActive);
+  isMultiplayerActiveRef.current = isMultiplayerActive;
+
   useEffect(() => {
     const onBackendChange = () => setBackendVersion((v) => v + 1);
     window.addEventListener('xterminal:backend-url-changed', onBackendChange);
@@ -296,8 +299,15 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       helperTextarea.setAttribute('autocomplete', 'off');
       helperTextarea.setAttribute('spellcheck', 'false');
       helperTextarea.setAttribute('enterkeyhint', 'go');
-      // "url" inputmode forces Android Gboard to disable predictive text buffering which causes duplicate characters
       helperTextarea.setAttribute('inputmode', 'url');
+
+      // Stop Android IME from re-emitting buffered composition words (e.g. l -> ls -> lsls)
+      helperTextarea.addEventListener('compositionupdate', (e) => {
+        e.stopPropagation();
+      });
+      helperTextarea.addEventListener('compositionend', () => {
+        helperTextarea.value = '';
+      });
     }
 
     termRef.current = term;
@@ -319,6 +329,14 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
     if (isMultiplayerParticipant) {
       term.writeln('\x1b[32m[xTerminal Multiplayer] Connected to live shared terminal session.\x1b[0m');
       term.writeln('\x1b[90m[Multiplayer] Synchronizing live host stream & terminal buffer...\x1b[0m\r\n');
+      // Trigger snapshot fetch once xterm is mounted in DOM
+      window.dispatchEvent(new CustomEvent('xterminal:request-remote-snapshot'));
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('xterminal:request-remote-snapshot'));
+      }, 300);
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('xterminal:request-remote-snapshot'));
+      }, 1000);
     } else {
       // Establish WebSocket connection to backend SSH / Local PTY bridge
       const wsUrl = getBackendWsUrl('/ws/ssh');
@@ -459,13 +477,17 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
   // Listen for remote input from multiplayer peers and simulated terminal writes
   useEffect(() => {
     const handleRemoteInput = (e: any) => {
+      // CRITICAL: Only accept remote input if multiplayer is active on THIS pane AND matches tabId!
+      // Prevents Windows PowerShell (tab-local) from executing mobile commands meant for Linux (tab-ssh)
+      if (!isMultiplayerActiveRef.current) return;
+      if (e.detail?.tabId && tabIdRef.current && e.detail.tabId !== tabIdRef.current) return;
       if (e.detail?.data && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(e.detail.data);
       }
     };
     const handleTerminalWrite = (e: any) => {
       if (!termRef.current || !e.detail?.data) return;
-      if (e.detail.tabId && tabIdRef.current && e.detail.tabId !== tabIdRef.current) return;
+      if (!isMultiplayerParticipantRef.current && e.detail?.tabId && tabIdRef.current && e.detail.tabId !== tabIdRef.current) return;
       const data = e.detail.data;
       if (typeof data === 'string') {
         termRef.current.write(data);
@@ -477,21 +499,25 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       termRef.current.scrollToBottom();
       updateBadgePosition();
     };
-    const handleSnapshotRequest = () => {
+    const handleSnapshotRequest = (e: any) => {
       if (!termRef.current || isMultiplayerParticipantRef.current) return;
+      if (e?.detail?.tabId && tabIdRef.current && e.detail.tabId !== tabIdRef.current) return;
+      if (!isMultiplayerActiveRef.current) return;
       const term = termRef.current;
       const b = term.buffer.active;
       let text = '\x1b[2J\x1b[H';
+      let hasLines = false;
       for (let i = 0; i < b.length; i++) {
         const line = b.getLine(i);
         if (line) {
           const str = line.translateToString(true);
           if (str.length > 0 || i <= b.cursorY) {
             text += str + '\r\n';
+            if (str.trim().length > 0) hasLines = true;
           }
         }
       }
-      if (text.trim()) {
+      if (hasLines || text.length > 10) {
         onTerminalOutputRef.current?.(text);
       }
     };
@@ -504,7 +530,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       window.removeEventListener('xterminal:terminal-write', handleTerminalWrite);
       window.removeEventListener('xterminal:request-snapshot', handleSnapshotRequest);
     };
-  }, [isMultiplayerParticipant, onTerminalOutput, updateBadgePosition]);
+  }, [updateBadgePosition]);
 
   // Keepalive Heartbeat Timer
   useEffect(() => {

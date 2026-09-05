@@ -1656,8 +1656,12 @@ async function startServer() {
           if (msg.type === "terminal:output") {
             // Output from host terminal
             if (msg.data) {
-              session.snapshotBuffer.push(msg.data);
-              if (session.snapshotBuffer.length > 500) session.snapshotBuffer.shift();
+              if (typeof msg.data === "string" && msg.data.startsWith("\x1b[2J\x1b[H")) {
+                session.snapshotBuffer = [msg.data];
+              } else {
+                session.snapshotBuffer.push(msg.data);
+                if (session.snapshotBuffer.length > 500) session.snapshotBuffer.shift();
+              }
               broadcastToSession(session, { type: "terminal:output", data: msg.data }, ws);
             }
             return;

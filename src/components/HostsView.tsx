@@ -548,12 +548,12 @@ export const HostsView: React.FC<HostsViewProps> = ({
                   <div
                     key={host.id}
                     onClick={() => onConnectHost(host)}
-                    className="p-5 rounded-xl bg-[#111112] border border-[#222224] hover:border-emerald-500/60 hover:bg-[#141416] transition-all flex flex-col justify-between group shadow-sm cursor-pointer"
+                    className="p-5 rounded-xl bg-[#111112] border border-[#222224] hover:border-emerald-500/60 hover:bg-[#141416] transition-all flex flex-col justify-between group shadow-sm cursor-pointer overflow-hidden"
                   >
                     <div>
                       {/* Card Header */}
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-2.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
                           <span
                             className={`w-2.5 h-2.5 rounded-full shrink-0 ${
                               host.status === 'online'
@@ -561,23 +561,23 @@ export const HostsView: React.FC<HostsViewProps> = ({
                                 : 'bg-amber-400 ring-2 ring-amber-400/20'
                             }`}
                           />
-                          <div>
+                          <div className="min-w-0 flex-1">
                             <div className="font-semibold text-white text-sm tracking-tight flex items-center gap-2">
-                              {host.name}
+                              <span className="truncate">{host.name}</span>
                             </div>
-                            <div className="text-xs text-gray-400 font-mono mt-0.5">
+                            <div className="text-xs text-gray-400 font-mono mt-0.5 truncate" title={`${host.username}@${host.hostname}:${host.port}`}>
                               {host.username}@{host.hostname}:{host.port}
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                           {host.connectionType === 'telnet' || host.port === 23 ? (
-                            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-bold">
+                            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-bold shrink-0">
                               TELNET
                             </span>
                           ) : (
-                            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold">
+                            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold shrink-0">
                               SSH
                             </span>
                           )}
@@ -586,7 +586,8 @@ export const HostsView: React.FC<HostsViewProps> = ({
                             const envColor = envDef?.color || '#94a3b8';
                             return (
                               <span
-                                className="text-[10px] uppercase font-mono px-2 py-0.5 rounded font-medium border"
+                                className="text-[10px] uppercase font-mono px-2 py-0.5 rounded font-medium border truncate max-w-[120px] shrink-0"
+                                title={host.environment}
                                 style={{
                                   color: envColor,
                                   borderColor: `${envColor}40`,

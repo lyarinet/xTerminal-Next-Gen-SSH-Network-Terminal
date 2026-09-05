@@ -20,7 +20,13 @@ import {
   Keyboard,
   Sparkles,
   LogIn,
-  Smartphone
+  Smartphone,
+  RefreshCw,
+  Edit3,
+  Layers,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import {
   TerminalTab,
@@ -97,6 +103,20 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
   const typingBadgeTimeoutRef = useRef<Record<string, any>>({});
   const wsSocketsRef = useRef<Record<string, WebSocket>>({});
   const demoSimulatorsRef = useRef<Record<string, MultiplayerDemoSimulator>>({});
+
+  // Right-click and Touch Context Menu for Open Tabs (Desktop & Mobile)
+  const [tabContextMenu, setTabContextMenu] = useState<{
+    isOpen: boolean;
+    x: number;
+    y: number;
+    tab: TerminalTab;
+  } | null>(null);
+  const [renameModalTab, setRenameModalTab] = useState<TerminalTab | null>(null);
+  const [renameTitleInput, setRenameTitleInput] = useState('');
+  const longPressTimerRef = useRef<any>(null);
+  const touchStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [allTabsDropdownOpen, setAllTabsDropdownOpen] = useState<boolean>(false);
+  const tabBarRef = useRef<HTMLDivElement>(null);
 
   const currentUserId = useRef(
     (() => {
@@ -223,6 +243,23 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
       window.removeEventListener('xterminal:request-remote-snapshot', handleRequestRemoteSnapshot);
       window.removeEventListener('xterminal:profile-updated', handleProfileUpdated);
       window.removeEventListener('xterminal:open-profile', handleOpenProfile);
+    };
+  }, []);
+
+  // Close tab context menu on window click or Escape key
+  useEffect(() => {
+    const handleGlobalClick = () => setTabContextMenu(null);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setTabContextMenu(null);
+        setRenameModalTab(null);
+      }
+    };
+    window.addEventListener('click', handleGlobalClick);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('click', handleGlobalClick);
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
 
@@ -655,6 +692,133 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
     }
   };
 
+  // Reconnect active tab session (restores SSH / PTY / Multiplayer connection right where it timed out)
+  const handleReconnectTab = (tabId: string) => {
+    const targetTab = tabs.find((t) => t.id === tabId);
+    if (!targetTab) return;
+
+    // Check if this is a multiplayer session tab
+    const sess =
+      multiplayerSessions[tabId] ||
+      Object.values(multiplayerSessions).find((s) => s.tabId === tabId || s.id === tabId);
+
+    if (targetTab.multiplayerSessionId || sess) {
+      const sessionId = targetTab.multiplayerSessionId || sess?.id;
+      if (sessionId) {
+        connectMultiplayerWs(
+          sessionId,
+          tabId,
+          targetTab.multiplayerRole || 'participant',
+          undefined,
+          currentUserName,
+          currentUserAvatar
+        );
+        window.dispatchEvent(
+          new CustomEvent('xterminal:terminal-write', {
+            detail: {
+              tabId,
+              data: `\r\n\x1b[33;1m[Multiplayer] 🔄 Reconnecting to session ${sessionId}...\x1b[0m\r\n`,
+            },
+          })
+        );
+        return;
+      }
+    }
+
+    // Standard SSH host or local PTY station: notify XTermPane to reconnect socket
+    window.dispatchEvent(
+      new CustomEvent('xterminal:reconnect-tab', {
+        detail: { tabId },
+      })
+    );
+  };
+
+  // Duplicate an open terminal tab with identical host configuration
+  const handleDuplicateTab = (tab: TerminalTab) => {
+    const tabHost = tab.host || hosts.find((h) => h.id === tab.hostId);
+    onNewTab(tabHost, {
+      title: `${tabHost?.name || tab.title} (Copy)`,
+      multiplayerRole: tab.multiplayerRole,
+      multiplayerSessionId: tab.multiplayerSessionId,
+    });
+  };
+
+  // Clear terminal viewport buffer for a tab
+  const handleClearTab = (tabId: string) => {
+    window.dispatchEvent(
+      new CustomEvent('xterminal:terminal-write', {
+        detail: {
+          tabId,
+          data: '\x1b[2J\x1b[H',
+        },
+      })
+    );
+  };
+
+  // Start renaming a tab
+  const handleStartRename = (tab: TerminalTab) => {
+    setRenameModalTab(tab);
+    setRenameTitleInput(tab.host?.name || tab.title);
+  };
+
+  // Apply tab title change
+  const handleApplyRename = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (renameModalTab && renameTitleInput.trim()) {
+      renameModalTab.title = renameTitleInput.trim();
+      setRenameModalTab(null);
+    }
+  };
+
+  // Right-click desktop context menu handler
+  const handleTabContextMenu = (e: React.MouseEvent, tab: TerminalTab) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const x = Math.min(e.clientX, window.innerWidth - 240);
+    const y = Math.min(e.clientY, window.innerHeight - 260);
+    setTabContextMenu({ isOpen: true, x, y, tab });
+  };
+
+  // Mobile long-press touch handlers
+  const handleTabTouchStart = (e: React.TouchEvent, tab: TerminalTab) => {
+    const touch = e.touches[0];
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = setTimeout(() => {
+      const x = Math.min(touch.clientX, window.innerWidth - 240);
+      const y = Math.min(touch.clientY, window.innerHeight - 260);
+      setTabContextMenu({ isOpen: true, x, y, tab });
+    }, 450);
+  };
+
+  const handleTabTouchMove = (e: React.TouchEvent) => {
+    if (!longPressTimerRef.current) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
+    const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
+    if (dx > 10 || dy > 10) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handleTabTouchEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  // Scroll tab bar horizontally
+  const handleScrollTabs = (direction: 'left' | 'right') => {
+    if (tabBarRef.current) {
+      tabBarRef.current.scrollBy({
+        left: direction === 'left' ? -200 : 200,
+        behavior: 'smooth',
+      });
+    }
+  };
+
   // Grant Control to participant
   const handleGrantControl = (targetUserId: string) => {
     const socket = wsSocketsRef.current[activeTabId];
@@ -935,111 +1099,271 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0A0A0B] text-[#E0E0E0] overflow-hidden font-mono select-text relative">
       {/* Tabs Header */}
-      <div className="flex items-center justify-between bg-[#111112] border-b border-[#222224] px-2 pt-2 gap-2 shrink-0">
-        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none flex-1">
-          {tabs.map((tab) => {
-            const isSelected = tab.id === activeTabId;
-            const tabHost = tab.host || hosts.find((h) => h.id === tab.hostId);
-            const tabSession = multiplayerSessions[tab.id];
-
-            return (
-              <div
-                key={tab.id}
-                onClick={() => onSelectTab(tab.id)}
-                className={`group flex items-center gap-2 px-3 py-1.5 rounded-t-md text-xs font-medium cursor-pointer transition-all border-t border-x ${
-                  isSelected
-                    ? 'bg-[#0A0A0B] text-emerald-400 border-[#222224] font-semibold'
-                    : 'bg-[#1C1C1E] text-gray-400 border-transparent hover:bg-[#252528] hover:text-white'
-                }`}
-              >
-                <span
-                  className={`w-2 h-2 rounded-full shrink-0 ${
-                    tab.connectionState === 'connected'
-                      ? 'bg-emerald-500'
-                      : tab.connectionState === 'connecting'
-                      ? 'bg-amber-400 animate-pulse'
-                      : 'bg-red-400'
-                  }`}
-                />
-                <span className="truncate max-w-[130px] font-sans">
-                  {tabHost?.name || tab.title}
-                </span>
-
-                {/* Tab Multiplayer Participant Stack (Exact match from reference screenshot media_1788524562035.png) */}
-                {tabSession && tabSession.participants.length > 0 && (
-                  <div className="flex items-center -space-x-1.5 ml-1 select-none">
-                    {tabSession.participants.slice(0, 3).map((p) => (
-                      <img
-                        key={p.id}
-                        src={p.avatar}
-                        alt={p.name}
-                        className="w-4 h-4 rounded-full border border-[#111112] object-cover"
-                        title={`${p.name} (${p.role})`}
-                      />
-                    ))}
-                    {tabSession.participants.length > 3 && (
-                      <span className="text-[9px] text-gray-400 pl-1 font-mono">
-                        +{tabSession.participants.length - 3}
-                      </span>
-                    )}
-                    <span
-                      className="w-3.5 h-3.5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center ml-1 border border-emerald-500/30"
-                      title="Remote Control Active"
-                    >
-                      <Keyboard className="w-2.5 h-2.5 text-emerald-400" />
-                    </span>
-                  </div>
-                )}
-
-                <span className="text-[10px] text-gray-500 font-mono">
-                  {tab.latencyMs > 0 ? `${tab.latencyMs}ms` : ''}
-                </span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCloseTab(tab.id);
-                  }}
-                  className="p-0.5 rounded text-gray-500 hover:text-gray-200 hover:bg-[#252528] opacity-60 group-hover:opacity-100"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            );
-          })}
-
-          {/* New Tab Button */}
-          <div className="relative">
+      <div className="flex items-center justify-between bg-[#111112] border-b border-[#222224] px-2 pt-2 gap-2 shrink-0 select-none">
+        {/* Open Tabs Submenu Dropdown & Scrollable Tab Strip */}
+        <div className="flex items-center gap-1 min-w-0 flex-1">
+          {/* Tabs Submenu Dropdown Button */}
+          <div className="relative shrink-0">
             <button
-              onClick={() => setNewTabHostSelectorOpen(!newTabHostSelectorOpen)}
-              className="p-1.5 rounded-md hover:bg-[#1C1C1E] text-gray-400 hover:text-white transition-colors"
-              title="Open New Terminal Tab"
+              onClick={() => setAllTabsDropdownOpen(!allTabsDropdownOpen)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-t-md text-xs font-semibold border-t border-x transition-all ${
+                allTabsDropdownOpen
+                  ? 'bg-[#1C1C1E] text-emerald-400 border-[#2B2B30]'
+                  : 'bg-[#141416] hover:bg-[#1C1C1E] text-gray-300 hover:text-white border-[#222224]'
+              }`}
+              title="Open Tabs Submenu (View and switch between all active tabs)"
             >
-              <Plus className="w-4 h-4" />
+              <Layers className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="font-sans font-bold">Tabs ({tabs.length})</span>
+              <ChevronDown className={`w-3 h-3 transition-transform duration-150 ${allTabsDropdownOpen ? 'rotate-180 text-emerald-400' : 'text-gray-400'}`} />
             </button>
 
-            {newTabHostSelectorOpen && (
-              <div className="absolute left-0 top-full mt-1 w-56 bg-[#111112] border border-[#222224] rounded-lg shadow-xl py-1 z-30 font-sans text-xs">
-                <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                  Connect to Server
-                </div>
-                {hosts.map((host) => (
+            {/* Dropdown Menu listing all open tabs */}
+            {allTabsDropdownOpen && (
+              <div
+                className="absolute left-0 top-full mt-1 w-80 bg-[#141416] border border-[#27272A] rounded-xl shadow-2xl py-1.5 z-40 font-sans text-xs animate-in fade-in zoom-in-95 duration-150"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-3 py-2 border-b border-[#222226] flex items-center justify-between text-gray-400">
+                  <span className="font-semibold text-[11px] uppercase tracking-wider text-gray-300 flex items-center gap-1.5">
+                    <Layers className="w-3 h-3 text-emerald-400" />
+                    All Open Tabs ({tabs.length})
+                  </span>
                   <button
-                    key={host.id}
                     onClick={() => {
-                      onNewTab(host);
-                      setNewTabHostSelectorOpen(false);
+                      setNewTabHostSelectorOpen(true);
+                      setAllTabsDropdownOpen(false);
                     }}
-                    className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-[#1C1C1E] text-gray-300 hover:text-white"
+                    className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-semibold hover:underline"
                   >
-                    <div className="flex items-center gap-2">
-                      <Server className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>{host.name}</span>
-                    </div>
-                    <span className="text-[10px] text-gray-500 font-mono">{host.hostname}</span>
+                    <Plus className="w-3 h-3" />
+                    <span>New Tab</span>
                   </button>
-                ))}
+                </div>
+
+                <div className="max-h-80 overflow-y-auto py-1 divide-y divide-[#1C1C1E]/50">
+                  {tabs.map((tab) => {
+                    const isSelected = tab.id === activeTabId;
+                    const tabHost = tab.host || hosts.find((h) => h.id === tab.hostId);
+                    return (
+                      <div
+                        key={tab.id}
+                        onClick={() => {
+                          onSelectTab(tab.id);
+                          setAllTabsDropdownOpen(false);
+                        }}
+                        className={`px-3 py-2.5 flex items-center justify-between gap-2.5 cursor-pointer transition-colors ${
+                          isSelected
+                            ? 'bg-emerald-500/15 text-white font-medium border-l-2 border-emerald-400'
+                            : 'text-gray-300 hover:bg-[#1E1E22] hover:text-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <span
+                            className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                              tab.connectionState === 'connected'
+                                ? 'bg-emerald-500 ring-2 ring-emerald-500/20'
+                                : tab.connectionState === 'connecting'
+                                ? 'bg-amber-400 animate-pulse ring-2 ring-amber-400/20'
+                                : 'bg-red-400 ring-2 ring-red-400/20'
+                            }`}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="truncate font-sans font-semibold text-xs">
+                                {tabHost?.name || tab.title}
+                              </span>
+                              {isSelected && (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/25 text-emerald-400 font-mono font-bold">
+                                  CURRENT
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-gray-400 font-mono truncate mt-0.5">
+                              {tabHost ? `${tabHost.username}@${tabHost.hostname}:${tabHost.port || (tabHost.connectionType === 'telnet' ? 23 : 22)}` : 'Local Terminal Station'}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReconnectTab(tab.id);
+                              setAllTabsDropdownOpen(false);
+                            }}
+                            className="p-1.5 rounded text-gray-400 hover:text-emerald-400 hover:bg-[#252528] transition-colors"
+                            title="Reconnect Session"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onCloseTab(tab.id);
+                              if (tabs.length === 1) setAllTabsDropdownOpen(false);
+                            }}
+                            className="p-1.5 rounded text-gray-400 hover:text-red-400 hover:bg-[#252528] transition-colors"
+                            title="Close Tab"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
+          </div>
+
+          {/* Left / Right Scroll buttons if tabs overflow */}
+          <div className="flex items-center gap-0.5 shrink-0">
+            <button
+              onClick={() => handleScrollTabs('left')}
+              className="p-1 rounded text-gray-500 hover:text-white hover:bg-[#1C1C1E] transition-colors"
+              title="Scroll Tabs Left"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => handleScrollTabs('right')}
+              className="p-1 rounded text-gray-500 hover:text-white hover:bg-[#1C1C1E] transition-colors"
+              title="Scroll Tabs Right"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Horizontal Scrollable Tabs Container */}
+          <div
+            ref={tabBarRef}
+            className="flex items-center gap-1 overflow-x-auto scrollbar-none flex-1 min-w-0"
+          >
+            {tabs.map((tab) => {
+              const isSelected = tab.id === activeTabId;
+              const tabHost = tab.host || hosts.find((h) => h.id === tab.hostId);
+              const tabSession = multiplayerSessions[tab.id];
+
+              return (
+                <div
+                  key={tab.id}
+                  onClick={() => onSelectTab(tab.id)}
+                  onContextMenu={(e) => handleTabContextMenu(e, tab)}
+                  onTouchStart={(e) => handleTabTouchStart(e, tab)}
+                  onTouchMove={handleTabTouchMove}
+                  onTouchEnd={handleTabTouchEnd}
+                  className={`group flex items-center gap-1.5 px-3 py-1.5 rounded-t-md text-xs font-medium cursor-pointer transition-all border-t border-x select-none shrink-0 ${
+                    isSelected
+                      ? 'bg-[#0A0A0B] text-emerald-400 border-[#222224] font-semibold'
+                      : 'bg-[#1C1C1E] text-gray-400 border-transparent hover:bg-[#252528] hover:text-white'
+                  }`}
+                  title="Right-click (or long press on mobile) for options: Reconnect, Duplicate, Rename, Clear"
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full shrink-0 ${
+                      tab.connectionState === 'connected'
+                        ? 'bg-emerald-500'
+                        : tab.connectionState === 'connecting'
+                        ? 'bg-amber-400 animate-pulse'
+                        : 'bg-red-400'
+                    }`}
+                  />
+                  <span className="truncate max-w-[130px] font-sans">
+                    {tabHost?.name || tab.title}
+                  </span>
+
+                  {/* Tab Multiplayer Participant Stack */}
+                  {tabSession && tabSession.participants.length > 0 && (
+                    <div className="flex items-center -space-x-1.5 ml-1 select-none">
+                      {tabSession.participants.slice(0, 3).map((p) => (
+                        <img
+                          key={p.id}
+                          src={p.avatar}
+                          alt={p.name}
+                          className="w-4 h-4 rounded-full border border-[#111112] object-cover"
+                          title={`${p.name} (${p.role})`}
+                        />
+                      ))}
+                      {tabSession.participants.length > 3 && (
+                        <span className="text-[9px] text-gray-400 pl-1 font-mono">
+                          +{tabSession.participants.length - 3}
+                        </span>
+                      )}
+                      <span
+                        className="w-3.5 h-3.5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center ml-1 border border-emerald-500/30"
+                        title="Remote Control Active"
+                      >
+                        <Keyboard className="w-2.5 h-2.5 text-emerald-400" />
+                      </span>
+                    </div>
+                  )}
+
+                  <span className="text-[10px] text-gray-500 font-mono">
+                    {tab.latencyMs > 0 ? `${tab.latencyMs}ms` : ''}
+                  </span>
+
+                  {/* Reconnect Tab Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleReconnectTab(tab.id);
+                    }}
+                    className="p-1 rounded text-gray-400 hover:text-emerald-400 hover:bg-[#252528] opacity-70 group-hover:opacity-100 transition-colors"
+                    title="Reconnect Session (Restore connection)"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                  </button>
+
+                  {/* Close Tab Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCloseTab(tab.id);
+                    }}
+                    className="p-1 rounded text-gray-500 hover:text-gray-200 hover:bg-[#252528] opacity-60 group-hover:opacity-100 transition-colors"
+                    title="Close Tab"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })}
+
+            {/* New Tab Button */}
+            <div className="relative shrink-0">
+              <button
+                onClick={() => setNewTabHostSelectorOpen(!newTabHostSelectorOpen)}
+                className="p-1.5 rounded-md hover:bg-[#1C1C1E] text-gray-400 hover:text-white transition-colors"
+                title="Open New Terminal Tab"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+
+              {newTabHostSelectorOpen && (
+                <div className="absolute left-0 top-full mt-1 w-56 bg-[#111112] border border-[#222224] rounded-lg shadow-xl py-1 z-30 font-sans text-xs">
+                  <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                    Connect to Server
+                  </div>
+                  {hosts.map((host) => (
+                    <button
+                      key={host.id}
+                      onClick={() => {
+                        onNewTab(host);
+                        setNewTabHostSelectorOpen(false);
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-[#1C1C1E] text-gray-300 hover:text-white"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Server className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>{host.name}</span>
+                      </div>
+                      <span className="text-[10px] text-gray-500 font-mono">{host.hostname}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1072,7 +1396,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
             title="Start or Share Multiplayer Session"
           >
             <Users className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">
+            <span className="hidden lg:inline">
               {currentSession ? `Multiplayer (${currentSession.id})` : 'Multiplayer'}
             </span>
           </button>
@@ -1104,7 +1428,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
             title="Configure PC / Server IP Address for Android phone on Wi-Fi"
           >
             <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">
+            <span className="hidden xl:inline">
               {getStoredBackendUrl() ? 'Bridge Set' : 'Mobile Bridge'}
             </span>
           </button>
@@ -1117,7 +1441,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
               title="Change Terminal Color Theme"
             >
               <Palette className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">Theme</span>
+              <span className="hidden xl:inline">Theme</span>
             </button>
 
             {themeDropdownOpen && (
@@ -1155,7 +1479,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
               title="SSH Keepalive Interval"
             >
               <Wifi className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="hidden sm:inline">{keepaliveInterval}s</span>
+              <span className="hidden xl:inline">{keepaliveInterval}s</span>
             </button>
 
             {keepaliveDropdownOpen && (
@@ -1188,7 +1512,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
               className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#1C1C1E] hover:bg-[#252528] text-gray-300 font-sans text-xs border border-[#222224] transition-colors"
             >
               <Zap className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">Snippets</span>
+              <span className="hidden xl:inline">Snippets</span>
             </button>
 
             {snippetDropdownOpen && (
@@ -1239,7 +1563,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
             title="Ask AI Copilot to diagnose terminal output"
           >
             <Bot className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">AI Copilot</span>
+            <span className="hidden xl:inline">AI Copilot</span>
           </button>
 
           {/* Split Panes */}
@@ -1436,6 +1760,144 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
           currentUserAvatarRef.current = avatar;
         }}
       />
+
+      {/* Tab Context Menu (Desktop Right-Click & Mobile Long-Press) */}
+      {tabContextMenu && tabContextMenu.isOpen && (
+        <div
+          className="fixed z-50 bg-[#141416]/95 backdrop-blur-md border border-[#27272A] rounded-xl shadow-2xl py-1.5 min-w-[220px] font-sans text-xs animate-in fade-in zoom-in-95 duration-100 select-none"
+          style={{ top: tabContextMenu.y, left: tabContextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-1.5 border-b border-[#222226] flex items-center justify-between text-gray-400">
+            <span className="font-semibold text-[11px] uppercase tracking-wider text-gray-400">
+              Tab Actions
+            </span>
+            <span className="text-[10px] text-emerald-400 font-mono truncate max-w-[110px]">
+              {tabContextMenu.tab.title}
+            </span>
+          </div>
+
+          {/* Reconnect Session */}
+          <button
+            onClick={() => {
+              handleReconnectTab(tabContextMenu.tab.id);
+              setTabContextMenu(null);
+            }}
+            className="w-full px-3 py-2 text-left flex items-center gap-2.5 text-emerald-400 hover:bg-emerald-500/15 hover:text-emerald-300 font-medium transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+            <div>
+              <div className="font-semibold">Reconnect Session</div>
+              <div className="text-[10px] text-gray-400 font-normal">Resume connection after timeout</div>
+            </div>
+          </button>
+
+          {/* Duplicate Tab */}
+          <button
+            onClick={() => {
+              handleDuplicateTab(tabContextMenu.tab);
+              setTabContextMenu(null);
+            }}
+            className="w-full px-3 py-2 text-left flex items-center gap-2.5 text-gray-300 hover:bg-[#1E1E22] hover:text-white transition-colors"
+          >
+            <Copy className="w-3.5 h-3.5 text-blue-400" />
+            <div>
+              <div className="font-semibold">Duplicate Tab</div>
+              <div className="text-[10px] text-gray-400 font-normal">Open another tab with same host</div>
+            </div>
+          </button>
+
+          {/* Rename Tab */}
+          <button
+            onClick={() => {
+              handleStartRename(tabContextMenu.tab);
+              setTabContextMenu(null);
+            }}
+            className="w-full px-3 py-2 text-left flex items-center gap-2.5 text-gray-300 hover:bg-[#1E1E22] hover:text-white transition-colors"
+          >
+            <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+            <div>
+              <div className="font-semibold">Rename Tab</div>
+              <div className="text-[10px] text-gray-400 font-normal">Change tab title</div>
+            </div>
+          </button>
+
+          {/* Clear Buffer */}
+          <button
+            onClick={() => {
+              handleClearTab(tabContextMenu.tab.id);
+              setTabContextMenu(null);
+            }}
+            className="w-full px-3 py-2 text-left flex items-center gap-2.5 text-gray-300 hover:bg-[#1E1E22] hover:text-white transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-gray-400" />
+            <div>
+              <div className="font-semibold">Clear Viewport</div>
+              <div className="text-[10px] text-gray-400 font-normal">Reset terminal screen buffer</div>
+            </div>
+          </button>
+
+          <div className="my-1 border-t border-[#222226]" />
+
+          {/* Close Tab */}
+          <button
+            onClick={() => {
+              onCloseTab(tabContextMenu.tab.id);
+              setTabContextMenu(null);
+            }}
+            className="w-full px-3 py-2 text-left flex items-center gap-2.5 text-red-400 hover:bg-red-500/15 hover:text-red-300 transition-colors"
+          >
+            <X className="w-3.5 h-3.5 text-red-400" />
+            <div className="font-semibold">Close Tab</div>
+          </button>
+        </div>
+      )}
+
+      {/* Rename Tab Modal */}
+      {renameModalTab && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-3 font-sans"
+          onClick={() => setRenameModalTab(null)}
+        >
+          <div
+            className="w-full max-w-sm bg-[#141416] border border-[#27272A] rounded-2xl shadow-2xl p-5 animate-in fade-in zoom-in duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-bold text-white mb-1 flex items-center gap-2">
+              <Edit3 className="w-4 h-4 text-emerald-400" />
+              Rename Tab
+            </h3>
+            <p className="text-[11px] text-gray-400 mb-3">
+              Enter a new label for this terminal tab
+            </p>
+            <form onSubmit={handleApplyRename} className="space-y-3">
+              <input
+                type="text"
+                autoFocus
+                value={renameTitleInput}
+                onChange={(e) => setRenameTitleInput(e.target.value)}
+                placeholder="e.g. Production Web, DB Worker"
+                className="w-full bg-[#1C1C1E] border border-[#2B2B30] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 transition-colors font-mono"
+              />
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setRenameModalTab(null)}
+                  className="px-3 py-1.5 text-xs text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 text-xs bg-emerald-500 hover:bg-emerald-400 text-black font-semibold rounded-lg shadow-sm transition-colors"
+                >
+                  Save
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

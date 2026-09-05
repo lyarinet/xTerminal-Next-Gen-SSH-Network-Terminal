@@ -326,28 +326,50 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       }
     });
 
-    if (isMultiplayerParticipant) {
-      term.writeln('\x1b[36m[xTerminal Multiplayer] Connecting to live shared session...\x1b[0m');
-      term.writeln('\x1b[90m[Multiplayer] Waiting for host stream synchronization...\x1b[0m\r\n');
-      // Trigger snapshot fetch once xterm is mounted in DOM
-      window.dispatchEvent(new CustomEvent('xterminal:request-remote-snapshot'));
-      setTimeout(() => {
+    const connectTransport = (isReconnect = false) => {
+      if (isMultiplayerParticipantRef.current) {
+        if (isReconnect) {
+          term.writeln('\r\n\x1b[33;1m[xTerminal] 🔄 Re-synchronizing live shared session...\x1b[0m\r\n');
+        } else {
+          term.writeln('\x1b[36m[xTerminal Multiplayer] Connecting to live shared session...\x1b[0m');
+          term.writeln('\x1b[90m[Multiplayer] Waiting for host stream synchronization...\x1b[0m\r\n');
+        }
         window.dispatchEvent(new CustomEvent('xterminal:request-remote-snapshot'));
-      }, 300);
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('xterminal:request-remote-snapshot'));
-      }, 1000);
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('xterminal:request-remote-snapshot'));
-      }, 2500);
-    } else {
-      // Establish WebSocket connection to backend SSH / Local PTY bridge
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('xterminal:request-remote-snapshot'));
+        }, 300);
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('xterminal:request-remote-snapshot'));
+        }, 1000);
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('xterminal:request-remote-snapshot'));
+        }, 2500);
+        return;
+      }
+
+      // Close previous socket cleanly if exists
+      if (wsRef.current) {
+        try {
+          wsRef.current.onclose = null;
+          wsRef.current.onerror = null;
+          wsRef.current.close();
+        } catch {}
+        wsRef.current = null;
+      }
+
+      if (isReconnect) {
+        term.writeln(`\r\n\x1b[33;1m[xTerminal] 🔄 Reconnecting session (${new Date().toLocaleTimeString()})...\x1b[0m\r\n`);
+      }
+
       const wsUrl = getBackendWsUrl('/ws/ssh');
       const socket = new WebSocket(wsUrl);
       wsRef.current = socket;
       socket.binaryType = 'arraybuffer';
 
       socket.onopen = () => {
+        if (isReconnect) {
+          term.writeln('\x1b[32;1m✔ Reconnected successfully. Resuming session right where it left off.\x1b[0m\r\n');
+        }
         if (host && host.hostname) {
           socket.send(
             JSON.stringify({
@@ -413,9 +435,19 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       };
 
       socket.onclose = () => {
-        term.writeln('\r\n\x1b[90m[xTerminal] Session terminated.\x1b[0m\r\n');
+        term.writeln('\r\n\x1b[90m[xTerminal] Session disconnected.\x1b[0m \x1b[33m(Right-click tab or tap 🔄 Reconnect to restore)\x1b[0m\r\n');
       };
-    }
+    };
+
+    // Initial connection
+    connectTransport(false);
+
+    // Event listener for tab reconnect event
+    const handleReconnectEvent = (e: any) => {
+      if (e?.detail?.tabId && tabIdRef.current && e.detail.tabId !== tabIdRef.current) return;
+      connectTransport(true);
+    };
+    window.addEventListener('xterminal:reconnect-tab', handleReconnectEvent);
 
     // User typing into xterm
     const onDataDisposable = term.onData((data) => {
@@ -454,6 +486,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
     resizeObserver.observe(containerRef.current);
 
     return () => {
+      window.removeEventListener('xterminal:reconnect-tab', handleReconnectEvent);
       onDataDisposable.dispose();
       onResizeDisposable.dispose();
       resizeObserver.disconnect();
@@ -466,7 +499,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       fitAddonRef.current = null;
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     };
-  }, [host?.id, host?.hostname, host?.username, host?.port, host?.password, backendVersion, isMultiplayerParticipant]);
+  }, [host?.id, host?.hostname, host?.username, host?.port, host?.password, backendVersion, isMultiplayerParticipant, updateBadgePosition]);
 
   // Update theme dynamically
   useEffect(() => {

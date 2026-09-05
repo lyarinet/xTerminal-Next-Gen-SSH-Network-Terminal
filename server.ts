@@ -1420,10 +1420,25 @@ app.delete("/api/multiplayer/sessions/:id", (req, res) => {
 });
 
 async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
+  const hasDist = fs.existsSync(path.join(__dirname, "index.html")) || fs.existsSync(path.join(process.cwd(), "dist", "index.html"));
+  const isDev = process.env.NODE_ENV === "development" || (!hasDist && process.env.NODE_ENV !== "production");
+
+  if (isDev) {
     const { createServer } = await import("vite");
     const vite = await createServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        watch: {
+          ignored: [
+            '**/release/**',
+            '**/android/**',
+            '**/dist/**',
+            '**/.git/**',
+            '**/*.tmp/**',
+            '**/*.tmp',
+          ],
+        },
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);

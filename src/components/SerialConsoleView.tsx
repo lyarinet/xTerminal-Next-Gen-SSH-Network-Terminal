@@ -26,6 +26,7 @@ import {
   Globe,
   Shield,
   X,
+  RefreshCw,
 } from 'lucide-react';
 import { SerialPortConfig } from '../types';
 import {
@@ -239,7 +240,43 @@ export const SerialConsoleView: React.FC = () => {
   const [isRemoteBridged, setIsRemoteBridged] = useState<boolean>(false);
   const [remoteClientInfo, setRemoteClientInfo] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
+  const [remoteHostIp, setRemoteHostIp] = useState<string>(() => {
+    return localStorage.getItem('nexusterm_serial_remote_ip') || '';
+  });
+  const [remoteHostPort, setRemoteHostPort] = useState<number>(() => {
+    const saved = localStorage.getItem('nexusterm_serial_remote_port');
+    return saved ? Number(saved) : 3000;
+  });
+  const [detectedHostIps, setDetectedHostIps] = useState<Array<{ iface: string; address: string }>>([]);
   const remoteBridgeWsRef = useRef<WebSocket | null>(null);
+
+  // Sync Remote Host IP from Settings & Config
+  useEffect(() => {
+    const savedIp = localStorage.getItem('nexusterm_serial_remote_ip');
+    if (savedIp) {
+      setRemoteHostIp(savedIp);
+    }
+    const savedPort = localStorage.getItem('nexusterm_serial_remote_port');
+    if (savedPort) {
+      setRemoteHostPort(Number(savedPort));
+    }
+    fetch('/api/system/network-info')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.addresses && Array.isArray(data.addresses)) {
+          setDetectedHostIps(data.addresses);
+          if (!savedIp) {
+            const primary = data.primaryIp || data.addresses[0]?.address || '127.0.0.1';
+            setRemoteHostIp(primary);
+            localStorage.setItem('nexusterm_serial_remote_ip', primary);
+          }
+        }
+        if (data.port) {
+          setRemoteHostPort(data.port);
+        }
+      })
+      .catch(() => {});
+  }, [showRemoteModal]);
 
   // Simulated GPIO state
   const gpioPinsRef = useRef<Record<number, boolean>>({
@@ -865,7 +902,11 @@ export const SerialConsoleView: React.FC = () => {
         return;
       }
 
-      const shareUrl = `${window.location.origin}${data.sharePath}`;
+      const targetHost = remoteHostIp || localStorage.getItem('nexusterm_serial_remote_ip') || window.location.hostname;
+      const targetPort = remoteHostPort || localStorage.getItem('nexusterm_serial_remote_port') || window.location.port || '3000';
+      const portPart = targetPort ? `:${targetPort}` : '';
+      const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+      const shareUrl = `${protocol}//${targetHost}${portPart}${data.sharePath}`;
       setRemoteShareUrl(shareUrl);
       setRemoteSessionId(data.session.id);
 
@@ -1586,6 +1627,79 @@ export const SerialConsoleView: React.FC = () => {
               {!remoteSessionId ? (
                 /* Configuration Form */
                 <div className="space-y-3">
+                  {/* Assigned Host IP from Settings & Config */}
+                  <div className="p-3 rounded-lg bg-[#18191D] border border-[#24252A] space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-semibold text-gray-200 flex items-center gap-1.5">
+                        <Globe className="w-3.5 h-3.5 text-sky-400" />
+                        Host IP for Remote URL:
+                      </label>
+                      <span className="text-[10px] text-gray-400 font-mono">
+                        (Synced with Settings &amp; Config)
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {detectedHostIps.length > 0 ? (
+                        <select
+                          value={remoteHostIp}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setRemoteHostIp(val);
+                            localStorage.setItem('nexusterm_serial_remote_ip', val);
+                          }}
+                          className="flex-1 px-3 py-1.5 rounded-md bg-[#121316] border border-[#2A2B30] text-emerald-400 font-mono text-xs focus:outline-hidden focus:border-sky-500"
+                        >
+                          {detectedHostIps.map((net) => (
+                            <option key={net.address} value={net.address}>
+                              {net.address} ({net.iface})
+                            </option>
+                          ))}
+                          <option value="127.0.0.1">127.0.0.1 (Localhost)</option>
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={remoteHostIp}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setRemoteHostIp(val);
+                            localStorage.setItem('nexusterm_serial_remote_ip', val);
+                          }}
+                          placeholder="e.g. 192.168.1.38"
+                          className="flex-1 px-3 py-1.5 rounded-md bg-[#121316] border border-[#2A2B30] text-emerald-400 font-mono text-xs focus:outline-hidden focus:border-sky-500"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          fetch('/api/system/network-info')
+                            .then((r) => r.json())
+                            .then((d) => {
+                              if (d.addresses) setDetectedHostIps(d.addresses);
+                              if (d.primaryIp && !remoteHostIp) {
+                                setRemoteHostIp(d.primaryIp);
+                                localStorage.setItem('nexusterm_serial_remote_ip', d.primaryIp);
+                              }
+                            })
+                            .catch(() => {});
+                        }}
+                        className="px-2.5 py-1.5 rounded-md bg-[#1C1C20] hover:bg-[#25252A] text-sky-400 border border-sky-500/30 text-xs font-semibold shrink-0 cursor-pointer flex items-center gap-1"
+                        title="Re-detect PC IPs"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Detect</span>
+                      </button>
+                    </div>
+
+                    <div className="text-[11px] text-gray-400 flex items-center justify-between">
+                      <span>Target Base:</span>
+                      <span className="text-sky-300 font-mono font-semibold">
+                        http://{remoteHostIp || '127.0.0.1'}:{remoteHostPort}
+                      </span>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-[11px] font-medium text-gray-300 mb-1">
                       Console Baud Rate (Switch / Router default)

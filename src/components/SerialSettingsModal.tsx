@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Sliders,
@@ -18,7 +18,10 @@ import {
   Bell,
   Eye,
   Layers,
-  Palette
+  Palette,
+  Globe,
+  RefreshCw,
+  Activity,
 } from 'lucide-react';
 import { SerialPortConfig } from '../types';
 
@@ -203,10 +206,50 @@ export const SerialSettingsModal: React.FC<SerialSettingsModalProps> = ({
   onSaveSettings,
   themes,
 }) => {
-  const [activeTab, setActiveTab] = useState<'terminal' | 'timing' | 'presets' | 'macros' | 'backup'>('terminal');
+  const [activeTab, setActiveTab] = useState<'terminal' | 'timing' | 'presets' | 'macros' | 'remote' | 'backup'>('terminal');
   const [tempSettings, setTempSettings] = useState<SerialTerminalSettings>(settings);
   const [tempConfig, setTempConfig] = useState<SerialPortConfig>(config);
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  // Remote Bridge Host IP state
+  const [detectedIps, setDetectedIps] = useState<Array<{ iface: string; address: string }>>([]);
+  const [assignedIp, setAssignedIp] = useState<string>(() => {
+    return localStorage.getItem('nexusterm_serial_remote_ip') || '';
+  });
+  const [assignedPort, setAssignedPort] = useState<number>(() => {
+    const saved = localStorage.getItem('nexusterm_serial_remote_port');
+    return saved ? Number(saved) : 3000;
+  });
+  const [isDetectingIp, setIsDetectingIp] = useState(false);
+  const [customIp, setCustomIp] = useState('');
+
+  const handleDetectIps = () => {
+    setIsDetectingIp(true);
+    fetch('/api/system/network-info')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.addresses) {
+          setDetectedIps(data.addresses);
+          if (!assignedIp) {
+            const p = data.primaryIp || data.addresses[0]?.address || '127.0.0.1';
+            setAssignedIp(p);
+            localStorage.setItem('nexusterm_serial_remote_ip', p);
+          }
+        }
+        if (data.port) {
+          setAssignedPort(data.port);
+          localStorage.setItem('nexusterm_serial_remote_port', String(data.port));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setIsDetectingIp(false));
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      handleDetectIps();
+    }
+  }, [isOpen]);
 
   // New macro form
   const [newMacroLabel, setNewMacroLabel] = useState('');
@@ -216,6 +259,10 @@ export const SerialSettingsModal: React.FC<SerialSettingsModalProps> = ({
   if (!isOpen) return null;
 
   const handleSave = () => {
+    if (assignedIp) {
+      localStorage.setItem('nexusterm_serial_remote_ip', assignedIp);
+      localStorage.setItem('nexusterm_serial_remote_port', String(assignedPort));
+    }
     onSaveSettings(tempSettings, tempConfig);
     setSavedSuccess(true);
     setTimeout(() => {
@@ -326,6 +373,7 @@ export const SerialSettingsModal: React.FC<SerialSettingsModalProps> = ({
             { id: 'timing', label: 'Serial & Delays', icon: Clock },
             { id: 'presets', label: 'Hardware Presets', icon: Cpu },
             { id: 'macros', label: 'Quick Macros', icon: Zap },
+            { id: 'remote', label: 'Remote IP Tunnel', icon: Globe },
             { id: 'backup', label: 'Backup & Reset', icon: Download },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -858,6 +906,114 @@ export const SerialSettingsModal: React.FC<SerialSettingsModalProps> = ({
                     <span>Restore Default Settings</span>
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: REMOTE IP TUNNEL */}
+          {activeTab === 'remote' && (
+            <div className="space-y-5">
+              <div className="p-3 rounded-lg bg-sky-500/10 border border-sky-500/20 text-xs text-sky-200 flex items-start gap-2.5">
+                <Globe className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-white">Remote Serial Bridge Host IP:</span> Select which PC network IP address should be used when generating shareable console URLs for remote clients on your LAN or VPN.
+                </div>
+              </div>
+
+              {/* Assigned IP Card */}
+              <div className="p-3.5 rounded-lg bg-[#18181A] border border-[#222224] flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">Assigned Remote Bridge URL</span>
+                  <div className="text-xs font-mono font-bold text-emerald-400 mt-1 flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>http://{assignedIp || '127.0.0.1'}:{assignedPort}/serial-bridge.html?...</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDetectIps}
+                  disabled={isDetectingIp}
+                  className="px-2.5 py-1.5 rounded bg-[#222226] hover:bg-[#2A2A30] text-sky-400 border border-sky-500/30 text-xs font-medium flex items-center gap-1.5 cursor-pointer"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isDetectingIp ? 'animate-spin' : ''}`} />
+                  <span>{isDetectingIp ? 'Detecting...' : 'Get IP Detect'}</span>
+                </button>
+              </div>
+
+              {/* Detected Interfaces */}
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-gray-300">Available PC Network Interfaces:</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {detectedIps.map((net) => {
+                    const isSelected = assignedIp === net.address;
+                    return (
+                      <div
+                        key={net.address}
+                        onClick={() => {
+                          setAssignedIp(net.address);
+                          localStorage.setItem('nexusterm_serial_remote_ip', net.address);
+                        }}
+                        className={`p-2.5 rounded-lg border text-xs flex items-center justify-between cursor-pointer transition-all ${
+                          isSelected
+                            ? 'bg-sky-500/15 border-sky-500/50 text-white'
+                            : 'bg-[#18181A] border-[#222224] text-gray-300 hover:border-gray-600'
+                        }`}
+                      >
+                        <div>
+                          <div className="font-semibold text-gray-200">{net.iface}</div>
+                          <div className="font-mono text-sky-400 text-[11px]">{net.address}</div>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${isSelected ? 'bg-emerald-500 text-black' : 'bg-[#252528] text-gray-400'}`}>
+                          {isSelected ? 'Assigned' : 'Assign'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  <div
+                    onClick={() => {
+                      setAssignedIp('127.0.0.1');
+                      localStorage.setItem('nexusterm_serial_remote_ip', '127.0.0.1');
+                    }}
+                    className={`p-2.5 rounded-lg border text-xs flex items-center justify-between cursor-pointer transition-all ${
+                      assignedIp === '127.0.0.1'
+                        ? 'bg-sky-500/15 border-sky-500/50 text-white'
+                        : 'bg-[#18181A] border-[#222224] text-gray-300 hover:border-gray-600'
+                    }`}
+                  >
+                    <div>
+                      <div className="font-semibold text-gray-200">Localhost Loopback</div>
+                      <div className="font-mono text-sky-400 text-[11px]">127.0.0.1</div>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${assignedIp === '127.0.0.1' ? 'bg-emerald-500 text-black' : 'bg-[#252528] text-gray-400'}`}>
+                      {assignedIp === '127.0.0.1' ? 'Assigned' : 'Assign'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Custom Input */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Or enter custom IP / DDNS domain..."
+                  value={customIp}
+                  onChange={(e) => setCustomIp(e.target.value)}
+                  className="flex-1 px-3 py-1.5 rounded-md bg-[#1C1C1E] border border-[#222224] text-xs text-white font-mono focus:outline-hidden focus:border-emerald-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (customIp.trim()) {
+                      setAssignedIp(customIp.trim());
+                      localStorage.setItem('nexusterm_serial_remote_ip', customIp.trim());
+                      setCustomIp('');
+                    }
+                  }}
+                  disabled={!customIp.trim()}
+                  className="px-3 py-1.5 rounded-md bg-[#252528] hover:bg-emerald-500 hover:text-black disabled:opacity-40 text-xs font-semibold text-gray-200 transition-colors cursor-pointer"
+                >
+                  Assign Custom
+                </button>
               </div>
             </div>
           )}

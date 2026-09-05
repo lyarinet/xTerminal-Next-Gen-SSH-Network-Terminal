@@ -9,11 +9,14 @@ import {
   Sparkles
 } from 'lucide-react';
 
+import { MultiplayerSession } from '../../types';
+
 interface JoinSessionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onJoin: (sessionId: string, userName: string, userAvatar: string, passcode?: string) => void;
   initialSessionId?: string;
+  availableSessions?: MultiplayerSession[];
 }
 
 const PRESET_AVATARS = [
@@ -28,9 +31,12 @@ export const JoinSessionModal: React.FC<JoinSessionModalProps> = ({
   onClose,
   onJoin,
   initialSessionId = '',
+  availableSessions = [],
 }) => {
   const [sessionId, setSessionId] = useState(initialSessionId);
-  const [userName, setUserName] = useState('');
+  const [userName, setUserName] = useState(
+    () => localStorage.getItem('xterminal_user_name') || 'Mobile User'
+  );
   const [selectedAvatar, setSelectedAvatar] = useState(PRESET_AVATARS[0]);
   const [passcode, setPasscode] = useState('');
 
@@ -75,6 +81,48 @@ export const JoinSessionModal: React.FC<JoinSessionModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
+          {/* Active Sessions on Network */}
+          {availableSessions && availableSessions.length > 0 && (
+            <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+              <div className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Radio className="w-3.5 h-3.5 animate-pulse text-emerald-400" />
+                <span>Active Live Sessions on Network</span>
+              </div>
+              <div className="space-y-2">
+                {availableSessions.map((s) => (
+                  <div
+                    key={s.id}
+                    onClick={() => {
+                      setSessionId(s.id);
+                      const name = userName.trim() || 'Mobile User';
+                      onJoin(s.id, name, selectedAvatar, passcode.trim());
+                      onClose();
+                    }}
+                    className="flex items-center justify-between p-2.5 rounded-lg bg-[#18181B] border border-emerald-500/30 hover:border-emerald-500 hover:bg-[#202024] cursor-pointer transition-all group"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-white text-xs">{s.id}</span>
+                        <span className="text-[10px] text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded font-mono font-medium">
+                          Live
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-300 truncate font-sans">
+                        {s.title || 'Terminal Session'} &bull; Host: <span className="text-white">{s.hostName || 'Admin'}</span>
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="px-3 py-1 bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-[11px] rounded-md shadow transition-colors shrink-0 ml-2"
+                    >
+                      Join
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Session ID / Link Input */}
           <div>
             <label className="block text-gray-300 font-medium mb-1 text-[11px]">

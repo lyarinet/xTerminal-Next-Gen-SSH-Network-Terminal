@@ -106,6 +106,8 @@ interface XTermPaneProps {
   onOpenAiWithContext: (text: string) => void;
   isMultiplayerActive?: boolean;
   isController?: boolean;
+  isMultiplayerParticipant?: boolean;
+  onTerminalInput?: (chunk: string) => void;
   onTerminalOutput?: (chunk: string) => void;
   onCursorMove?: (cursor: { x: number; y: number }, isTyping: boolean) => void;
 }
@@ -120,6 +122,8 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
   onOpenAiWithContext,
   isMultiplayerActive = false,
   isController = true,
+  isMultiplayerParticipant = false,
+  onTerminalInput,
   onTerminalOutput,
   onCursorMove,
 }) => {
@@ -146,7 +150,9 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
   };
 
   const handlePasteIntoTerminal = (text: string) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+    if (isMultiplayerParticipant) {
+      if (onTerminalInput) onTerminalInput(text);
+    } else if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(text);
     } else if (termRef.current) {
       termRef.current.write(text);
@@ -239,80 +245,85 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       }
     });
 
-    // Establish WebSocket connection to backend SSH / Local PTY bridge
-    const wsUrl = getBackendWsUrl('/ws/ssh');
-    const socket = new WebSocket(wsUrl);
-    wsRef.current = socket;
-    socket.binaryType = 'arraybuffer';
+    if (isMultiplayerParticipant) {
+      term.writeln('\x1b[32m[xTerminal Multiplayer] Connected to live shared terminal session.\x1b[0m');
+      term.writeln('\x1b[90m[Multiplayer] Synchronizing live host stream & terminal buffer...\x1b[0m\r\n');
+    } else {
+      // Establish WebSocket connection to backend SSH / Local PTY bridge
+      const wsUrl = getBackendWsUrl('/ws/ssh');
+      const socket = new WebSocket(wsUrl);
+      wsRef.current = socket;
+      socket.binaryType = 'arraybuffer';
 
-    socket.onopen = () => {
-      if (host && host.hostname) {
-        socket.send(
-          JSON.stringify({
-            type: 'init',
-            host: host.hostname,
-            port: host.port || (host.connectionType === 'telnet' ? 23 : 22),
-            username: host.username || 'root',
-            password: host.password || '',
-            protocol: host.connectionType || (host.port === 23 ? 'telnet' : 'ssh'),
-            cols: term.cols || 80,
-            rows: term.rows || 24,
-          })
-        );
-      } else {
-        socket.send(
-          JSON.stringify({
-            type: 'init-local',
-            cols: term.cols || 80,
-            rows: term.rows || 24,
-          })
-        );
-      }
-    };
-
-    socket.onmessage = (event) => {
-      if (typeof event.data === 'string') {
-        try {
-          if (event.data.startsWith('{') && event.data.endsWith('}')) {
-            const parsed = JSON.parse(event.data);
-            if (parsed.type === 'save-host-password') {
-              window.dispatchEvent(
-                new CustomEvent('xterminal:update-host-password', {
-                  detail: parsed,
-                })
-              );
-              return;
-            }
-          }
-        } catch {}
-        term.write(event.data);
-        if (onTerminalOutput) onTerminalOutput(event.data);
-      } else if (event.data instanceof ArrayBuffer) {
-        term.write(new Uint8Array(event.data));
-        if (onTerminalOutput) {
-          try {
-            const str = new TextDecoder().decode(event.data);
-            onTerminalOutput(str);
-          } catch {}
-        }
-      }
-    };
-
-    socket.onerror = () => {
-      term.writeln(`\r\n\x1b[31m[xTerminal] Failed to connect to terminal backend bridge (${wsUrl}).\x1b[0m\r\n`);
-      if (isMobileApp()) {
-        const stored = getStoredBackendUrl();
-        if (!stored) {
-          term.writeln('\x1b[33m[Mobile Bridge] Computer IP not configured. Tap the Mobile Bridge icon in the top bar to set your PC IP (e.g. http://192.168.1.38:3000).\x1b[0m\r\n');
+      socket.onopen = () => {
+        if (host && host.hostname) {
+          socket.send(
+            JSON.stringify({
+              type: 'init',
+              host: host.hostname,
+              port: host.port || (host.connectionType === 'telnet' ? 23 : 22),
+              username: host.username || 'root',
+              password: host.password || '',
+              protocol: host.connectionType || (host.port === 23 ? 'telnet' : 'ssh'),
+              cols: term.cols || 80,
+              rows: term.rows || 24,
+            })
+          );
         } else {
-          term.writeln(`\x1b[90m[Mobile Bridge] Reaching ${stored}... Ensure xTerminal is running on your PC and on the same Wi-Fi.\x1b[0m\r\n`);
+          socket.send(
+            JSON.stringify({
+              type: 'init-local',
+              cols: term.cols || 80,
+              rows: term.rows || 24,
+            })
+          );
         }
-      }
-    };
+      };
 
-    socket.onclose = () => {
-      term.writeln('\r\n\x1b[90m[xTerminal] Session terminated.\x1b[0m\r\n');
-    };
+      socket.onmessage = (event) => {
+        if (typeof event.data === 'string') {
+          try {
+            if (event.data.startsWith('{') && event.data.endsWith('}')) {
+              const parsed = JSON.parse(event.data);
+              if (parsed.type === 'save-host-password') {
+                window.dispatchEvent(
+                  new CustomEvent('xterminal:update-host-password', {
+                    detail: parsed,
+                  })
+                );
+                return;
+              }
+            }
+          } catch {}
+          term.write(event.data);
+          if (onTerminalOutput) onTerminalOutput(event.data);
+        } else if (event.data instanceof ArrayBuffer) {
+          term.write(new Uint8Array(event.data));
+          if (onTerminalOutput) {
+            try {
+              const str = new TextDecoder().decode(event.data);
+              onTerminalOutput(str);
+            } catch {}
+          }
+        }
+      };
+
+      socket.onerror = () => {
+        term.writeln(`\r\n\x1b[31m[xTerminal] Failed to connect to terminal backend bridge (${wsUrl}).\x1b[0m\r\n`);
+        if (isMobileApp()) {
+          const stored = getStoredBackendUrl();
+          if (!stored) {
+            term.writeln('\x1b[33m[Mobile Bridge] Computer IP not configured. Tap the Mobile Bridge icon in the top bar to set your PC IP (e.g. http://192.168.1.38:3000).\x1b[0m\r\n');
+          } else {
+            term.writeln(`\x1b[90m[Mobile Bridge] Reaching ${stored}... Ensure xTerminal is running on your PC and on the same Wi-Fi.\x1b[0m\r\n`);
+          }
+        }
+      };
+
+      socket.onclose = () => {
+        term.writeln('\r\n\x1b[90m[xTerminal] Session terminated.\x1b[0m\r\n');
+      };
+    }
 
     // User typing into xterm
     const onDataDisposable = term.onData((data) => {
@@ -320,8 +331,12 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
         showToast('Terminal control is held by another user. Request control to type.', 'copy');
         return;
       }
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(data);
+      if (isMultiplayerParticipant) {
+        if (onTerminalInput) {
+          onTerminalInput(data);
+        }
+      } else if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(data);
       }
       if (onCursorMove) {
         const cursorX = term.buffer?.active?.cursorX || 0;
@@ -331,8 +346,8 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
     });
 
     const onResizeDisposable = term.onResize(({ cols, rows }) => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'resize', cols, rows }));
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'resize', cols, rows }));
       }
     });
 
@@ -353,8 +368,8 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       onDataDisposable.dispose();
       onResizeDisposable.dispose();
       resizeObserver.disconnect();
-      if (socket) {
-        try { socket.close(); } catch {}
+      if (wsRef.current) {
+        try { wsRef.current.close(); } catch {}
       }
       wsRef.current = null;
       term.dispose();
@@ -362,7 +377,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       fitAddonRef.current = null;
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     };
-  }, [host?.id, host?.hostname, host?.username, host?.port, host?.password, backendVersion]);
+  }, [host?.id, host?.hostname, host?.username, host?.port, host?.password, backendVersion, isMultiplayerParticipant]);
 
   // Update theme dynamically
   useEffect(() => {

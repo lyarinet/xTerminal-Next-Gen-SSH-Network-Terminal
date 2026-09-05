@@ -321,31 +321,28 @@ export default function App() {
   };
 
   // Terminal Tab Operations
-  const handleNewTab = (host?: Host) => {
+  const handleNewTab = (host?: Host, customTab?: Partial<TerminalTab>) => {
     if (host) {
       handleConnectHost(host);
       return;
     }
-    const tabId = `tab-local-${Date.now()}`;
+    const tabId = customTab?.id || `tab-local-${Date.now()}`;
     const paneId = `pane-${tabId}-1`;
     const newTab: TerminalTab = {
       id: tabId,
-      title: `Local Station ${tabs.length + 1}`,
+      title: customTab?.title || `Local Station ${tabs.length + 1}`,
       status: 'connected',
       activePaneId: paneId,
       panes: [
         {
           id: paneId,
-          buffer: [
-            'NexusTerm Workstation v2.4.0 (x86_64-linux-gnu)',
-            'Local shell session initialized.',
-            'deploy@nexusterm:~$ ',
-          ],
+          buffer: [],
           commandHistory: [],
-          title: 'Bash',
+          title: customTab?.title || 'Terminal',
         },
       ],
       createdAt: new Date().toISOString(),
+      ...customTab,
     };
     setTabs((prev) => [...prev, newTab]);
     setActiveTabId(tabId);

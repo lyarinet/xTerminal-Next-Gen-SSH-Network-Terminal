@@ -49,7 +49,7 @@ interface TerminalWorkspaceProps {
   snippets: Snippet[];
   onSelectTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
-  onNewTab: (host?: Host) => void;
+  onNewTab: (host?: Host, customTab?: Partial<TerminalTab>) => void;
   onSplitPane: (tabId: string, direction: 'horizontal' | 'vertical') => void;
   onClosePane: (tabId: string, paneId: string) => void;
   onExecuteCommand: (tabId: string, command: string) => void;
@@ -78,6 +78,8 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
 
   // Multiplayer State
   const [multiplayerSessions, setMultiplayerSessions] = useState<Record<string, MultiplayerSession>>({});
+  const [discoveredSessions, setDiscoveredSessions] = useState<MultiplayerSession[]>([]);
+  const [dismissedSessionIds, setDismissedSessionIds] = useState<Record<string, boolean>>({});
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [joinModalOpen, setJoinModalOpen] = useState<boolean>(false);
   const [shareModalOpen, setShareModalOpen] = useState<boolean>(false);
@@ -125,6 +127,28 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
     }
   }, []);
 
+  // Auto-discover active multiplayer sessions across LAN/server
+  useEffect(() => {
+    let isMounted = true;
+    const fetchActiveSessions = async () => {
+      try {
+        const res = await fetch(getBackendHttpUrl('/api/multiplayer/sessions'));
+        if (!res.ok) return;
+        const data = await res.json();
+        if (isMounted && data?.sessions) {
+          setDiscoveredSessions(data.sessions);
+        }
+      } catch {}
+    };
+
+    fetchActiveSessions();
+    const interval = setInterval(fetchActiveSessions, 3500);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   // Initialize or connect multiplayer WebSocket for a session
   const connectMultiplayerWs = (sessionId: string, tabId: string, role: 'host' | 'participant', passcode?: string) => {
     // Close any previous socket for this tab
@@ -166,6 +190,13 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
             ...prev,
             [tabId]: msg.session,
           }));
+          if (msg.snapshot) {
+            window.dispatchEvent(
+              new CustomEvent('xterminal:terminal-write', {
+                detail: { data: msg.snapshot },
+              })
+            );
+          }
           return;
         }
 
@@ -381,14 +412,25 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
 
   // Join existing session via ID or Link (Participant flow)
   const handleJoinSession = async (sessionId: string, userName: string, userAvatar: string, passcode?: string) => {
-    // Open a new tab for the joined multiplayer session
-    onNewTab();
-    setTimeout(() => {
-      // Find the newly opened tab
-      const newTab = tabs[tabs.length - 1] || activeTab;
-      connectMultiplayerWs(sessionId, newTab.id, 'participant', passcode);
-      setSidebarOpen(true);
-    }, 150);
+    const cleanSessionId = sessionId.trim().toUpperCase();
+    const newTabId = `tab-multi-${cleanSessionId.toLowerCase()}-${Date.now()}`;
+    onNewTab(undefined, {
+      id: newTabId,
+      title: `Multiplayer (${cleanSessionId})`,
+      isMultiplayerActive: true,
+      multiplayerRole: 'participant',
+      multiplayerSessionId: cleanSessionId,
+    });
+    connectMultiplayerWs(cleanSessionId, newTabId, 'participant', passcode);
+    setSidebarOpen(true);
+  };
+
+  // Forward keystrokes from participant terminal to multiplayer WebSocket
+  const handleParticipantInput = (tabId: string, chunk: string) => {
+    const socket = wsSocketsRef.current[tabId];
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'terminal:input', data: chunk }));
+    }
   };
 
   // Grant Control to participant
@@ -635,6 +677,14 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
     : true;
   const currentTypingBadge = typingBadges[activeTabId];
 
+  // Discover live sessions on the network not hosted by this client
+  const activeUnjoinedSession = discoveredSessions.find(
+    (s) =>
+      s.hostUserId !== currentUserId &&
+      !dismissedSessionIds[s.id] &&
+      !tabs.some((t) => t.multiplayerSessionId === s.id)
+  );
+
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0A0A0B] text-[#E0E0E0] overflow-hidden font-mono select-text relative">
       {/* Tabs Header */}
@@ -767,11 +817,17 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
           {/* Join Session Button */}
           <button
             onClick={() => setJoinModalOpen(true)}
-            className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#1C1C1E] hover:bg-[#252528] text-gray-300 font-sans text-xs border border-[#222224] transition-colors"
+            className="relative flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#1C1C1E] hover:bg-[#252528] text-gray-300 font-sans text-xs border border-[#222224] transition-colors"
             title="Join an existing collaborative terminal session"
           >
             <LogIn className="w-3.5 h-3.5 text-blue-400" />
             <span className="hidden md:inline">Join</span>
+            {discoveredSessions.some((s) => s.hostUserId !== currentUserId) && (
+              <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            )}
           </button>
 
           {/* Mobile Server Bridge Config Button */}
@@ -941,6 +997,55 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
         </div>
       </div>
 
+      {/* Active Multiplayer Session Discovery Banner (Shows on mobile/desktop when a live server session is detected) */}
+      {activeUnjoinedSession && (
+        <div className="bg-gradient-to-r from-emerald-950/90 via-[#0e2a22] to-[#141416] border-b border-emerald-500/40 px-3 py-2 flex items-center justify-between gap-2.5 z-20 shrink-0 animate-in fade-in slide-in-from-top-1 shadow-lg select-none">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-1.5 rounded-full bg-emerald-500/20 text-emerald-400 shrink-0 animate-pulse">
+              <Radio className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-semibold text-emerald-400">Live Session Active:</span>
+                <span className="text-xs font-mono font-bold text-white bg-emerald-900/60 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                  {activeUnjoinedSession.id}
+                </span>
+                <span className="text-xs text-gray-200 font-sans truncate font-medium">
+                  {activeUnjoinedSession.title || 'Server Terminal'}
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-400 font-sans">
+                Host: <span className="text-gray-200">{activeUnjoinedSession.hostName || 'Admin'}</span> &bull; {activeUnjoinedSession.participants?.length || 1} online
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => {
+                handleJoinSession(
+                  activeUnjoinedSession.id,
+                  currentUserName,
+                  currentUserAvatar
+                );
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-sans font-bold text-xs rounded-lg shadow-md hover:shadow-emerald-500/25 transition-all"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Join Session (1-Tap)</span>
+            </button>
+            <button
+              onClick={() =>
+                setDismissedSessionIds((prev) => ({ ...prev, [activeUnjoinedSession.id]: true }))
+              }
+              className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+              title="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Multiplayer Header Bar (Visible when active session or demo is enabled) */}
       {currentSession && (
         <MultiplayerHeader
@@ -1004,6 +1109,8 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
                     onOpenAiWithContext={onOpenAiWithContext}
                     isMultiplayerActive={Boolean(currentSession)}
                     isController={isCurrentController}
+                    isMultiplayerParticipant={tab.multiplayerRole === 'participant'}
+                    onTerminalInput={(chunk) => handleParticipantInput(tab.id, chunk)}
                     onTerminalOutput={handleTerminalOutput}
                     onCursorMove={handleCursorMove}
                   />
@@ -1044,6 +1151,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
         onClose={() => setJoinModalOpen(false)}
         onJoin={handleJoinSession}
         initialSessionId={initialJoinSessionId}
+        availableSessions={discoveredSessions.filter((s) => s.hostUserId !== currentUserId)}
       />
 
       {/* Mobile Server Bridge Config Modal */}

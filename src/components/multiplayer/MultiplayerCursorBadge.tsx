@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface MultiplayerCursorBadgeProps {
   name: string;
@@ -15,6 +15,8 @@ export const MultiplayerCursorBadge: React.FC<MultiplayerCursorBadgeProps> = ({
   cursorPosition,
   isTyping = false,
 }) => {
+  const [imgError, setImgError] = useState(false);
+
   if (!cursorPosition || !isTyping) return null;
 
   // Approximate character cell sizing (xterm default ~9.2px wide x 18px high)
@@ -23,9 +25,11 @@ export const MultiplayerCursorBadge: React.FC<MultiplayerCursorBadgeProps> = ({
   const left = Math.max(16, cursorPosition.x * cellWidth + 14);
   const top = Math.max(8, cursorPosition.y * cellHeight + 10);
 
+  const initial = (name || 'U').charAt(0).toUpperCase();
+
   return (
     <div
-      className="absolute pointer-events-none transition-all duration-150 ease-out z-20 flex flex-col items-center select-none"
+      className="absolute pointer-events-none transition-all duration-150 ease-out z-40 flex flex-col items-center select-none"
       style={{
         left: `${left}px`,
         top: `${top}px`,
@@ -43,19 +47,20 @@ export const MultiplayerCursorBadge: React.FC<MultiplayerCursorBadgeProps> = ({
       >
         {/* Avatar */}
         <div className="relative">
-          {avatar ? (
+          {avatar && !imgError ? (
             <img
               src={avatar}
               alt={name}
+              onError={() => setImgError(true)}
               className="w-4 h-4 rounded-full object-cover border"
               style={{ borderColor: color }}
             />
           ) : (
             <div
-              className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-black"
-              style={{ backgroundColor: color }}
+              className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-black border"
+              style={{ backgroundColor: color, borderColor: color }}
             >
-              {name.charAt(0).toUpperCase()}
+              {initial}
             </div>
           )}
           <span
@@ -70,7 +75,7 @@ export const MultiplayerCursorBadge: React.FC<MultiplayerCursorBadgeProps> = ({
         </span>
 
         {/* Typing pulse indicator */}
-        <div className="flex items-center gap-0.5 ml-0.5">
+        <div className="flex items-center gap-0.5 ml-0.5" title="Typing...">
           <span
             className="w-1 h-2 rounded-full animate-pulse"
             style={{ backgroundColor: color, animationDelay: '0ms' }}

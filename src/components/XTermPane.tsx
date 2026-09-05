@@ -385,9 +385,6 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       termRef.current.options.theme = TERMINAL_THEMES[themeKey] || TERMINAL_THEMES.nexus;
     }
   }, [themeKey]);
-
-  const isFirstOutputRef = useRef<boolean>(true);
-
   // Listen for remote input from multiplayer peers and simulated terminal writes
   useEffect(() => {
     const handleRemoteInput = (e: any) => {
@@ -397,14 +394,8 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
     };
     const handleTerminalWrite = (e: any) => {
       if (e.detail?.data && termRef.current) {
-        if (isMultiplayerParticipant && isFirstOutputRef.current) {
-          isFirstOutputRef.current = false;
-          termRef.current.clear();
-        }
         termRef.current.write(e.detail.data);
-        try {
-          fitAddonRef.current?.fit();
-        } catch {}
+        termRef.current.scrollToBottom();
       }
     };
     const handleSnapshotRequest = () => {

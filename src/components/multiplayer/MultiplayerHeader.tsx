@@ -18,6 +18,7 @@ interface MultiplayerHeaderProps {
   currentUserId: string;
   isHost: boolean;
   isController: boolean;
+  typingBadge?: { name: string; avatar: string; color: string; isTyping: boolean };
   onOpenShareModal: () => void;
   onRequestControl: () => void;
   onTakeControl: () => void;
@@ -34,6 +35,7 @@ export const MultiplayerHeader: React.FC<MultiplayerHeaderProps> = ({
   currentUserId,
   isHost,
   isController,
+  typingBadge,
   onOpenShareModal,
   onRequestControl,
   onTakeControl,
@@ -53,11 +55,12 @@ export const MultiplayerHeader: React.FC<MultiplayerHeaderProps> = ({
   };
 
   const hasPendingRequest = session.pendingRequests?.some((r) => r.userId === currentUserId);
+  const isSomeoneTyping = Boolean(typingBadge && typingBadge.isTyping);
 
   return (
     <div className="flex items-center justify-between px-3 py-1.5 bg-[#141416] border-b border-[#222224] text-xs font-sans select-none z-10 overflow-x-auto scrollbar-none gap-2 shrink-0">
       {/* Left: Live Indicator & Participant Stack */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 shrink-0">
         {/* Live Badge */}
         <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold text-[11px] shadow-sm">
           <span className="relative flex h-2 w-2">
@@ -74,36 +77,55 @@ export const MultiplayerHeader: React.FC<MultiplayerHeaderProps> = ({
         <div className="flex items-center -space-x-2 overflow-hidden py-0.5">
           {activeParticipants.map((p) => {
             const isThisController = p.id === session.controllerId;
+            const isThisTyping = isSomeoneTyping && (p.name === typingBadge?.name || (activeParticipants.length <= 2 && p.id !== currentUserId));
+            const initial = (p.name || 'U').charAt(0).toUpperCase();
+
             return (
               <div
                 key={p.id}
-                className="relative group cursor-pointer"
-                title={`${p.name} (${p.role})${isThisController ? ' - Controller' : ''}`}
+                className={`relative group cursor-pointer transition-all ${isThisTyping ? 'z-20 scale-110' : ''}`}
+                title={`${p.name} (${p.role})${isThisController ? ' - Controller' : ''}${isThisTyping ? ' - Typing now...' : ''}`}
               >
                 {p.avatar ? (
                   <img
                     src={p.avatar}
                     alt={p.name}
-                    className="w-6 h-6 rounded-full object-cover border-2 transition-transform group-hover:scale-110 group-hover:z-10"
-                    style={{ borderColor: isThisController ? '#10b981' : p.color || '#4b5563' }}
-                  />
-                ) : (
-                  <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-black border-2 transition-transform group-hover:scale-110 group-hover:z-10"
-                    style={{
-                      backgroundColor: p.color || '#38bdf8',
-                      borderColor: isThisController ? '#10b981' : '#334155',
+                    onError={(e) => {
+                      (e.currentTarget as HTMLElement).style.display = 'none';
+                      const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                      if (fallback) fallback.style.display = 'flex';
                     }}
-                  >
-                    {p.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                {isThisController && (
+                    className={`w-6 h-6 rounded-full object-cover border-2 transition-all group-hover:scale-110 group-hover:z-10 ${
+                      isThisTyping ? 'ring-2 ring-cyan-400 animate-pulse' : ''
+                    }`}
+                    style={{ borderColor: isThisTyping ? '#38bdf8' : isThisController ? '#10b981' : p.color || '#4b5563' }}
+                  />
+                ) : null}
+                <div
+                  className={`w-6 h-6 rounded-full items-center justify-center text-[10px] font-bold text-black border-2 transition-all group-hover:scale-110 group-hover:z-10 ${
+                    p.avatar ? 'hidden' : 'flex'
+                  } ${isThisTyping ? 'ring-2 ring-cyan-400 animate-pulse' : ''}`}
+                  style={{
+                    backgroundColor: p.color || '#38bdf8',
+                    borderColor: isThisTyping ? '#38bdf8' : isThisController ? '#10b981' : '#334155',
+                  }}
+                >
+                  {initial}
+                </div>
+                {isThisController && !isThisTyping && (
                   <div
                     className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-emerald-500 border border-[#141416] flex items-center justify-center text-[7px] text-black font-black"
                     title="Active Controller"
                   >
                     <Keyboard className="w-2 h-2 text-black stroke-[3]" />
+                  </div>
+                )}
+                {isThisTyping && (
+                  <div
+                    className="absolute -top-1.5 -right-1 w-3.5 h-3.5 rounded-full bg-cyan-400 border border-[#141416] flex items-center justify-center text-[8px] animate-bounce shadow-md"
+                    title="Typing..."
+                  >
+                    ✍️
                   </div>
                 )}
               </div>
@@ -116,18 +138,29 @@ export const MultiplayerHeader: React.FC<MultiplayerHeaderProps> = ({
         </span>
       </div>
 
-      {/* Center: Control Status Indicator */}
-      <div className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-md bg-[#1C1C1E] border border-[#2A2A2D] text-gray-300 text-[11px]">
-        <Keyboard className="w-3.5 h-3.5 text-emerald-400" />
-        <span>Control:</span>
-        <div className="flex items-center gap-1.5 font-semibold text-white">
-          <span
-            className="w-2 h-2 rounded-full"
-            style={{ backgroundColor: controller.color || '#10b981' }}
-          />
-          <span>{isController ? 'You (Active Controller)' : controller.name}</span>
+      {/* Center: Live Typing Notification / Control Status */}
+      {isSomeoneTyping && typingBadge ? (
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 text-[11px] font-medium shadow-lg animate-in fade-in zoom-in duration-200">
+          <span className="text-xs animate-bounce">✍️</span>
+          <span className="font-bold text-white tracking-wide">{typingBadge.name}</span>
+          <span className="text-cyan-300">is typing...</span>
+          <span className="inline-flex gap-0.5 ml-1">
+            <span className="w-1 h-1 rounded-full bg-cyan-400 animate-ping" />
+          </span>
         </div>
-      </div>
+      ) : (
+        <div className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-md bg-[#1C1C1E] border border-[#2A2A2D] text-gray-300 text-[11px]">
+          <Keyboard className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Control:</span>
+          <div className="flex items-center gap-1.5 font-semibold text-white">
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: controller.color || '#10b981' }}
+            />
+            <span>{isController ? 'You (Active Controller)' : controller.name}</span>
+          </div>
+        </div>
+      )}
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2">

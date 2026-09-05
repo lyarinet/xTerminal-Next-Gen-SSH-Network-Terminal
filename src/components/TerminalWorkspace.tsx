@@ -1084,6 +1084,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
           currentUserId={currentUserId}
           isHost={isCurrentHost}
           isController={isCurrentController}
+          typingBadge={currentTypingBadge}
           onOpenShareModal={() => setShareModalOpen(true)}
           onRequestControl={handleRequestControl}
           onTakeControl={handleTakeControl}
@@ -1103,17 +1104,6 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
       <div className="flex-1 flex overflow-hidden relative">
         {/* Terminal Panes */}
         <div className="flex-1 overflow-hidden relative">
-          {/* Floating Cursor Presence Badge (Exact match from reference screenshot media_1788524516076.png) */}
-          {currentSession && currentTypingBadge && currentTypingBadge.isTyping && (
-            <MultiplayerCursorBadge
-              name={currentTypingBadge.name}
-              avatar={currentTypingBadge.avatar}
-              color={currentTypingBadge.color}
-              cursorPosition={currentTypingBadge.cursor}
-              isTyping={currentTypingBadge.isTyping}
-            />
-          )}
-
           {tabs.map((tab) => {
             const tabHost = tab.host || hosts.find((h) => h.id === tab.hostId);
             const isSelected = tab.id === activeTabId;
@@ -1149,6 +1139,17 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
               </div>
             );
           })}
+
+          {/* Floating Cursor Presence Badge (Rendered AFTER tabs with z-40 so it floats on top of terminal canvas) */}
+          {currentSession && currentTypingBadge && currentTypingBadge.isTyping && (
+            <MultiplayerCursorBadge
+              name={currentTypingBadge.name}
+              avatar={currentTypingBadge.avatar}
+              color={currentTypingBadge.color}
+              cursorPosition={currentTypingBadge.cursor}
+              isTyping={currentTypingBadge.isTyping}
+            />
+          )}
         </div>
       </div>
 

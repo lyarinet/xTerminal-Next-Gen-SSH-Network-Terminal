@@ -29,6 +29,7 @@ import {
   Smartphone,
   Sliders,
   Users,
+  MessageSquare,
   X
 } from 'lucide-react';
 import { VaultSettings } from '../types';
@@ -68,6 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'hosts', label: 'Hosts & Groups', icon: Server },
         { id: 'terminal', label: 'Terminal', icon: Terminal, badge: activeTabsCount > 0 ? activeTabsCount : undefined },
         { id: 'terminal', label: 'Multiplayer Collab', icon: Users, badge: 'Live', badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' },
+        { id: 'multiplayer-chat', label: 'Multiplayer Chat & Team', icon: MessageSquare, badge: 'Chat', badgeColor: 'bg-blue-500/20 text-blue-400 border border-blue-500/30' },
         { id: 'multihost', label: 'Multi-Host Runner', icon: Layers },
         { id: 'sftp', label: 'SFTP Explorer', icon: FolderSync },
         { id: 'serial', label: 'Serial TTY Console', icon: Cpu },
@@ -193,6 +195,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   key={item.id}
                   onClick={() => {
+                    if (item.id === 'multiplayer-chat') {
+                      onSelectView('terminal');
+                      window.dispatchEvent(new CustomEvent('xterminal:open-chat'));
+                      if (isMobile) onCloseMobile?.();
+                      return;
+                    }
                     onSelectView(item.id);
                     if (isMobile) onCloseMobile?.();
                   }}

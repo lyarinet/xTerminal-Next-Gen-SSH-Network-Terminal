@@ -55,7 +55,7 @@ export const MultiplayerHeader: React.FC<MultiplayerHeaderProps> = ({
   const hasPendingRequest = session.pendingRequests?.some((r) => r.userId === currentUserId);
 
   return (
-    <div className="flex items-center justify-between px-3 py-1.5 bg-[#141416] border-b border-[#222224] text-xs font-sans select-none z-10">
+    <div className="flex items-center justify-between px-3 py-1.5 bg-[#141416] border-b border-[#222224] text-xs font-sans select-none z-10 overflow-x-auto scrollbar-none gap-2 shrink-0">
       {/* Left: Live Indicator & Participant Stack */}
       <div className="flex items-center gap-3">
         {/* Live Badge */}

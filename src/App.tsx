@@ -28,7 +28,7 @@ import { RemoteDesktopView } from './components/RemoteDesktopView';
 import { TelecomHardwareView } from './components/TelecomHardwareView';
 import { CloudSyncView } from './components/CloudSyncView';
 import { AppCenterView } from './components/AppCenterView';
-import { Menu, Bot, Plus } from 'lucide-react';
+import { Menu, Bot, Plus, MessageSquare } from 'lucide-react';
 
 import {
   Host,
@@ -580,6 +580,13 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('xterminal:toggle-chat'))}
+              className="p-1.5 rounded-md bg-[#1C1C1E] text-emerald-400 hover:bg-[#252528] border border-[#222224] flex items-center gap-1 active:scale-95"
+              title="Multiplayer Chat & Team (Slide Over)"
+            >
+              <MessageSquare className="w-4 h-4" />
+            </button>
             <button
               onClick={() => setIsQuickConnectOpen(true)}
               className="px-2.5 py-1 rounded-md bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold flex items-center gap-1 shadow-xs active:scale-95"

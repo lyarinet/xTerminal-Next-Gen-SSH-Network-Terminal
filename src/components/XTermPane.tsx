@@ -386,6 +386,8 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
     }
   }, [themeKey]);
 
+  const isFirstOutputRef = useRef<boolean>(true);
+
   // Listen for remote input from multiplayer peers and simulated terminal writes
   useEffect(() => {
     const handleRemoteInput = (e: any) => {
@@ -395,16 +397,44 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
     };
     const handleTerminalWrite = (e: any) => {
       if (e.detail?.data && termRef.current) {
+        if (isMultiplayerParticipant && isFirstOutputRef.current) {
+          isFirstOutputRef.current = false;
+          termRef.current.clear();
+        }
         termRef.current.write(e.detail.data);
+        try {
+          fitAddonRef.current?.fit();
+        } catch {}
       }
     };
+    const handleSnapshotRequest = () => {
+      if (!termRef.current || isMultiplayerParticipant) return;
+      const term = termRef.current;
+      const b = term.buffer.active;
+      let text = '\x1b[2J\x1b[H';
+      for (let i = 0; i < b.length; i++) {
+        const line = b.getLine(i);
+        if (line) {
+          const str = line.translateToString(true);
+          if (str.length > 0 || i <= b.cursorY) {
+            text += str + '\r\n';
+          }
+        }
+      }
+      if (text.trim() && onTerminalOutput) {
+        onTerminalOutput(text);
+      }
+    };
+
     window.addEventListener('xterminal:remote-input', handleRemoteInput);
     window.addEventListener('xterminal:terminal-write', handleTerminalWrite);
+    window.addEventListener('xterminal:request-snapshot', handleSnapshotRequest);
     return () => {
       window.removeEventListener('xterminal:remote-input', handleRemoteInput);
       window.removeEventListener('xterminal:terminal-write', handleTerminalWrite);
+      window.removeEventListener('xterminal:request-snapshot', handleSnapshotRequest);
     };
-  }, []);
+  }, [isMultiplayerParticipant, onTerminalOutput]);
 
   // Keepalive Heartbeat Timer
   useEffect(() => {

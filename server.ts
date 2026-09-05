@@ -1663,6 +1663,22 @@ async function startServer() {
             return;
           }
 
+          if (msg.type === "terminal:request-snapshot") {
+            // If the server already has a populated snapshotBuffer, immediately send it to requester
+            if (session.snapshotBuffer.length > 0) {
+              ws.send(JSON.stringify({
+                type: "terminal:output",
+                data: session.snapshotBuffer.join(""),
+              }));
+            }
+            // Also notify the host to produce and send the latest fresh terminal buffer
+            const host = session.participants.get(session.hostUserId);
+            if (host && host.ws && host.ws.readyState === WebSocket.OPEN && host.ws !== ws) {
+              host.ws.send(JSON.stringify({ type: "terminal:request-snapshot", requestedBy: currentUserId }));
+            }
+            return;
+          }
+
           if (msg.type === "terminal:input") {
             // Check if sender has control permission
             const hasControl = session.controlMode === "shared" || session.controllerId === currentUserId;

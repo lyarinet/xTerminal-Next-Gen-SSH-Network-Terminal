@@ -2,13 +2,14 @@ const { app, BrowserWindow } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
+app.disableHardwareAcceleration();
+
 app.whenReady().then(async () => {
   const win = new BrowserWindow({
     show: false,
     width: 1024,
     height: 1024,
     backgroundColor: '#00000000',
-    webPreferences: { offscreen: true }
   });
 
   const svgPath = path.join(__dirname, '../public/icon.svg');

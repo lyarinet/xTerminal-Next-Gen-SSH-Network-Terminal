@@ -149,6 +149,18 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
     };
   }, []);
 
+  // Global chat toggle event listeners for mobile hamburger menu and top header
+  useEffect(() => {
+    const handleToggleChat = () => setSidebarOpen((prev) => !prev);
+    const handleOpenChat = () => setSidebarOpen(true);
+    window.addEventListener('xterminal:toggle-chat', handleToggleChat);
+    window.addEventListener('xterminal:open-chat', handleOpenChat);
+    return () => {
+      window.removeEventListener('xterminal:toggle-chat', handleToggleChat);
+      window.removeEventListener('xterminal:open-chat', handleOpenChat);
+    };
+  }, []);
+
   // Initialize or connect multiplayer WebSocket for a session
   const connectMultiplayerWs = (sessionId: string, tabId: string, role: 'host' | 'participant', passcode?: string) => {
     // Close any previous socket for this tab
@@ -178,6 +190,10 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
           },
         })
       );
+      // Immediately request terminal snapshot if participant
+      if (role === 'participant') {
+        socket.send(JSON.stringify({ type: 'terminal:request-snapshot' }));
+      }
     };
 
     socket.onmessage = (event) => {
@@ -200,7 +216,19 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
           return;
         }
 
+        if (msg.type === 'terminal:request-snapshot') {
+          if (role === 'host') {
+            window.dispatchEvent(new CustomEvent('xterminal:request-snapshot'));
+          }
+          return;
+        }
+
         if (msg.type === 'participant:joined' || msg.type === 'participant:updated') {
+          if (role === 'host') {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('xterminal:request-snapshot'));
+            }, 100);
+          }
           setMultiplayerSessions((prev) => {
             const sess = prev[tabId];
             if (!sess) return prev;
@@ -391,7 +419,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
           hostUserId: currentUserId,
           hostName: currentUserName,
           hostAvatar: currentUserAvatar,
-          controlMode: 'one_controller',
+          controlMode: 'shared',
           accessMode: 'link_only',
         }),
       });
@@ -404,6 +432,9 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
         }));
         connectMultiplayerWs(data.session.id, activeTab.id, 'host');
         setShareModalOpen(true);
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('xterminal:request-snapshot'));
+        }, 250);
       }
     } catch (err) {
       console.error('Failed to create multiplayer session:', err);
@@ -422,7 +453,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
       multiplayerSessionId: cleanSessionId,
     });
     connectMultiplayerWs(cleanSessionId, newTabId, 'participant', passcode);
-    setSidebarOpen(true);
+    setSidebarOpen(false); // Do NOT auto-open chat so terminal stays full screen
   };
 
   // Forward keystrokes from participant terminal to multiplayer WebSocket
@@ -1119,22 +1150,32 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
             );
           })}
         </div>
-
-        {/* Multiplayer Collaboration Sidebar (Drawer) */}
-        {currentSession && sidebarOpen && (
-          <MultiplayerSidebar
-            session={currentSession}
-            currentUserId={currentUserId}
-            isHost={isCurrentHost}
-            onClose={() => setSidebarOpen(false)}
-            onSendMessage={handleSendChat}
-            onGrantControl={handleGrantControl}
-            onDenyControl={handleDenyControl}
-            onTakeControl={handleTakeControl}
-            pendingRequests={currentSession.pendingRequests || []}
-          />
-        )}
       </div>
+
+      {/* Multiplayer Collaboration Sidebar (Slide-Over Drawer Overlay) */}
+      {currentSession && sidebarOpen && (
+        <div
+          className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setSidebarOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm h-full bg-[#111112] shadow-2xl flex flex-col animate-in slide-in-from-right duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MultiplayerSidebar
+              session={currentSession}
+              currentUserId={currentUserId}
+              isHost={isCurrentHost}
+              onClose={() => setSidebarOpen(false)}
+              onSendMessage={handleSendChat}
+              onGrantControl={handleGrantControl}
+              onDenyControl={handleDenyControl}
+              onTakeControl={handleTakeControl}
+              pendingRequests={currentSession.pendingRequests || []}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Share Session Modal */}
       {currentSession && (

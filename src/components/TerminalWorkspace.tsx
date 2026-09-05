@@ -179,8 +179,15 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
 
   // Initialize or connect multiplayer WebSocket for a session
   const connectMultiplayerWs = (sessionId: string, tabId: string, role: 'host' | 'participant', passcode?: string) => {
-    // Close any previous socket for this tab
-    if (wsSocketsRef.current[tabId]) {
+    // Close any previous socket for this tab or existing participant connections
+    if (role === 'participant') {
+      Object.keys(wsSocketsRef.current).forEach((key) => {
+        try {
+          wsSocketsRef.current[key].close();
+        } catch {}
+        delete wsSocketsRef.current[key];
+      });
+    } else if (wsSocketsRef.current[tabId]) {
       try {
         wsSocketsRef.current[tabId].close();
       } catch {}
@@ -225,7 +232,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
           if (msg.snapshot) {
             window.dispatchEvent(
               new CustomEvent('xterminal:terminal-write', {
-                detail: { data: msg.snapshot },
+                detail: { data: msg.snapshot, tabId },
               })
             );
           }
@@ -296,7 +303,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
           // Write incoming output to terminal if viewer
           window.dispatchEvent(
             new CustomEvent('xterminal:terminal-write', {
-              detail: { data: msg.data },
+              detail: { data: msg.data, tabId },
             })
           );
           return;
@@ -469,6 +476,16 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
   // Join existing session via ID or Link (Participant flow)
   const handleJoinSession = async (sessionId: string, userName: string, userAvatar: string, passcode?: string) => {
     const cleanSessionId = sessionId.trim().toUpperCase();
+    const existingTab = tabs.find(
+      (t) => t.multiplayerSessionId === cleanSessionId || t.title.includes(cleanSessionId)
+    );
+    if (existingTab) {
+      onSelectTab(existingTab.id);
+      connectMultiplayerWs(cleanSessionId, existingTab.id, 'participant', passcode);
+      setSidebarOpen(false);
+      return;
+    }
+
     const newTabId = `tab-multi-${cleanSessionId.toLowerCase()}-${Date.now()}`;
     onNewTab(undefined, {
       id: newTabId,
@@ -1173,6 +1190,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
                   <XTermPane
                     key={pane.id}
                     paneId={pane.id}
+                    tabId={tab.id}
                     host={tabHost}
                     buffer={pane.buffer}
                     themeKey={selectedTheme}
@@ -1182,6 +1200,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
                     isMultiplayerActive={Boolean(currentSession)}
                     isController={isCurrentController}
                     isMultiplayerParticipant={tab.multiplayerRole === 'participant'}
+                    typingBadge={currentTypingBadge}
                     onTerminalInput={(chunk) => handleParticipantInput(tab.id, chunk)}
                     onTerminalOutput={(chunk) => handleTerminalOutput(tab.id, chunk)}
                     onCursorMove={(cursor, isTyping) => handleCursorMove(tab.id, cursor, isTyping)}
@@ -1190,17 +1209,6 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
               </div>
             );
           })}
-
-          {/* Floating Cursor Presence Badge (Rendered AFTER tabs with z-40 so it floats on top of terminal canvas) */}
-          {currentSession && currentTypingBadge && currentTypingBadge.isTyping && (
-            <MultiplayerCursorBadge
-              name={currentTypingBadge.name}
-              avatar={currentTypingBadge.avatar}
-              color={currentTypingBadge.color}
-              cursorPosition={currentTypingBadge.cursor}
-              isTyping={currentTypingBadge.isTyping}
-            />
-          )}
         </div>
       </div>
 

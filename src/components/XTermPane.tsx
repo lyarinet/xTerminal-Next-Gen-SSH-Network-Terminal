@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Host, Snippet } from '../types';
 import { Bot, Play, ShieldAlert, Wifi, RefreshCw, Copy, Clipboard, Check, Smartphone } from 'lucide-react';
 import { getBackendWsUrl, isMobileApp, getStoredBackendUrl } from '../lib/networkConfig';
+import { MultiplayerCursorBadge } from './multiplayer/MultiplayerCursorBadge';
 
 export const TERMINAL_THEMES: Record<string, any> = {
   nexus: {
@@ -98,6 +99,7 @@ export const TERMINAL_THEMES: Record<string, any> = {
 
 interface XTermPaneProps {
   paneId: string;
+  tabId?: string;
   host?: Host;
   buffer: string[];
   themeKey: string;
@@ -107,6 +109,7 @@ interface XTermPaneProps {
   isMultiplayerActive?: boolean;
   isController?: boolean;
   isMultiplayerParticipant?: boolean;
+  typingBadge?: { name: string; avatar: string; color: string; isTyping: boolean } | null;
   onTerminalInput?: (chunk: string) => void;
   onTerminalOutput?: (chunk: string) => void;
   onCursorMove?: (cursor: { x: number; y: number }, isTyping: boolean) => void;
@@ -114,6 +117,7 @@ interface XTermPaneProps {
 
 export const XTermPane: React.FC<XTermPaneProps> = ({
   paneId,
+  tabId,
   host,
   buffer,
   themeKey,
@@ -123,6 +127,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
   isMultiplayerActive = false,
   isController = true,
   isMultiplayerParticipant = false,
+  typingBadge = null,
   onTerminalInput,
   onTerminalOutput,
   onCursorMove,
@@ -158,6 +163,37 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
     window.addEventListener('xterminal:backend-url-changed', onBackendChange);
     return () => window.removeEventListener('xterminal:backend-url-changed', onBackendChange);
   }, []);
+
+  const [badgePixelPos, setBadgePixelPos] = useState<{ x: number; y: number }>({ x: 24, y: 40 });
+
+  const updateBadgePosition = useCallback(() => {
+    if (!termRef.current || !containerRef.current) return;
+    try {
+      const cursorEl = containerRef.current.querySelector('.xterm-cursor') as HTMLElement;
+      if (cursorEl && (cursorEl.offsetTop > 0 || cursorEl.offsetLeft > 0)) {
+        setBadgePixelPos({
+          x: cursorEl.offsetLeft + 12,
+          y: cursorEl.offsetTop + 12,
+        });
+        return;
+      }
+      const core = (termRef.current as any)._core;
+      const cellWidth = core?._renderService?.dimensions?.actualCellWidth || 9.2;
+      const cellHeight = core?._renderService?.dimensions?.actualCellHeight || 18.5;
+      const cursorX = termRef.current.buffer?.active?.cursorX || 0;
+      const cursorY = termRef.current.buffer?.active?.cursorY || 0;
+      setBadgePixelPos({
+        x: Math.max(20, cursorX * cellWidth + 12),
+        y: Math.max(20, cursorY * cellHeight + 12),
+      });
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (typingBadge?.isTyping) {
+      updateBadgePosition();
+    }
+  }, [typingBadge, updateBadgePosition]);
 
   const showToast = (text: string, icon?: 'copy' | 'paste') => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
@@ -252,6 +288,18 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       // Ignored if hidden
     }
 
+    // Configure mobile helper textarea to prevent Android IME / Gboard duplicate character typing
+    const helperTextarea = containerRef.current.querySelector('.xterm-helper-textarea') as HTMLTextAreaElement;
+    if (helperTextarea) {
+      helperTextarea.setAttribute('autocapitalize', 'none');
+      helperTextarea.setAttribute('autocorrect', 'off');
+      helperTextarea.setAttribute('autocomplete', 'off');
+      helperTextarea.setAttribute('spellcheck', 'false');
+      helperTextarea.setAttribute('enterkeyhint', 'go');
+      // "url" inputmode forces Android Gboard to disable predictive text buffering which causes duplicate characters
+      helperTextarea.setAttribute('inputmode', 'url');
+    }
+
     termRef.current = term;
     fitAddonRef.current = fitAddon;
 
@@ -320,12 +368,14 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
           } catch {}
           term.write(event.data);
           onTerminalOutputRef.current?.(event.data);
+          updateBadgePosition();
         } else if (event.data instanceof ArrayBuffer) {
           term.write(new Uint8Array(event.data));
           try {
             const str = new TextDecoder().decode(event.data);
             onTerminalOutputRef.current?.(str);
           } catch {}
+          updateBadgePosition();
         }
       };
 
@@ -360,6 +410,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       const cursorX = term.buffer?.active?.cursorX || 0;
       const cursorY = term.buffer?.active?.cursorY || 0;
       onCursorMoveRef.current?.({ x: cursorX, y: cursorY }, true);
+      updateBadgePosition();
     });
 
     const onResizeDisposable = term.onResize(({ cols, rows }) => {
@@ -402,6 +453,9 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       termRef.current.options.theme = TERMINAL_THEMES[themeKey] || TERMINAL_THEMES.nexus;
     }
   }, [themeKey]);
+  const tabIdRef = useRef(tabId);
+  tabIdRef.current = tabId;
+
   // Listen for remote input from multiplayer peers and simulated terminal writes
   useEffect(() => {
     const handleRemoteInput = (e: any) => {
@@ -411,6 +465,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
     };
     const handleTerminalWrite = (e: any) => {
       if (!termRef.current || !e.detail?.data) return;
+      if (e.detail.tabId && tabIdRef.current && e.detail.tabId !== tabIdRef.current) return;
       const data = e.detail.data;
       if (typeof data === 'string') {
         termRef.current.write(data);
@@ -420,6 +475,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
         termRef.current.write(data);
       }
       termRef.current.scrollToBottom();
+      updateBadgePosition();
     };
     const handleSnapshotRequest = () => {
       if (!termRef.current || isMultiplayerParticipantRef.current) return;
@@ -448,7 +504,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       window.removeEventListener('xterminal:terminal-write', handleTerminalWrite);
       window.removeEventListener('xterminal:request-snapshot', handleSnapshotRequest);
     };
-  }, [isMultiplayerParticipant, onTerminalOutput]);
+  }, [isMultiplayerParticipant, onTerminalOutput, updateBadgePosition]);
 
   // Keepalive Heartbeat Timer
   useEffect(() => {
@@ -461,7 +517,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
   }, [keepaliveInterval]);
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden relative bg-[#0A0A0B]">
+    <div className="h-full flex flex-col bg-[#0A0A0B] select-none relative">
       {/* Toast Notification for Auto-Copy & Right-Click Paste */}
       {toastMessage && (
         <div className="absolute top-4 right-4 z-40 px-3 py-1.5 rounded-lg bg-[#0e2a22] border border-emerald-500/40 text-emerald-300 text-xs font-mono shadow-xl flex items-center gap-2 backdrop-blur-md animate-in fade-in slide-in-from-top-2 select-none">
@@ -479,9 +535,20 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
         ref={containerRef}
         onContextMenu={handleContextMenu}
         onMouseUp={handleMouseUp}
-        className="flex-1 overflow-hidden p-3 select-text cursor-text"
+        className="flex-1 overflow-hidden p-3 select-text cursor-text relative"
         title="Select text to auto-copy | Right-click to paste"
-      />
+      >
+        {/* Real-time Multiplayer Typing Presence Badge placed directly over active prompt cursor */}
+        {isMultiplayerActive && typingBadge && typingBadge.isTyping && (
+          <MultiplayerCursorBadge
+            name={typingBadge.name}
+            avatar={typingBadge.avatar}
+            color={typingBadge.color}
+            cursorPixelPosition={badgePixelPos}
+            isTyping={typingBadge.isTyping}
+          />
+        )}
+      </div>
 
       {/* Mobile Accessory Bar for Quick Touch Operations */}
       <div className="md:hidden flex items-center gap-1.5 px-2.5 py-1.5 bg-[#141416] border-t border-[#222224] overflow-x-auto shrink-0 select-none">

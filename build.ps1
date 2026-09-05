@@ -2,16 +2,77 @@
 .SYNOPSIS
     xTerminal - Multi-Platform Interactive Build & Packaging Utility
 .DESCRIPTION
-    Builds Windows (.exe / NSIS), Linux (.AppImage / .deb), macOS (.dmg), and Android packages.
+    Builds Windows (.exe / NSIS), Android (.apk), Linux (.AppImage / .deb), and macOS (.dmg).
+    Supports dynamic versioning across package.json, Android gradle, and release filenames.
+.PARAMETER Target
+    Target platform: win, windows, android, linux, mac, macos, all.
+.PARAMETER Version
+    Optional version string (e.g. 1.0.0, 1.1.0). Updates package.json and Android build.gradle if specified.
 #>
 
 param(
-    [string]$Target = ""
+    [string]$Target = "",
+    [string]$Version = ""
 )
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
+
+# --- Version Management Functions ---
+function Get-AppVersion {
+    $pkgJsonPath = Join-Path $ScriptDir "package.json"
+    if (Test-Path $pkgJsonPath) {
+        try {
+            $json = Get-Content $pkgJsonPath -Raw | ConvertFrom-Json
+            if ($json.version) { return $json.version }
+        } catch {}
+    }
+    return "1.0.0"
+}
+
+function Set-AppVersion([string]$newVer) {
+    if (-not $newVer) { return }
+    $cleanVer = $newVer.Trim().TrimStart('v').TrimStart('V')
+    
+    # 1. Update package.json
+    $pkgJsonPath = Join-Path $ScriptDir "package.json"
+    if (Test-Path $pkgJsonPath) {
+        $content = Get-Content $pkgJsonPath -Raw
+        $content = $content -replace '("version"\s*:\s*)"[^"]+"', "`$1`"$cleanVer`""
+        Set-Content -Path $pkgJsonPath -Value $content -Encoding utf8
+        Write-Host "  [+] Updated package.json version -> $cleanVer" -ForegroundColor Green
+    }
+    
+    # 2. Update Android build.gradle
+    $gradlePath = Join-Path $ScriptDir "android\app\build.gradle"
+    if (Test-Path $gradlePath) {
+        $gradleContent = Get-Content $gradlePath -Raw
+        $gradleContent = $gradleContent -replace 'versionName\s+"[^"]+"', "versionName `"$cleanVer`""
+        
+        # Calculate numeric versionCode (e.g. 1.0.0 -> 10000, 1.2.3 -> 10203)
+        $parts = $cleanVer.Split('.')
+        if ($parts.Count -ge 2) {
+            try {
+                $major = [int]$parts[0]
+                $minor = [int]$parts[1]
+                $patch = if ($parts.Count -ge 3) { [int]$parts[2] } else { 0 }
+                $newCode = ($major * 10000) + ($minor * 100) + $patch
+                $gradleContent = $gradleContent -replace 'versionCode\s+\d+', "versionCode $newCode"
+            } catch {}
+        }
+        Set-Content -Path $gradlePath -Value $gradleContent -Encoding utf8
+        Write-Host "  [+] Updated Android build.gradle versionName -> $cleanVer" -ForegroundColor Green
+    }
+
+    $script:AppVersion = $cleanVer
+}
+
+# Initialize Version
+$script:AppVersion = Get-AppVersion
+if ($Version -and $Version.Trim() -ne "") {
+    Set-AppVersion $Version
+}
 
 function Show-Banner {
     Clear-Host
@@ -22,7 +83,8 @@ function Show-Banner {
     Write-Host "      | |   | |  __/ |  | | | | | | | | | | (_| | |                  " -ForegroundColor Green
     Write-Host "      |_|   |_|\___|_|  |_| |_| |_|_|_| |_|\__,_|_| PRO              " -ForegroundColor Cyan
     Write-Host "=====================================================================" -ForegroundColor Cyan
-    Write-Host "   Multi-Platform Cross-Build Engine (Windows, macOS, Linux, Android)" -ForegroundColor DarkGray
+    Write-Host "   Multi-Platform Cross-Build Engine (Windows, Android, Linux, macOS)" -ForegroundColor DarkGray
+    Write-Host "   Version: v$script:AppVersion | Target: $(if ($Target) { $Target } else { 'Interactive' })" -ForegroundColor Yellow
     Write-Host "=====================================================================`n" -ForegroundColor DarkGray
 }
 
@@ -51,7 +113,7 @@ function Test-Prerequisites {
 }
 
 function Build-FrontendAndServer {
-    Write-Host "`n[1/2] Compiling Vite Frontend & Node Server Bundle..." -ForegroundColor Cyan
+    Write-Host "`n[1/2] Compiling Vite Frontend & Node Server Bundle (v$script:AppVersion)..." -ForegroundColor Cyan
     $start = Get-Date
     npm run build
     if ($LASTEXITCODE -ne 0) {
@@ -64,20 +126,27 @@ function Build-FrontendAndServer {
 
 function Build-Windows {
     Show-Banner
-    Write-Host ">>> TARGET: Windows Desktop Application (NSIS Installer & Portable .exe)`n" -ForegroundColor Yellow
+    Write-Host ">>> TARGET: Windows Desktop Application (v$script:AppVersion)`n" -ForegroundColor Yellow
     
     # Terminate any running instances that could lock files
     Get-Process -Name "xTerminal", "electron" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 500
     
     # Clean temporary directories that could trigger EPERM
     if (Test-Path "$ScriptDir\release\win-unpacked.tmp") {
         Remove-Item "$ScriptDir\release\win-unpacked.tmp" -Recurse -Force -ErrorAction SilentlyContinue
     }
+    if (Test-Path "$ScriptDir\release\win-unpacked") {
+        Remove-Item "$ScriptDir\release\win-unpacked" -Recurse -Force -ErrorAction SilentlyContinue
+    }
 
-    # Backup Android APK if present so electron-builder doesn't wipe it
-    $apkBackup = "$env:TEMP\xTerminal-1.0.0.apk"
-    if (Test-Path "$ScriptDir\release\xTerminal-1.0.0.apk") {
-        Copy-Item "$ScriptDir\release\xTerminal-1.0.0.apk" $apkBackup -Force
+    # Backup any Android APKs if present so electron-builder doesn't wipe them
+    $apkBackupDir = "$env:TEMP\xterminal-apk-backup"
+    if (Test-Path "$ScriptDir\release") {
+        New-Item -ItemType Directory -Path $apkBackupDir -Force | Out-Null
+        Get-ChildItem -Path "$ScriptDir\release" -Filter "*.apk" | ForEach-Object {
+            Copy-Item $_.FullName "$apkBackupDir\$($_.Name)" -Force
+        }
     }
 
     Build-FrontendAndServer
@@ -85,82 +154,39 @@ function Build-Windows {
     Write-Host "`n[2/2] Packaging Windows application via electron-builder..." -ForegroundColor Cyan
     $start = Get-Date
     cmd.exe /c "npx electron-builder --win nsis"
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Failed to package Windows installer." -ForegroundColor Red
-        return
-    }
+    $buildSuccess = ($LASTEXITCODE -eq 0)
     $elapsed = (Get-Date) - $start
 
-    # Restore Android APK if it was backed up
-    if (Test-Path $apkBackup) {
-        Copy-Item $apkBackup "$ScriptDir\release\xTerminal-1.0.0.apk" -Force
-        Remove-Item $apkBackup -Force -ErrorAction SilentlyContinue
-    }
-
-    Write-Host "`n=====================================================================" -ForegroundColor Green
-    Write-Host " [SUCCESS] Windows Desktop App built successfully in $([math]::Round($elapsed.TotalSeconds, 1))s!" -ForegroundColor Green
-    Write-Host "=====================================================================" -ForegroundColor Green
-    Write-Host "  Output Directory: $ScriptDir\release" -ForegroundColor White
-    
-    if (Test-Path "$ScriptDir\release\xTerminal Setup 1.0.0.exe") {
-        Write-Host "  Setup Installer : release\xTerminal Setup 1.0.0.exe" -ForegroundColor Cyan
-    }
-    if (Test-Path "$ScriptDir\release\win-unpacked\xTerminal.exe") {
-        Write-Host "  Standalone .exe : release\win-unpacked\xTerminal.exe" -ForegroundColor Cyan
-    }
-    Write-Host ""
-    
-    if ($Target -eq "") {
-        $openFolder = Read-Host "Would you like to open the release folder in File Explorer? (Y/N)"
-        if ($openFolder -match "^[Yy]") {
-            Invoke-Item "$ScriptDir\release"
+    # Restore Android APKs if they were backed up
+    if (Test-Path $apkBackupDir) {
+        Get-ChildItem -Path $apkBackupDir -Filter "*.apk" | ForEach-Object {
+            Copy-Item $_.FullName "$ScriptDir\release\$($_.Name)" -Force
         }
+        Remove-Item $apkBackupDir -Recurse -Force -ErrorAction SilentlyContinue
     }
-}
 
-function Build-Linux {
-    Show-Banner
-    Write-Host ">>> TARGET: Linux Desktop Application (AppImage & Debian .deb)`n" -ForegroundColor Yellow
-
-    Build-FrontendAndServer
-
-    Write-Host "`n[2/2] Packaging Linux AppImage & .deb..." -ForegroundColor Cyan
-    $start = Get-Date
-    npx electron-builder --linux AppImage deb
-    $elapsed = (Get-Date) - $start
-
-    if ($LASTEXITCODE -eq 0) {
+    if ($buildSuccess) {
         Write-Host "`n=====================================================================" -ForegroundColor Green
-        Write-Host " [SUCCESS] Linux packages generated successfully in $([math]::Round($elapsed.TotalSeconds, 1))s!" -ForegroundColor Green
-        Write-Host " Output: $ScriptDir\release" -ForegroundColor White
+        Write-Host " [SUCCESS] Windows Desktop App built successfully in $([math]::Round($elapsed.TotalSeconds, 1))s!" -ForegroundColor Green
+        Write-Host "=====================================================================" -ForegroundColor Green
+        Write-Host "  Output Directory: $ScriptDir\release" -ForegroundColor White
+        
+        $installer = Get-ChildItem -Path "$ScriptDir\release" -Filter "*Setup*.exe" | Select-Object -First 1
+        if ($installer) {
+            Write-Host "  Setup Installer : release\$($installer.Name)" -ForegroundColor Cyan
+        }
+        if (Test-Path "$ScriptDir\release\win-unpacked\xTerminal.exe") {
+            Write-Host "  Standalone .exe : release\win-unpacked\xTerminal.exe" -ForegroundColor Cyan
+        }
+        Write-Host ""
     } else {
-        Write-Host "`n[NOTE] Linux packaging on Windows typically requires WSL (Windows Subsystem for Linux) or Docker for full .AppImage / .deb signing." -ForegroundColor Yellow
-    }
-}
-
-function Build-MacOS {
-    Show-Banner
-    Write-Host ">>> TARGET: macOS Desktop Application (.dmg Installer)`n" -ForegroundColor Yellow
-
-    Build-FrontendAndServer
-
-    Write-Host "`n[2/2] Packaging macOS .dmg..." -ForegroundColor Cyan
-    $start = Get-Date
-    npx electron-builder --mac dmg
-    $elapsed = (Get-Date) - $start
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "`n=====================================================================" -ForegroundColor Green
-        Write-Host " [SUCCESS] macOS .dmg generated successfully in $([math]::Round($elapsed.TotalSeconds, 1))s!" -ForegroundColor Green
-        Write-Host " Output: $ScriptDir\release" -ForegroundColor White
-    } else {
-        Write-Host "`n[NOTE] macOS .dmg bundling requires a macOS host or specialized Docker container for Darwin code signing." -ForegroundColor Yellow
+        Write-Host "`n[!] Windows packaging encountered an error. Check logs above." -ForegroundColor Red
     }
 }
 
 function Build-Android {
     Show-Banner
-    Write-Host ">>> TARGET: Android Mobile Application (Capacitor Native APK & PWA)`n" -ForegroundColor Yellow
+    Write-Host ">>> TARGET: Android Mobile Application (v$script:AppVersion)`n" -ForegroundColor Yellow
 
     if (-not $env:ANDROID_HOME -and (Test-Path "$env:LOCALAPPDATA\Android\Sdk")) {
         $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
@@ -187,30 +213,26 @@ function Build-Android {
 
     Write-Host "`n[3/3] Compiling Native Android APK with Gradle..." -ForegroundColor Cyan
     if (Test-Path "$ScriptDir\android\gradlew.bat") {
+        $start = Get-Date
         Push-Location "$ScriptDir\android"
         cmd.exe /c "gradlew.bat assembleDebug"
         Pop-Location
+        $elapsed = (Get-Date) - $start
 
         $apkPath = "$ScriptDir\android\app\build\outputs\apk\debug\app-debug.apk"
         if (Test-Path $apkPath) {
             if (-not (Test-Path "$ScriptDir\release")) {
                 New-Item -ItemType Directory -Path "$ScriptDir\release" -Force | Out-Null
             }
-            Copy-Item $apkPath "$ScriptDir\release\xTerminal-1.0.0.apk" -Force
+            $targetApk = "$ScriptDir\release\xTerminal-$script:AppVersion.apk"
+            Copy-Item $apkPath $targetApk -Force
 
             Write-Host "`n=====================================================================" -ForegroundColor Green
-            Write-Host " [SUCCESS] Android APK built successfully!" -ForegroundColor Green
+            Write-Host " [SUCCESS] Android APK built successfully in $([math]::Round($elapsed.TotalSeconds, 1))s!" -ForegroundColor Green
             Write-Host "=====================================================================" -ForegroundColor Green
-            Write-Host "  Native APK (Debug) : $apkPath" -ForegroundColor Cyan
-            Write-Host "  Release Package    : $ScriptDir\release\xTerminal-1.0.0.apk" -ForegroundColor Green
+            Write-Host "  Release Package : release\xTerminal-$script:AppVersion.apk" -ForegroundColor Green
+            Write-Host "  Size            : $([math]::Round((Get-Item $targetApk).Length / 1MB, 2)) MB" -ForegroundColor White
             Write-Host ""
-
-            if ($Target -eq "") {
-                $openFolder = Read-Host "Would you like to open the release folder in File Explorer? (Y/N)"
-                if ($openFolder -match "^[Yy]") {
-                    Invoke-Item "$ScriptDir\release"
-                }
-            }
         } else {
             Write-Host "`n[!] Failed to generate APK. Check Android build logs above." -ForegroundColor Red
         }
@@ -219,12 +241,77 @@ function Build-Android {
     }
 }
 
+function Build-Linux {
+    Show-Banner
+    Write-Host ">>> TARGET: Linux Desktop Application (v$script:AppVersion)`n" -ForegroundColor Yellow
+
+    Build-FrontendAndServer
+
+    Write-Host "`n[2/2] Packaging Linux AppImage & .deb..." -ForegroundColor Cyan
+    $start = Get-Date
+    cmd.exe /c "npx electron-builder --linux AppImage deb --publish never"
+    $elapsed = (Get-Date) - $start
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "`n=====================================================================" -ForegroundColor Green
+        Write-Host " [SUCCESS] Linux packages generated successfully in $([math]::Round($elapsed.TotalSeconds, 1))s!" -ForegroundColor Green
+        Write-Host " Output: $ScriptDir\release" -ForegroundColor White
+    } else {
+        Write-Host "`n[NOTE] Linux packaging on native Windows often requires WSL or Docker for .AppImage/.deb signing." -ForegroundColor Yellow
+    }
+}
+
+function Build-MacOS {
+    Show-Banner
+    Write-Host ">>> TARGET: macOS Desktop Application (v$script:AppVersion)`n" -ForegroundColor Yellow
+
+    Build-FrontendAndServer
+
+    Write-Host "`n[2/2] Packaging macOS .dmg..." -ForegroundColor Cyan
+    $start = Get-Date
+    cmd.exe /c "npx electron-builder --mac dmg --publish never"
+    $elapsed = (Get-Date) - $start
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "`n=====================================================================" -ForegroundColor Green
+        Write-Host " [SUCCESS] macOS .dmg generated successfully in $([math]::Round($elapsed.TotalSeconds, 1))s!" -ForegroundColor Green
+        Write-Host " Output: $ScriptDir\release" -ForegroundColor White
+    } else {
+        Write-Host "`n[NOTE] macOS .dmg bundling requires a macOS host or Darwin code-signing container." -ForegroundColor Yellow
+    }
+}
+
 function Build-All {
+    Show-Banner
+    Write-Host ">>> STARTING ALL-PLATFORM BUILD SUITE (v$script:AppVersion)`n" -ForegroundColor Yellow
+    $allStart = Get-Date
+
+    Write-Host "================ [STAGE 1/4] Windows Desktop ================" -ForegroundColor Cyan
     Build-Windows
-    Write-Host "`nContinuing with Android target..." -ForegroundColor DarkGray
+
+    Write-Host "`n================ [STAGE 2/4] Android Mobile ================" -ForegroundColor Cyan
     Build-Android
-    Write-Host "`nContinuing with cross-platform targets..." -ForegroundColor DarkGray
+
+    Write-Host "`n================ [STAGE 3/4] Linux Desktop =================" -ForegroundColor Cyan
     Build-Linux
+
+    Write-Host "`n================ [STAGE 4/4] macOS Desktop =================" -ForegroundColor Cyan
+    Build-MacOS
+
+    $totalElapsed = (Get-Date) - $allStart
+    Write-Host "`n=====================================================================" -ForegroundColor Green
+    Write-Host " [COMPLETED] All Platform Build Process finished in $([math]::Round($totalElapsed.TotalSeconds, 1))s!" -ForegroundColor Green
+    Write-Host "=====================================================================" -ForegroundColor Green
+
+    # Display Release Summary
+    if (Test-Path "$ScriptDir\release") {
+        Write-Host "`nGenerated Release Artifacts (release\):" -ForegroundColor Cyan
+        Get-ChildItem -Path "$ScriptDir\release" | Where-Object { -not $_.PSIsContainer } | ForEach-Object {
+            $mb = [math]::Round($_.Length / 1MB, 2)
+            Write-Host "  - $($_.Name) ($mb MB)" -ForegroundColor White
+        }
+    }
+    Write-Host ""
 }
 
 function Run-DevDesktop {
@@ -236,12 +323,24 @@ function Run-DevDesktop {
 
 function Refresh-Icons {
     Show-Banner
-    Write-Host ">>> Regenerating all multi-platform icons from public/icon.svg...`n" -ForegroundColor Cyan
+    Write-Host ">>> Regenerating all multi-platform icons from public/logo.png...`n" -ForegroundColor Cyan
     node_modules\.bin\electron.cmd scripts\generate-icons.cjs
     Write-Host "`n[+] Multi-platform icons regenerated successfully." -ForegroundColor Green
 }
 
-# --- Main Entry Loop ---
+function Prompt-ChangeVersion {
+    Show-Banner
+    Write-Host "Current App Version: v$script:AppVersion" -ForegroundColor Yellow
+    Write-Host ""
+    $newV = Read-Host "Enter new version number (e.g. 1.0.1, 1.1.0)"
+    if ($newV -and $newV.Trim() -ne "") {
+        Set-AppVersion $newV
+        Write-Host "`nVersion successfully updated to v$script:AppVersion!" -ForegroundColor Green
+        Start-Sleep -Seconds 1
+    }
+}
+
+# --- Main CLI Dispatcher ---
 if (!(Test-Prerequisites)) {
     Read-Host "`nPress Enter to exit..."
     exit 1
@@ -251,41 +350,44 @@ if ($Target -ne "") {
     switch ($Target.ToLower()) {
         "win"     { Build-Windows; exit }
         "windows" { Build-Windows; exit }
+        "android" { Build-Android; exit }
         "linux"   { Build-Linux; exit }
         "mac"     { Build-MacOS; exit }
         "macos"   { Build-MacOS; exit }
-        "android" { Build-Android; exit }
         "all"     { Build-All; exit }
         default   { Write-Host "Unknown target: $Target" -ForegroundColor Red; exit 1 }
     }
 }
 
+# Interactive Menu Loop
 do {
     Show-Banner
-    Write-Host "Select a target platform to build:" -ForegroundColor White
+    Write-Host "Select a target platform or utility to build:" -ForegroundColor White
     Write-Host ""
     Write-Host "  [1]  Windows Desktop       (.exe Installer & Portable win-unpacked)" -ForegroundColor Cyan
-    Write-Host "  [2]  Linux Desktop         (.AppImage & Debian .deb)" -ForegroundColor Green
-    Write-Host "  [3]  macOS Desktop         (.dmg Installer)" -ForegroundColor Magenta
-    Write-Host "  [4]  Android App           (Capacitor / Android Studio native package)" -ForegroundColor Yellow
-    Write-Host "  [5]  Build All Targets     (Complete desktop packaging suite)" -ForegroundColor White
+    Write-Host "  [2]  Android App           (Capacitor / Android Native APK)" -ForegroundColor Green
+    Write-Host "  [3]  Linux Desktop         (.AppImage & Debian .deb)" -ForegroundColor Yellow
+    Write-Host "  [4]  macOS Desktop         (.dmg Installer)" -ForegroundColor Magenta
+    Write-Host "  [5]  Build All Targets     (Complete Multi-Platform Packaging Suite)" -ForegroundColor White
     Write-Host "  -------------------------------------------------------------------" -ForegroundColor DarkGray
     Write-Host "  [6]  Launch Desktop App    (Run locally via Electron)" -ForegroundColor DarkCyan
     Write-Host "  [7]  Regenerate Icons      (Refresh .ico, .png, Android, Web icons)" -ForegroundColor DarkGray
+    Write-Host "  [8]  Change Version        (Current: v$script:AppVersion)" -ForegroundColor Yellow
     Write-Host "  [0]  Exit" -ForegroundColor Red
     Write-Host ""
     
-    $choice = Read-Host "Enter option number [0-7]"
+    $choice = Read-Host "Enter option number [0-8]"
     
     switch ($choice) {
         "1" { Build-Windows; Pause }
-        "2" { Build-Linux; Pause }
-        "3" { Build-MacOS; Pause }
-        "4" { Build-Android; Pause }
+        "2" { Build-Android; Pause }
+        "3" { Build-Linux; Pause }
+        "4" { Build-MacOS; Pause }
         "5" { Build-All; Pause }
         "6" { Run-DevDesktop; Pause }
         "7" { Refresh-Icons; Pause }
+        "8" { Prompt-ChangeVersion }
         "0" { Write-Host "`nExiting builder. Good bye!" -ForegroundColor DarkGray; break }
-        default { Write-Host "Invalid option. Please choose between 0 and 7." -ForegroundColor Red; Start-Sleep -Seconds 1 }
+        default { Write-Host "Invalid option. Please choose between 0 and 8." -ForegroundColor Red; Start-Sleep -Seconds 1 }
     }
 } while ($choice -ne "0")

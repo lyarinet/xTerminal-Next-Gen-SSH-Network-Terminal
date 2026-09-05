@@ -5,6 +5,7 @@ interface MultiplayerCursorBadgeProps {
   avatar: string;
   color?: string;
   cursorPosition?: { x: number; y: number };
+  cursorPixelPosition?: { x: number; y: number };
   isTyping?: boolean;
 }
 
@@ -13,6 +14,7 @@ export const MultiplayerCursorBadge: React.FC<MultiplayerCursorBadgeProps> = ({
   avatar,
   color = '#38bdf8',
   cursorPosition,
+  cursorPixelPosition,
   isTyping = false,
 }) => {
   const [imgError, setImgError] = useState(false);
@@ -22,10 +24,21 @@ export const MultiplayerCursorBadge: React.FC<MultiplayerCursorBadgeProps> = ({
   // Approximate character cell sizing (xterm default ~9.2px wide x 18px high)
   const cellWidth = 9.2;
   const cellHeight = 18.5;
-  const hasCoord = cursorPosition && (cursorPosition.x > 0 || cursorPosition.y > 0);
-  const left = hasCoord ? Math.max(20, Math.min(window.innerWidth - 100, cursorPosition.x * cellWidth + 14)) : 140;
-  const top = hasCoord ? Math.max(12, cursorPosition.y * cellHeight + 10) : undefined;
-  const bottom = hasCoord ? undefined : 42;
+
+  let left: number;
+  let top: number | undefined;
+  let bottom: number | undefined;
+
+  if (cursorPixelPosition) {
+    left = cursorPixelPosition.x;
+    top = Math.max(24, cursorPixelPosition.y);
+    bottom = undefined;
+  } else {
+    const hasCoord = cursorPosition && (cursorPosition.x > 0 || cursorPosition.y > 0);
+    left = hasCoord ? Math.max(20, Math.min(window.innerWidth - 100, cursorPosition.x * cellWidth + 14)) : 140;
+    top = hasCoord ? Math.max(12, cursorPosition.y * cellHeight + 10) : undefined;
+    bottom = hasCoord ? undefined : 42;
+  }
 
   const initial = (name || 'U').charAt(0).toUpperCase();
 

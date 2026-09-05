@@ -300,11 +300,31 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
         const msg = JSON.parse(event.data);
         if (!msg || !msg.type) return;
 
+        if (msg.type === 'error') {
+          window.dispatchEvent(
+            new CustomEvent('xterminal:terminal-write', {
+              detail: {
+                tabId,
+                data: `\r\n\x1b[31;1m[Multiplayer Error] ${msg.message || 'Session unavailable'}\x1b[0m\r\n\x1b[33mHost computer must be running xTerminal with an active shared session.\x1b[0m\r\n\x1b[90mStart a session on the PC or tap an active session from the top banner.\x1b[0m\r\n`,
+              },
+            })
+          );
+          return;
+        }
+
         if (msg.type === 'session:state') {
           setMultiplayerSessions((prev) => ({
             ...prev,
             [tabId]: msg.session,
           }));
+          window.dispatchEvent(
+            new CustomEvent('xterminal:terminal-write', {
+              detail: {
+                tabId,
+                data: `\r\n\x1b[32;1m✔ Synchronized with Host "${msg.session?.hostName || 'Host'}" [Session: ${msg.session?.id}]\x1b[0m\r\n`,
+              },
+            })
+          );
           if (msg.snapshot) {
             window.dispatchEvent(
               new CustomEvent('xterminal:terminal-write', {
@@ -509,6 +529,41 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
         }
       } catch (err) {
         console.error('Error handling multiplayer message:', err);
+      }
+    };
+
+    socket.onerror = (e) => {
+      console.warn('Multiplayer WebSocket error:', e);
+      if (role === 'participant') {
+        window.dispatchEvent(
+          new CustomEvent('xterminal:terminal-write', {
+            detail: {
+              tabId,
+              data: `\r\n\x1b[31m[xTerminal] Multiplayer connection error. Ensure PC server is running.\x1b[0m\r\n`,
+            },
+          })
+        );
+      }
+    };
+
+    socket.onclose = (ev) => {
+      console.log(`Multiplayer WebSocket closed (code: ${ev.code}) for tab: ${tabId}`);
+      if (role === 'participant') {
+        window.dispatchEvent(
+          new CustomEvent('xterminal:terminal-write', {
+            detail: {
+              tabId,
+              data: `\r\n\x1b[33m[xTerminal] Disconnected from session (Code ${ev.code}).\x1b[0m\r\n`,
+            },
+          })
+        );
+      } else if (role === 'host') {
+        // Auto-reconnect host multiplayer WebSocket if server reboots
+        setTimeout(() => {
+          if (multiplayerSessionsRef.current[tabId]) {
+            connectMultiplayerWs(sessionId, tabId, 'host');
+          }
+        }, 2500);
       }
     };
   };

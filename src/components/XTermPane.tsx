@@ -327,8 +327,8 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
     });
 
     if (isMultiplayerParticipant) {
-      term.writeln('\x1b[32m[xTerminal Multiplayer] Connected to live shared terminal session.\x1b[0m');
-      term.writeln('\x1b[90m[Multiplayer] Synchronizing live host stream & terminal buffer...\x1b[0m\r\n');
+      term.writeln('\x1b[36m[xTerminal Multiplayer] Connecting to live shared session...\x1b[0m');
+      term.writeln('\x1b[90m[Multiplayer] Waiting for host stream synchronization...\x1b[0m\r\n');
       // Trigger snapshot fetch once xterm is mounted in DOM
       window.dispatchEvent(new CustomEvent('xterminal:request-remote-snapshot'));
       setTimeout(() => {
@@ -337,6 +337,9 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('xterminal:request-remote-snapshot'));
       }, 1000);
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('xterminal:request-remote-snapshot'));
+      }, 2500);
     } else {
       // Establish WebSocket connection to backend SSH / Local PTY bridge
       const wsUrl = getBackendWsUrl('/ws/ssh');

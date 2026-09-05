@@ -1579,9 +1579,50 @@ async function startServer() {
 
           if (msg.type === "join") {
             const { sessionId, user, passcode } = msg;
-            const session = activeMultiplayerSessions.get(sessionId);
+            let session = activeMultiplayerSessions.get(sessionId);
+
+            // If session not found but join is from a host, auto-recreate session (survives server restarts)
+            if (!session && user?.role === "host") {
+              session = {
+                id: sessionId,
+                tabId: `tab-${Date.now()}`,
+                title: "Remote Terminal Session",
+                hostUserId: user.id,
+                hostName: user.name || "Host",
+                hostAvatar: user.avatar || "",
+                controllerId: user.id,
+                controlMode: "shared",
+                accessMode: "link_only",
+                passcode: passcode || "",
+                status: "active",
+                participants: new Map(),
+                chatMessages: [],
+                activityLog: [],
+                snapshotBuffer: [],
+                pendingRequests: [],
+                createdAt: new Date().toISOString(),
+              };
+              activeMultiplayerSessions.set(sessionId, session);
+              console.log(`[Multiplayer] Recreated session ${sessionId} for host ${user.name}`);
+            }
+
+            // Fallback for participant if exact sessionId is stale but exactly 1 active host session exists
+            if (!session && activeMultiplayerSessions.size === 1) {
+              session = Array.from(activeMultiplayerSessions.values())[0];
+              console.log(`[Multiplayer] Fallback: routed participant ${user.name} to active session ${session.id}`);
+            }
+
             if (!session) {
-              ws.send(JSON.stringify({ type: "error", message: "Session not found" }));
+              const count = activeMultiplayerSessions.size;
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  message:
+                    count === 0
+                      ? "No active host terminal found on PC. Open xTerminal on PC and start Multiplayer first."
+                      : `Session "${sessionId}" was not found or has ended.`,
+                })
+              );
               return;
             }
 
@@ -1590,7 +1631,7 @@ async function startServer() {
               return;
             }
 
-            currentSessionId = sessionId;
+            currentSessionId = session.id;
             currentUserId = user.id;
 
             let participant = session.participants.get(user.id);
@@ -1645,6 +1686,12 @@ async function startServer() {
               session: sanitizeMultiplayerSession(session),
               snapshot: session.snapshotBuffer.join(""),
             }));
+
+            // Request immediate fresh snapshot from host so participant doesn't wait
+            const host = session.participants.get(session.hostUserId);
+            if (host && host.ws && host.ws.readyState === WebSocket.OPEN && host.ws !== ws) {
+              host.ws.send(JSON.stringify({ type: "terminal:request-snapshot", requestedBy: user.id }));
+            }
             return;
           }
 

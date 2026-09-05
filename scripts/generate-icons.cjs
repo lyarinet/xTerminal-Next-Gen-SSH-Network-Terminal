@@ -12,11 +12,11 @@ app.whenReady().then(async () => {
     backgroundColor: '#00000000',
   });
 
-  const svgPath = path.join(__dirname, '../public/icon.svg');
-  const svgData = fs.readFileSync(svgPath, 'utf8');
-  const base64Svg = Buffer.from(svgData).toString('base64');
+  const imgPath = path.join(__dirname, '../public/logo.png');
+  const imgData = fs.readFileSync(imgPath);
+  const base64Img = imgData.toString('base64');
   
-  await win.loadURL(`data:text/html;charset=utf-8,<html><body style="margin:0;padding:0;background:transparent;overflow:hidden;"><img id="logo" src="data:image/svg+xml;base64,${base64Svg}" style="width:1024px;height:1024px;" /></body></html>`);
+  await win.loadURL(`data:text/html;charset=utf-8,<html><body style="margin:0;padding:0;background:transparent;overflow:hidden;"><img id="logo" src="data:image/jpeg;base64,${base64Img}" style="width:1024px;height:1024px;display:block;" /></body></html>`);
   
   await new Promise(r => setTimeout(r, 1000));
 
@@ -33,15 +33,29 @@ app.whenReady().then(async () => {
   const buildIconsDir = path.join(__dirname, '../build/icons');
   const publicDir = path.join(__dirname, '../public');
 
+  fs.mkdirSync(buildDir, { recursive: true });
   fs.mkdirSync(buildIconsDir, { recursive: true });
   fs.mkdirSync(publicDir, { recursive: true });
 
   // Web & Mobile PWA Icons
+  fs.writeFileSync(path.join(publicDir, 'icon.png'), pngBuffers[512]);
   fs.writeFileSync(path.join(publicDir, 'icon-512.png'), pngBuffers[512]);
   fs.writeFileSync(path.join(publicDir, 'icon-maskable.png'), pngBuffers[512]);
   fs.writeFileSync(path.join(publicDir, 'icon-192.png'), pngBuffers[192]);
   fs.writeFileSync(path.join(publicDir, 'apple-touch-icon.png'), pngBuffers[192]);
   fs.writeFileSync(path.join(buildDir, 'icon.png'), pngBuffers[512]);
+
+  // SVG representation embedding the new high-res logo
+  const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <clipPath id="squircle">
+      <rect width="512" height="512" rx="112" ry="112" />
+    </clipPath>
+  </defs>
+  <image href="data:image/jpeg;base64,${base64Img}" width="512" height="512" clip-path="url(#squircle)" preserveAspectRatio="xMidYMid slice" />
+</svg>`;
+  fs.writeFileSync(path.join(publicDir, 'icon.svg'), svgContent, 'utf8');
+  fs.writeFileSync(path.join(publicDir, 'favicon.svg'), svgContent, 'utf8');
 
   // Linux standard sizes
   for (const s of [16, 32, 48, 64, 128, 256, 512]) {

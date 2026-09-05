@@ -114,8 +114,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Brand Header */}
       <div className="p-4 border-b border-[#222224] flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="relative w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.25)] bg-[#111114]">
-            <img src="/icon.svg" alt="xTerminal Logo" className="w-full h-full object-contain p-0.5" />
+          <div className="relative w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-blue-500/40 shadow-[0_0_14px_rgba(14,165,233,0.35)] bg-black">
+            <img src="/icon.png" alt="xTerminal Logo" className="w-full h-full object-cover" />
           </div>
           <div>
             <div className="font-bold text-sm tracking-tight text-white flex items-center gap-1.5">

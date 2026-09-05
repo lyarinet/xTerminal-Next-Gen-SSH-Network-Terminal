@@ -66,16 +66,36 @@ function Build-Windows {
     Show-Banner
     Write-Host ">>> TARGET: Windows Desktop Application (NSIS Installer & Portable .exe)`n" -ForegroundColor Yellow
     
+    # Terminate any running instances that could lock files
+    Get-Process -Name "xTerminal", "electron" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    
+    # Clean temporary directories that could trigger EPERM
+    if (Test-Path "$ScriptDir\release\win-unpacked.tmp") {
+        Remove-Item "$ScriptDir\release\win-unpacked.tmp" -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    # Backup Android APK if present so electron-builder doesn't wipe it
+    $apkBackup = "$env:TEMP\xTerminal-1.0.0.apk"
+    if (Test-Path "$ScriptDir\release\xTerminal-1.0.0.apk") {
+        Copy-Item "$ScriptDir\release\xTerminal-1.0.0.apk" $apkBackup -Force
+    }
+
     Build-FrontendAndServer
     
     Write-Host "`n[2/2] Packaging Windows application via electron-builder..." -ForegroundColor Cyan
     $start = Get-Date
-    npx electron-builder --win nsis
+    cmd.exe /c "npx electron-builder --win nsis"
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to package Windows installer." -ForegroundColor Red
         return
     }
     $elapsed = (Get-Date) - $start
+
+    # Restore Android APK if it was backed up
+    if (Test-Path $apkBackup) {
+        Copy-Item $apkBackup "$ScriptDir\release\xTerminal-1.0.0.apk" -Force
+        Remove-Item $apkBackup -Force -ErrorAction SilentlyContinue
+    }
 
     Write-Host "`n=====================================================================" -ForegroundColor Green
     Write-Host " [SUCCESS] Windows Desktop App built successfully in $([math]::Round($elapsed.TotalSeconds, 1))s!" -ForegroundColor Green
@@ -146,6 +166,14 @@ function Build-Android {
         $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
     }
 
+    # Ensure local.properties exists for Gradle
+    $localProp = "$ScriptDir\android\local.properties"
+    $sdkDir = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { "$env:LOCALAPPDATA\Android\Sdk" }
+    $escapedSdk = $sdkDir -replace '\\', '\\'
+    if (-not (Test-Path $localProp) -or (Get-Content $localProp -Raw) -notmatch "sdk.dir") {
+        Set-Content -Path $localProp -Value "sdk.dir=$escapedSdk"
+    }
+
     Write-Host "[1/3] Building Web Distribution for Android WebView..." -ForegroundColor Cyan
     npm run build
     if ($LASTEXITCODE -ne 0) { return }
@@ -160,16 +188,31 @@ function Build-Android {
     Write-Host "`n[3/3] Compiling Native Android APK with Gradle..." -ForegroundColor Cyan
     if (Test-Path "$ScriptDir\android\gradlew.bat") {
         Push-Location "$ScriptDir\android"
-        .\gradlew.bat assembleDebug
+        cmd.exe /c "gradlew.bat assembleDebug"
         Pop-Location
 
         $apkPath = "$ScriptDir\android\app\build\outputs\apk\debug\app-debug.apk"
         if (Test-Path $apkPath) {
+            if (-not (Test-Path "$ScriptDir\release")) {
+                New-Item -ItemType Directory -Path "$ScriptDir\release" -Force | Out-Null
+            }
+            Copy-Item $apkPath "$ScriptDir\release\xTerminal-1.0.0.apk" -Force
+
             Write-Host "`n=====================================================================" -ForegroundColor Green
             Write-Host " [SUCCESS] Android APK built successfully!" -ForegroundColor Green
             Write-Host "=====================================================================" -ForegroundColor Green
-            Write-Host "  APK Location: $apkPath" -ForegroundColor Cyan
+            Write-Host "  Native APK (Debug) : $apkPath" -ForegroundColor Cyan
+            Write-Host "  Release Package    : $ScriptDir\release\xTerminal-1.0.0.apk" -ForegroundColor Green
             Write-Host ""
+
+            if ($Target -eq "") {
+                $openFolder = Read-Host "Would you like to open the release folder in File Explorer? (Y/N)"
+                if ($openFolder -match "^[Yy]") {
+                    Invoke-Item "$ScriptDir\release"
+                }
+            }
+        } else {
+            Write-Host "`n[!] Failed to generate APK. Check Android build logs above." -ForegroundColor Red
         }
     } else {
         Write-Host "Android project synced. Run: npx cap open android to build in Android Studio." -ForegroundColor Yellow
@@ -178,6 +221,8 @@ function Build-Android {
 
 function Build-All {
     Build-Windows
+    Write-Host "`nContinuing with Android target..." -ForegroundColor DarkGray
+    Build-Android
     Write-Host "`nContinuing with cross-platform targets..." -ForegroundColor DarkGray
     Build-Linux
 }

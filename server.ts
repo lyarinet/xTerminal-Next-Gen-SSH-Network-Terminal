@@ -1550,6 +1550,129 @@ app.get("/api/sftp/download", async (req, res) => {
 });
 
 // ==========================================
+// REMOTE SERIAL CONSOLE BRIDGE ENGINE
+// ==========================================
+interface SerialBridgeSession {
+  id: string;
+  baudRate: number;
+  dataBits: number;
+  stopBits: number;
+  parity: string;
+  passcode?: string;
+  engineerWs?: WebSocket;
+  clientWs?: WebSocket;
+  clientPortInfo?: string;
+  status: "waiting_for_client" | "connected" | "disconnected";
+  createdAt: number;
+  lastActivity: number;
+  txBytes: number;
+  rxBytes: number;
+}
+
+const activeSerialBridges = new Map<string, SerialBridgeSession>();
+
+// Cleanup stale bridges after 2 hours
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, bridge] of activeSerialBridges.entries()) {
+    if (now - bridge.lastActivity > 2 * 60 * 60 * 1000) {
+      try {
+        bridge.engineerWs?.close();
+      } catch {}
+      try {
+        bridge.clientWs?.close();
+      } catch {}
+      activeSerialBridges.delete(id);
+    }
+  }
+}, 60 * 1000);
+
+// Create Serial Bridge Session
+app.post("/api/serial-bridge/create", (req, res) => {
+  const { baudRate = 9600, dataBits = 8, stopBits = 1, parity = "none", passcode } = req.body;
+  const sessionId = `sb-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+
+  const bridge: SerialBridgeSession = {
+    id: sessionId,
+    baudRate: Number(baudRate) || 9600,
+    dataBits: Number(dataBits) || 8,
+    stopBits: Number(stopBits) || 1,
+    parity: parity || "none",
+    passcode: passcode ? String(passcode).trim() : undefined,
+    status: "waiting_for_client",
+    createdAt: Date.now(),
+    lastActivity: Date.now(),
+    txBytes: 0,
+    rxBytes: 0,
+  };
+
+  activeSerialBridges.set(sessionId, bridge);
+  res.json({
+    success: true,
+    session: {
+      id: bridge.id,
+      baudRate: bridge.baudRate,
+      dataBits: bridge.dataBits,
+      stopBits: bridge.stopBits,
+      parity: bridge.parity,
+      hasPasscode: Boolean(bridge.passcode),
+      status: bridge.status,
+    },
+    sharePath: `/serial-bridge.html?session=${sessionId}&baud=${bridge.baudRate}`,
+  });
+});
+
+// Check Session Status
+app.get("/api/serial-bridge/session/:id", (req, res) => {
+  const bridge = activeSerialBridges.get(req.params.id);
+  if (!bridge) {
+    return res.status(404).json({ error: "Serial bridge session not found or expired" });
+  }
+  res.json({
+    id: bridge.id,
+    baudRate: bridge.baudRate,
+    dataBits: bridge.dataBits,
+    stopBits: bridge.stopBits,
+    parity: bridge.parity,
+    status: bridge.status,
+    clientPortInfo: bridge.clientPortInfo,
+    hasPasscode: Boolean(bridge.passcode),
+    txBytes: bridge.txBytes,
+    rxBytes: bridge.rxBytes,
+    createdAt: bridge.createdAt,
+  });
+});
+
+// Terminate Session
+app.delete("/api/serial-bridge/session/:id", (req, res) => {
+  const bridge = activeSerialBridges.get(req.params.id);
+  if (bridge) {
+    try {
+      bridge.clientWs?.send(JSON.stringify({ type: "session:terminated", message: "Engineer closed session" }));
+      bridge.clientWs?.close();
+    } catch {}
+    try {
+      bridge.engineerWs?.send(JSON.stringify({ type: "session:terminated", message: "Session terminated" }));
+      bridge.engineerWs?.close();
+    } catch {}
+    activeSerialBridges.delete(req.params.id);
+  }
+  res.json({ success: true });
+});
+
+// Serve client serial bridge portal
+app.get(["/serial-bridge", "/serial-agent"], (_req, res) => {
+  const distPath = path.join(process.cwd(), "dist", "serial-bridge.html");
+  const publicPath = path.join(process.cwd(), "public", "serial-bridge.html");
+  if (fs.existsSync(distPath)) {
+    return res.sendFile(distPath);
+  } else if (fs.existsSync(publicPath)) {
+    return res.sendFile(publicPath);
+  }
+  res.redirect("/serial-bridge.html");
+});
+
+// ==========================================
 // REAL SYSTEM PROCESSES & DOCKER ENGINE
 // ==========================================
 app.get("/api/system/processes", async (_req, res) => {
@@ -2031,10 +2154,11 @@ async function startServer() {
     });
   }
 
-  // Real SSH & Local Terminal WebSocket Bridge + Multiplayer Gateway
+  // Real SSH & Local Terminal WebSocket Bridge + Multiplayer Gateway + Serial Bridge Gateway
   function setupWebSocketServer(httpServer: http.Server) {
     const sshWss = new WebSocketServer({ noServer: true });
     const multiplayerWss = new WebSocketServer({ noServer: true });
+    const serialBridgeWss = new WebSocketServer({ noServer: true });
 
     httpServer.on("upgrade", (request, socket, head) => {
       try {
@@ -2048,6 +2172,10 @@ async function startServer() {
         } else if (pathname === "/ws/multiplayer") {
           multiplayerWss.handleUpgrade(request, socket, head, (ws) => {
             multiplayerWss.emit("connection", ws, request);
+          });
+        } else if (pathname === "/ws/serial-bridge") {
+          serialBridgeWss.handleUpgrade(request, socket, head, (ws) => {
+            serialBridgeWss.emit("connection", ws, request);
           });
         } else {
           socket.destroy();
@@ -2515,6 +2643,168 @@ async function startServer() {
 
           broadcastToSession(session, { type: "participant:left", userId: participant.id });
           broadcastToSession(session, { type: "activity:event", event: leaveEvent });
+        }
+      });
+    });
+
+    // Remote Serial Console Bridge Gateway Connection Handler
+    serialBridgeWss.on("connection", (ws: WebSocket) => {
+      let activeId: string | null = null;
+      let activeRole: "engineer" | "client" | null = null;
+
+      ws.on("message", (raw: any) => {
+        try {
+          const msg = JSON.parse(raw.toString());
+          if (!msg || !msg.type) return;
+
+          if (msg.type === "ping") {
+            ws.send(JSON.stringify({ type: "pong" }));
+            return;
+          }
+
+          if (msg.type === "join") {
+            const { sessionId, role, passcode, portInfo } = msg;
+            const bridge = activeSerialBridges.get(sessionId);
+
+            if (!bridge) {
+              ws.send(JSON.stringify({ type: "error", message: "Serial session not found or has expired." }));
+              ws.close();
+              return;
+            }
+
+            if (bridge.passcode && bridge.passcode !== passcode) {
+              ws.send(JSON.stringify({ type: "error", message: "Invalid passcode for serial session." }));
+              ws.close();
+              return;
+            }
+
+            activeId = sessionId;
+            activeRole = role;
+
+            if (role === "engineer") {
+              bridge.engineerWs = ws;
+              ws.send(JSON.stringify({
+                type: "session:state",
+                sessionId: bridge.id,
+                baudRate: bridge.baudRate,
+                dataBits: bridge.dataBits,
+                stopBits: bridge.stopBits,
+                parity: bridge.parity,
+                status: bridge.status,
+                clientPortInfo: bridge.clientPortInfo,
+                clientConnected: Boolean(bridge.clientWs && bridge.clientWs.readyState === WebSocket.OPEN),
+              }));
+            } else if (role === "client") {
+              bridge.clientWs = ws;
+              bridge.clientPortInfo = portInfo || "USB Console Cable";
+              bridge.status = "connected";
+
+              // Notify client
+              ws.send(JSON.stringify({
+                type: "session:ready",
+                sessionId: bridge.id,
+                baudRate: bridge.baudRate,
+                dataBits: bridge.dataBits,
+                stopBits: bridge.stopBits,
+                parity: bridge.parity,
+              }));
+
+              // Notify engineer if connected
+              if (bridge.engineerWs && bridge.engineerWs.readyState === WebSocket.OPEN) {
+                bridge.engineerWs.send(JSON.stringify({
+                  type: "client:connected",
+                  portInfo: bridge.clientPortInfo,
+                  baudRate: bridge.baudRate,
+                }));
+              }
+            }
+            return;
+          }
+
+          if (!activeId) return;
+          const bridge = activeSerialBridges.get(activeId);
+          if (!bridge) return;
+
+          if (msg.type === "serial:data") {
+            bridge.lastActivity = Date.now();
+            const data = msg.data;
+            if (activeRole === "client") {
+              // Remote console switch output -> Engineer's xTerminal
+              bridge.rxBytes += (typeof data === "string" ? data.length : 0);
+              if (bridge.engineerWs && bridge.engineerWs.readyState === WebSocket.OPEN) {
+                bridge.engineerWs.send(JSON.stringify({
+                  type: "serial:data",
+                  data,
+                }));
+              }
+            } else if (activeRole === "engineer") {
+              // Engineer keystrokes/commands -> Client's switch console cable
+              bridge.txBytes += (typeof data === "string" ? data.length : 0);
+              if (bridge.clientWs && bridge.clientWs.readyState === WebSocket.OPEN) {
+                bridge.clientWs.send(JSON.stringify({
+                  type: "serial:data",
+                  data,
+                }));
+              }
+            }
+            return;
+          }
+
+          if (msg.type === "serial:config" && activeRole === "engineer") {
+            if (msg.baudRate) bridge.baudRate = Number(msg.baudRate);
+            if (msg.dataBits) bridge.dataBits = Number(msg.dataBits);
+            if (msg.stopBits) bridge.stopBits = Number(msg.stopBits);
+            if (msg.parity) bridge.parity = msg.parity;
+
+            if (bridge.clientWs && bridge.clientWs.readyState === WebSocket.OPEN) {
+              bridge.clientWs.send(JSON.stringify({
+                type: "serial:config",
+                baudRate: bridge.baudRate,
+                dataBits: bridge.dataBits,
+                stopBits: bridge.stopBits,
+                parity: bridge.parity,
+              }));
+            }
+            return;
+          }
+
+          if (msg.type === "client:status" && activeRole === "client") {
+            if (bridge.engineerWs && bridge.engineerWs.readyState === WebSocket.OPEN) {
+              bridge.engineerWs.send(JSON.stringify({
+                type: "client:status",
+                status: msg.status,
+                portInfo: msg.portInfo,
+              }));
+            }
+            return;
+          }
+        } catch (e) {
+          console.error("Error processing serial bridge message:", e);
+        }
+      });
+
+      ws.on("close", () => {
+        if (!activeId) return;
+        const bridge = activeSerialBridges.get(activeId);
+        if (!bridge) return;
+
+        if (activeRole === "client" && bridge.clientWs === ws) {
+          bridge.clientWs = undefined;
+          bridge.status = "waiting_for_client";
+          if (bridge.engineerWs && bridge.engineerWs.readyState === WebSocket.OPEN) {
+            bridge.engineerWs.send(JSON.stringify({
+              type: "client:disconnected",
+              message: "Remote client disconnected or cable was detached.",
+            }));
+          }
+        } else if (activeRole === "engineer" && bridge.engineerWs === ws) {
+          bridge.engineerWs = undefined;
+          if (bridge.clientWs && bridge.clientWs.readyState === WebSocket.OPEN) {
+            bridge.clientWs.send(JSON.stringify({
+              type: "engineer:disconnected",
+              message: "Engineer closed session.",
+            }));
+          }
         }
       });
     });

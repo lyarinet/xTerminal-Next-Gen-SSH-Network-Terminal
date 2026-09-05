@@ -17,7 +17,15 @@ import {
   Plus,
   Clock,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Share2,
+  Link2,
+  Copy,
+  Check,
+  ExternalLink,
+  Globe,
+  Shield,
+  X,
 } from 'lucide-react';
 import { SerialPortConfig } from '../types';
 import {
@@ -221,6 +229,18 @@ export const SerialConsoleView: React.FC = () => {
   const readerRef = useRef<any>(null);
   const writerRef = useRef<any>(null);
 
+  // Remote Serial Bridge State
+  const [showRemoteModal, setShowRemoteModal] = useState(false);
+  const [remoteSessionId, setRemoteSessionId] = useState<string | null>(null);
+  const [remoteShareUrl, setRemoteShareUrl] = useState<string>('');
+  const [remoteBaudRate, setRemoteBaudRate] = useState<number>(9600);
+  const [remotePasscode, setRemotePasscode] = useState<string>('');
+  const [isRemoteCreating, setIsRemoteCreating] = useState<boolean>(false);
+  const [isRemoteBridged, setIsRemoteBridged] = useState<boolean>(false);
+  const [remoteClientInfo, setRemoteClientInfo] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState<boolean>(false);
+  const remoteBridgeWsRef = useRef<WebSocket | null>(null);
+
   // Simulated GPIO state
   const gpioPinsRef = useRef<Record<number, boolean>>({
     0: true,
@@ -329,6 +349,23 @@ export const SerialConsoleView: React.FC = () => {
 
     // Keystroke handler for direct xterm.js keyboard input
     const dataListener = term.onData((data) => {
+      // If connected to remote serial bridge via WebSocket
+      if (remoteBridgeWsRef.current && remoteBridgeWsRef.current.readyState === WebSocket.OPEN) {
+        try {
+          remoteBridgeWsRef.current.send(JSON.stringify({
+            type: 'serial:data',
+            data,
+          }));
+          setBytesTxCount((prev) => prev + data.length);
+          if (serialSettings.localEcho) {
+            term.write(data === '\r' ? '\r\n' : data);
+          }
+          return;
+        } catch (e) {
+          console.error('Remote Serial Bridge write error:', e);
+        }
+      }
+
       // If connected to real Web Serial, forward directly to hardware with char pacing if configured
       if (writerRef.current) {
         try {
@@ -598,6 +635,12 @@ export const SerialConsoleView: React.FC = () => {
   // Connect or disconnect serial port
   const handleConnect = async () => {
     if (isConnected) {
+      if (remoteBridgeWsRef.current) {
+        try { remoteBridgeWsRef.current.close(); } catch {}
+        remoteBridgeWsRef.current = null;
+        setIsRemoteBridged(false);
+        setRemoteClientInfo(null);
+      }
       // Close Web Serial if open
       if (readerRef.current) {
         try {
@@ -717,6 +760,24 @@ export const SerialConsoleView: React.FC = () => {
       payloadText = inputVal + suffix;
     }
 
+    // If remote serial bridge is connected via WebSocket
+    if (remoteBridgeWsRef.current && remoteBridgeWsRef.current.readyState === WebSocket.OPEN) {
+      try {
+        remoteBridgeWsRef.current.send(JSON.stringify({
+          type: 'serial:data',
+          data: payloadText,
+        }));
+        setBytesTxCount((prev) => prev + payloadText.length);
+        if (serialSettings.localEcho) {
+          termRef.current?.write(payloadText);
+        }
+        setInputVal('');
+        return;
+      } catch (e) {
+        console.error('Remote Serial Bridge write error:', e);
+      }
+    }
+
     // If real Web Serial is connected
     if (writerRef.current) {
       try {
@@ -753,16 +814,164 @@ export const SerialConsoleView: React.FC = () => {
 
   // Quick Send Macro
   const handleSendMacro = (cmd: string) => {
+    const fullCmd = cmd + '\r\n';
+    if (remoteBridgeWsRef.current && remoteBridgeWsRef.current.readyState === WebSocket.OPEN) {
+      remoteBridgeWsRef.current.send(JSON.stringify({
+        type: 'serial:data',
+        data: fullCmd,
+      }));
+      setBytesTxCount((prev) => prev + fullCmd.length);
+      if (serialSettings.localEcho) {
+        termRef.current?.write(fullCmd);
+      }
+      return;
+    }
     if (termRef.current) {
-      termRef.current.write(cmd + '\r\n');
+      termRef.current.write(fullCmd);
     }
     executeSimulatedSerialCommand(cmd);
   };
 
   // Send Break signal
   const handleSendBreak = () => {
+    if (remoteBridgeWsRef.current && remoteBridgeWsRef.current.readyState === WebSocket.OPEN) {
+      remoteBridgeWsRef.current.send(JSON.stringify({
+        type: 'serial:data',
+        data: '\x03',
+      }));
+      termRef.current?.writeln('\r\n\x1b[33m[REMOTE BREAK]\x1b[0m <<< BREAK / INTERRUPT SENT TO REMOTE SWITCH >>>\r\n');
+      return;
+    }
     termRef.current?.writeln('\r\n\x1b[33m[SIGNAL]\x1b[0m <<< BREAK CONDITION SENT (250ms TX low) >>>\r\n');
     termRef.current?.write(promptStr);
+  };
+
+  // Generate & launch Remote Serial Bridge session
+  const handleCreateRemoteSession = async () => {
+    try {
+      setIsRemoteCreating(true);
+      const res = await fetch('/api/serial-bridge/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          baudRate: remoteBaudRate,
+          passcode: remotePasscode.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        alert(data.error || 'Failed to initialize remote serial bridge');
+        setIsRemoteCreating(false);
+        return;
+      }
+
+      const shareUrl = `${window.location.origin}${data.sharePath}`;
+      setRemoteShareUrl(shareUrl);
+      setRemoteSessionId(data.session.id);
+
+      // Connect Engineer WebSocket
+      if (remoteBridgeWsRef.current) {
+        try { remoteBridgeWsRef.current.close(); } catch {}
+      }
+
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProtocol}//${window.location.host}/ws/serial-bridge`;
+      const ws = new WebSocket(wsUrl);
+      remoteBridgeWsRef.current = ws;
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({
+          type: 'join',
+          sessionId: data.session.id,
+          role: 'engineer',
+          passcode: remotePasscode.trim() || undefined,
+        }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'client:connected') {
+            setIsRemoteBridged(true);
+            setRemoteClientInfo(msg.portInfo || 'USB Console Adapter');
+            setIsConnected(true);
+            termRef.current?.writeln(
+              `\r\n\x1b[1;32m[REMOTE CONSOLE ATTACHED]\x1b[0m Client plugged in console cable (${msg.portInfo || 'USB Serial'}).`
+            );
+            termRef.current?.writeln(
+              `\x1b[36m[TUNNEL LIVE]\x1b[0m Bi-directional remote switch console active @ ${msg.baudRate || remoteBaudRate} bps.\r\n`
+            );
+          } else if (msg.type === 'client:disconnected') {
+            setIsRemoteBridged(false);
+            setRemoteClientInfo(null);
+            termRef.current?.writeln(
+              `\r\n\x1b[1;33m[REMOTE CLIENT DETACHED]\x1b[0m Client disconnected or cable was detached.\r\n`
+            );
+          } else if (msg.type === 'serial:data') {
+            if (msg.data) {
+              const outputVal = serialSettings.showTimestamps
+                ? `\x1b[90m[${new Date().toLocaleTimeString()}]\x1b[0m ${msg.data}`
+                : msg.data;
+              termRef.current?.write(outputVal);
+              setBytesRxCount((prev) => prev + msg.data.length);
+              setLogs((prev) => [
+                ...prev,
+                {
+                  id: `rx-${Date.now()}`,
+                  timestamp: new Date().toLocaleTimeString(),
+                  direction: 'rx',
+                  text: msg.data,
+                  hex: stringToHex(msg.data),
+                },
+              ]);
+            }
+          }
+        } catch (err) {
+          console.error('Remote WS message error:', err);
+        }
+      };
+
+      ws.onclose = () => {
+        setIsRemoteBridged(false);
+        setRemoteClientInfo(null);
+      };
+
+      termRef.current?.writeln(
+        `\r\n\x1b[1;36m[REMOTE BRIDGE INITIALIZED]\x1b[0m Session: ${data.session.id}. Send URL to client.`
+      );
+
+      setIsRemoteCreating(false);
+    } catch (err: any) {
+      console.error('Create remote serial error:', err);
+      alert('Error creating remote session: ' + err.message);
+      setIsRemoteCreating(false);
+    }
+  };
+
+  // Close Remote Serial Bridge session
+  const handleCloseRemoteSession = async () => {
+    if (remoteSessionId) {
+      try {
+        await fetch(`/api/serial-bridge/session/${remoteSessionId}`, { method: 'DELETE' });
+      } catch {}
+    }
+    if (remoteBridgeWsRef.current) {
+      try { remoteBridgeWsRef.current.close(); } catch {}
+      remoteBridgeWsRef.current = null;
+    }
+    setRemoteSessionId(null);
+    setRemoteShareUrl('');
+    setIsRemoteBridged(false);
+    setRemoteClientInfo(null);
+    termRef.current?.writeln(`\r\n\x1b[31m[REMOTE SESSION CLOSED]\x1b[0m Remote serial tunnel terminated.\r\n`);
+  };
+
+  // Copy link helper
+  const handleCopyLink = () => {
+    if (!remoteShareUrl) return;
+    navigator.clipboard.writeText(remoteShareUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   // Clear Terminal Output
@@ -864,6 +1073,28 @@ export const SerialConsoleView: React.FC = () => {
                   <span>Open Port</span>
                 </>
               )}
+            </button>
+
+            {/* Remote Serial Bridge URL Button */}
+            <button
+              onClick={() => setShowRemoteModal(true)}
+              className={`px-3 py-2 rounded-md font-bold text-xs transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
+                isRemoteBridged
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse'
+                  : remoteSessionId
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  : 'bg-[#1C1C1E] hover:bg-sky-500/20 text-sky-400 hover:text-sky-300 border border-sky-500/30'
+              }`}
+              title="Share Remote Serial Console URL with Client (WebSerial over IP)"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>
+                {isRemoteBridged
+                  ? 'Remote Console Live'
+                  : remoteSessionId
+                  ? 'Waiting Client...'
+                  : 'Remote Client URL'}
+              </span>
             </button>
 
             <button
@@ -1294,6 +1525,183 @@ export const SerialConsoleView: React.FC = () => {
           }
         }}
       />
+
+      {/* Remote Serial Console Bridge Modal */}
+      {showRemoteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4">
+          <div className="bg-[#121316] border border-[#2A2B30] rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-[#222226] flex items-center justify-between bg-gradient-to-r from-sky-500/10 to-transparent">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-sky-500/20 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                  <Share2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    Remote Client Serial URL
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-mono">WebSerial over IP</span>
+                  </h3>
+                  <p className="text-[11px] text-gray-400">
+                    Client plugs console cable into switch; you get live console access
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowRemoteModal(false)}
+                className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-[#1E1F24] transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 text-xs">
+              {/* Status Indicator */}
+              <div className="flex items-center justify-between p-3 rounded-lg bg-[#18191D] border border-[#24252A]">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full ${
+                      isRemoteBridged
+                        ? 'bg-emerald-400 animate-pulse ring-4 ring-emerald-400/20'
+                        : remoteSessionId
+                        ? 'bg-amber-400 animate-pulse'
+                        : 'bg-gray-500'
+                    }`}
+                  />
+                  <span className="font-medium text-gray-200">
+                    {isRemoteBridged
+                      ? `Client Connected (${remoteClientInfo || 'Switch Console'})`
+                      : remoteSessionId
+                      ? 'Waiting for client to open URL and plug cable...'
+                      : 'No Active Remote Session'}
+                  </span>
+                </div>
+                {remoteSessionId && (
+                  <span className="text-[10px] font-mono text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded border border-cyan-400/20">
+                    {remoteBaudRate} 8N1
+                  </span>
+                )}
+              </div>
+
+              {!remoteSessionId ? (
+                /* Configuration Form */
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-300 mb-1">
+                      Console Baud Rate (Switch / Router default)
+                    </label>
+                    <select
+                      value={remoteBaudRate}
+                      onChange={(e) => setRemoteBaudRate(Number(e.target.value))}
+                      className="w-full px-3 py-2 rounded-md bg-[#18191D] border border-[#26272C] text-gray-200 font-mono text-xs focus:outline-hidden focus:border-sky-500"
+                    >
+                      <option value={9600}>9600 bps (Standard Cisco / Huawei / HP)</option>
+                      <option value={115200}>115200 bps (MikroTik / Juniper / Fortinet)</option>
+                      <option value={57600}>57600 bps</option>
+                      <option value={38400}>38400 bps</option>
+                      <option value={19200}>19200 bps</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-300 mb-1">
+                      Session Passcode (Optional)
+                    </label>
+                    <div className="relative">
+                      <Shield className="w-3.5 h-3.5 absolute left-3 top-2.5 text-gray-400" />
+                      <input
+                        type="text"
+                        value={remotePasscode}
+                        onChange={(e) => setRemotePasscode(e.target.value)}
+                        placeholder="Leave blank for open client access"
+                        className="w-full pl-9 pr-3 py-2 rounded-md bg-[#18191D] border border-[#26272C] text-gray-200 font-mono text-xs focus:outline-hidden focus:border-sky-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-300 space-y-1">
+                    <p className="font-semibold flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5" />
+                      How this works:
+                    </p>
+                    <p className="text-[11px] text-sky-200/80">
+                      1. You click "Generate Shareable Link" below.<br />
+                      2. Send the link to the client via WhatsApp, Slack, or Email.<br />
+                      3. Client opens it in Chrome/Edge, plugs in console cable, and clicks "Connect".<br />
+                      4. Switch console prompt appears directly in your xTerminal!
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleCreateRemoteSession}
+                    disabled={isRemoteCreating}
+                    className="w-full py-2.5 rounded-lg bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-black font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                  >
+                    <Link2 className="w-4 h-4" />
+                    <span>{isRemoteCreating ? 'Generating URL...' : 'Generate Shareable Client URL'}</span>
+                  </button>
+                </div>
+              ) : (
+                /* Active Session Details */
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-300 mb-1">
+                      Share this URL with your Client:
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        readOnly
+                        value={remoteShareUrl}
+                        className="w-full px-3 py-2 rounded-md bg-[#0F1013] border border-[#26272C] text-cyan-400 font-mono text-xs select-all"
+                      />
+                      <button
+                        onClick={handleCopyLink}
+                        className="px-3 py-2 rounded-md bg-[#1C1C20] hover:bg-[#25252A] text-gray-200 border border-[#2A2B30] flex items-center gap-1 text-xs font-semibold cursor-pointer transition-colors"
+                        title="Copy Link"
+                      >
+                        {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedLink ? 'Copied' : 'Copy'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={remoteShareUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 py-2 rounded-md bg-[#1C1C20] hover:bg-[#25252A] text-sky-400 border border-sky-500/20 text-center font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Test / Open Client Portal</span>
+                    </a>
+
+                    <button
+                      onClick={handleCloseRemoteSession}
+                      className="px-4 py-2 rounded-md bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/30 font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Square className="w-3.5 h-3.5" />
+                      <span>End Session</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 border-t border-[#222226] bg-[#0E0F12] flex items-center justify-between text-[11px] text-gray-400">
+              <span>Zero client installation &bull; WebSerial 2.0</span>
+              <button
+                onClick={() => setShowRemoteModal(false)}
+                className="px-3 py-1 rounded bg-[#1C1C20] hover:bg-[#25252A] text-gray-300 cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

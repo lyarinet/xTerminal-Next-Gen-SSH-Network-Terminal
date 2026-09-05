@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>xTerminal - Remote Serial Bridge</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #111827;
+      --card-border: #1f2937;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --primary: #0284c7;
+      --primary-hover: #0369a1;
+      --cyan: #06b6d4;
+      --emerald: #10b981;
+      --rose: #f43f5e;
+      --amber: #f59e0b;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 640px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 1.75rem 2rem 1.25rem;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: linear-gradient(to right, rgba(14, 165, 233, 0.08), transparent);
+    }
+
+    .header-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: rgba(14, 165, 233, 0.15);
+      border: 1px solid rgba(14, 165, 233, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--cyan);
+      flex-shrink: 0;
+    }
+
+    .header h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .header p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .content {
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 1rem 1.25rem;
+      border-radius: 12px;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+
+    .step-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #1e293b;
+      color: var(--cyan);
+      font-size: 0.75rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .step-item strong {
+      color: #fff;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: rgba(100, 116, 139, 0.15);
+      color: var(--text-muted);
+      border: 1px solid rgba(100, 116, 139, 0.3);
+      width: fit-content;
+    }
+
+    .status-badge.connected {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--emerald);
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .status-badge.connecting {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--amber);
+      border-color: rgba(245, 158, 11, 0.3);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .status-badge.connected .status-dot {
+      box-shadow: 0 0 8px var(--emerald);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .grid-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .info-box {
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+    }
+
+    .info-box-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 0.35rem;
+    }
+
+    .info-box-value {
+      font-size: 1rem;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      color: #fff;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .form-group label {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .select-input, .text-input {
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      color: #fff;
+      padding: 0.65rem 0.85rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-family: var(--font-mono);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .select-input:focus, .text-input:focus {
+      border-color: var(--cyan);
+    }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.65rem;
+      padding: 0.9rem 1.5rem;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      width: 100%;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, #0369a1, #075985);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(2, 132, 199, 0.4);
+    }
+
+    .btn-danger {
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      color: var(--rose);
+    }
+
+    .btn-danger:hover {
+      background: rgba(244, 63, 94, 0.25);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .terminal-mini {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      height: 120px;
+      overflow-y: auto;
+      color: #38bdf8;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .terminal-mini-title {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 0.35rem;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .alert {
+      padding: 0.85rem 1rem;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .alert-warning {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      color: #fbbf24;
+    }
+
+    .alert-danger {
+      background: rgba(244, 63, 94, 0.1);
+      border: 1px solid rgba(244, 63, 94, 0.25);
+      color: #fda4af;
+    }
+
+    .footer {
+      padding: 1rem 2rem;
+      border-top: 1px solid var(--card-border);
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+          <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+          <line x1="6" y1="6" x2="6.01" y2="6"></line>
+          <line x1="6" y1="18" x2="6.01" y2="18"></line>
+        </svg>
+      </div>
+      <div>
+        <h1>xTerminal Console Tunnel</h1>
+        <p>Remote Serial Console Bridge for Network Switches &amp; Routers</p>
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- Browser Compatibility Check -->
+      <div id="compatAlert" class="alert alert-warning hidden">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        <div>
+          <strong>Web Serial Not Supported:</strong> Please open this page in <strong>Google Chrome</strong>, <strong>Microsoft Edge</strong>, or <strong>Opera</strong> to connect to your console cable.
+        </div>
+      </div>
+
+      <!-- Instructions -->
+      <div class="steps">
+        <div class="step-item">
+          <div class="step-num">1</div>
+          <div>Connect your <strong>USB Console Cable</strong> to your PC and the switch's <strong>CONSOLE</strong> port.</div>
+        </div>
+        <div class="step-item">
+          <div class="step-num">2</div>
+          <div>Click the <strong>"Connect Console Cable"</strong> button below and select your USB Serial device.</div>
+        </div>
+        <div class="step-item">
+          <div class="step-num">3</div>
+          <div>Leave this tab open. The remote network engineer will have full console access to your switch!</div>
+        </div>
+      </div>
+
+      <!-- Status Badge -->
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div id="statusBadge" class="status-badge">
+          <span class="status-dot"></span>
+          <span id="statusText">Ready to connect</span>
+        </div>
+        <span id="tunnelText" style="font-size: 0.8rem; color: var(--text-muted);">Session: <code id="sessionIdDisplay" style="color: var(--cyan);">-</code></span>
+      </div>
+
+      <!-- Settings & Stats Grid -->
+      <div class="grid-info">
+        <div class="info-box">
+          <div class="info-box-label">Baud Rate</div>
+          <div id="baudDisplay" class="info-box-value">9600 bps</div>
+        </div>
+        <div class="info-box">
+          <div class="info-box-label">Data Transferred</div>
+          <div id="trafficDisplay" class="info-box-value">Tx: 0 B | Rx: 0 B</div>
+        </div>
+      </div>
+
+      <!-- Optional Passcode Input -->
+      <div id="passcodeGroup" class="form-group hidden">
+        <label for="passcodeInput">Session Passcode (Required)</label>
+        <input type="password" id="passcodeInput" class="text-input" placeholder="Enter session passcode" />
+      </div>
+
+      <!-- Baud Rate Selector (Optional override) -->
+      <div class="form-group" id="configGroup">
+        <label for="baudSelect">Console Baud Rate (Default Cisco: 9600)</label>
+        <select id="baudSelect" class="select-input">
+          <option value="9600" selected>9600 (Standard Cisco / Huawei / HP)</option>
+          <option value="115200">115200 (MikroTik / Juniper / Fortinet)</option>
+          <option value="57600">57600</option>
+          <option value="38400">38400</option>
+          <option value="19200">19200</option>
+        </select>
+      </div>
+
+      <!-- Action Button -->
+      <div>
+        <button id="connectBtn" class="btn btn-primary">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+          </svg>
+          Connect Console Cable
+        </button>
+        <button id="disconnectBtn" class="btn btn-danger hidden" style="margin-top: 0.75rem;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+          Disconnect Cable &amp; Tunnel
+        </button>
+      </div>
+
+      <!-- Activity Console -->
+      <div>
+        <div class="terminal-mini-title">
+          <span>Bridge Activity &amp; Raw Preview</span>
+          <span id="portStatusName" style="color: var(--cyan);">No Port Connected</span>
+        </div>
+        <div id="terminalLog" class="terminal-mini">Bridge engine initialized. Waiting for cable connection...</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      Powered by <strong>xTerminal</strong> &bull; Zero software installation required &bull; WebSerial 2.0
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionId = urlParams.get("session");
+      const paramBaud = urlParams.get("baud");
+
+      const connectBtn = document.getElementById("connectBtn");
+      const disconnectBtn = document.getElementById("disconnectBtn");
+      const statusBadge = document.getElementById("statusBadge");
+      const statusText = document.getElementById("statusText");
+      const terminalLog = document.getElementById("terminalLog");
+      const baudSelect = document.getElementById("baudSelect");
+      const baudDisplay = document.getElementById("baudDisplay");
+      const trafficDisplay = document.getElementById("trafficDisplay");
+      const sessionIdDisplay = document.getElementById("sessionIdDisplay");
+      const portStatusName = document.getElementById("portStatusName");
+      const compatAlert = document.getElementById("compatAlert");
+      const passcodeGroup = document.getElementById("passcodeGroup");
+      const passcodeInput = document.getElementById("passcodeInput");
+
+      let serialPort = null;
+      let portReader = null;
+      let portWriter = null;
+      let ws = null;
+      let isBridgeActive = false;
+      let txCount = 0;
+      let rxCount = 0;
+
+      if (sessionId) {
+        sessionIdDisplay.textContent = sessionId;
+      } else {
+        sessionIdDisplay.textContent = "Error: No session ID";
+        appendLog("[ERROR] Missing session parameter in URL. Please use the complete link provided by your engineer.");
+      }
+
+      if (paramBaud) {
+        baudSelect.value = paramBaud;
+        baudDisplay.textContent = paramBaud + " bps";
+      }
+
+      baudSelect.addEventListener("change", () => {
+        baudDisplay.textContent = baudSelect.value + " bps";
+      });
+
+      // Verify Web Serial Support
+      if (!("serial" in navigator)) {
+        compatAlert.classList.remove("hidden");
+        connectBtn.disabled = true;
+        appendLog("[WARNING] Web Serial API is NOT supported in this browser. Please open in Google Chrome or MS Edge.");
+      }
+
+      function appendLog(msg) {
+        const time = new Date().toLocaleTimeString();
+        terminalLog.textContent += `\n[${time}] ${msg}`;
+        terminalLog.scrollTop = terminalLog.scrollHeight;
+      }
+
+      function updateTraffic() {
+        trafficDisplay.textContent = `Tx: ${txCount} B | Rx: ${rxCount} B`;
+      }
+
+      function setStatus(state, text) {
+        statusBadge.className = `status-badge ${state}`;
+        statusText.textContent = text;
+      }
+
+      // Check session details from server
+      if (sessionId) {
+        fetch(`/api/serial-bridge/session/${sessionId}`)
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.baudRate) {
+              baudSelect.value = String(data.baudRate);
+              baudDisplay.textContent = data.baudRate + " bps";
+            }
+            if (data.hasPasscode) {
+              passcodeGroup.classList.remove("hidden");
+            }
+          })
+          .catch(() => {});
+      }
+
+      // Connect button click handler
+      connectBtn.addEventListener("click", async () => {
+        if (!sessionId) {
+          alert("Invalid session link. Please ask your engineer for a fresh URL.");
+          return;
+        }
+
+        try {
+          connectBtn.disabled = true;
+          setStatus("connecting", "Requesting serial port...");
+          appendLog("Opening browser port picker...");
+
+          // Request port from user
+          serialPort = await navigator.serial.requestPort();
+          const info = serialPort.getInfo();
+          const portLabel = (info.usbVendorId ? `USB Device (VID: 0x${info.usbVendorId.toString(16)})` : "USB Serial Port");
+          portStatusName.textContent = portLabel;
+
+          const currentBaud = parseInt(baudSelect.value, 10) || 9600;
+          appendLog(`Opening port with Baud: ${currentBaud}...`);
+
+          await serialPort.open({
+            baudRate: currentBaud,
+            dataBits: 8,
+            stopBits: 1,
+            parity: "none",
+            bufferSize: 16384,
+            flowControl: "none",
+          });
+
+          appendLog(`Port successfully opened! Establishing bridge to engineer...`);
+          setStatus("connecting", "Connecting to xTerminal tunnel...");
+
+          // Connect WebSocket to server
+          const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+          const wsUrl = `${wsProtocol}//${window.location.host}/ws/serial-bridge`;
+          ws = new WebSocket(wsUrl);
+
+          ws.onopen = () => {
+            appendLog("WebSocket tunnel connected. Registering as client...");
+            const passcode = passcodeInput ? passcodeInput.value.trim() : "";
+            ws.send(JSON.stringify({
+              type: "join",
+              sessionId: sessionId,
+              role: "client",
+              portInfo: portLabel,
+              passcode: passcode || undefined,
+            }));
+          };
+
+          ws.onmessage = async (event) => {
+            try {
+              const msg = JSON.parse(event.data);
+              if (msg.type === "session:ready") {
+                isBridgeActive = true;
+                setStatus("connected", "Active Tunnel &bull; Bridged to Engineer");
+                connectBtn.classList.add("hidden");
+                disconnectBtn.classList.remove("hidden");
+                appendLog("✅ Tunnel live! Bi-directional serial bridge active.");
+
+                // Start streams
+                startSerialReader();
+              } else if (msg.type === "serial:data") {
+                // Incoming data from engineer -> Send to physical switch
+                if (serialPort && serialPort.writable && msg.data) {
+                  const encoder = new TextEncoder();
+                  const data = encoder.encode(msg.data);
+                  const writer = serialPort.writable.getWriter();
+                  await writer.write(data);
+                  writer.releaseLock();
+                  txCount += data.byteLength;
+                  updateTraffic();
+                }
+              } else if (msg.type === "serial:config") {
+                // Engineer requested new baud rate
+                appendLog(`Engineer changed baud rate to: ${msg.baudRate}`);
+                if (msg.baudRate) {
+                  baudSelect.value = String(msg.baudRate);
+                  baudDisplay.textContent = msg.baudRate + " bps";
+                }
+              } else if (msg.type === "engineer:disconnected") {
+                appendLog("[INFO] Engineer disconnected or closed tab.");
+                setStatus("connecting", "Waiting for engineer to reconnect...");
+              } else if (msg.type === "error") {
+                appendLog(`[ERROR] Server error: ${msg.message}`);
+                alert(`Error: ${msg.message}`);
+                disconnect();
+              }
+            } catch (err) {
+              console.error("WS error:", err);
+            }
+          };
+
+          ws.onerror = (err) => {
+            console.error("WS error:", err);
+            appendLog("[ERROR] WebSocket connection failed.");
+            setStatus("", "Tunnel connection error");
+          };
+
+          ws.onclose = () => {
+            appendLog("WebSocket closed.");
+            if (isBridgeActive) {
+              disconnect();
+            }
+          };
+
+        } catch (err) {
+          console.error("Serial error:", err);
+          appendLog(`[ERROR] Port connection cancelled or failed: ${err.message}`);
+          setStatus("", "Connection failed");
+          connectBtn.disabled = false;
+        }
+      });
+
+      // Stream data from local serial port -> WebSocket -> Engineer
+      async function startSerialReader() {
+        const textDecoder = new TextDecoder();
+        try {
+          while (serialPort && serialPort.readable && isBridgeActive) {
+            portReader = serialPort.readable.getReader();
+            try {
+              while (true) {
+                const { value, done } = await portReader.read();
+                if (done) break;
+                if (value) {
+                  rxCount += value.byteLength;
+                  updateTraffic();
+                  const str = textDecoder.decode(value);
+                  // Preview output in log (first 40 chars)
+                  if (str.trim().length > 0) {
+                    appendLog(`[Switch >> Engineer]: ${str.replace(/[\r\n]+/g, " ").substring(0, 50)}`);
+                  }
+                  if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                      type: "serial:data",
+                      data: str,
+                    }));
+                  }
+                }
+              }
+            } finally {
+              portReader.releaseLock();
+            }
+          }
+        } catch (err) {
+          if (isBridgeActive) {
+            appendLog(`[Serial Read Error]: ${err.message}`);
+            disconnect();
+          }
+        }
+      }
+
+      async function disconnect() {
+        isBridgeActive = false;
+        setStatus("", "Disconnected");
+        connectBtn.classList.remove("hidden");
+        connectBtn.disabled = false;
+        disconnectBtn.classList.add("hidden");
+        portStatusName.textContent = "No Port Connected";
+
+        try {
+          if (portReader) {
+            await portReader.cancel();
+            portReader = null;
+          }
+        } catch {}
+
+        try {
+          if (serialPort) {
+            await serialPort.close();
+            serialPort = null;
+          }
+        } catch {}
+
+        try {
+          if (ws) {
+            ws.close();
+            ws = null;
+          }
+        } catch {}
+
+        appendLog("Bridge safely closed and USB port released.");
+      }
+
+      disconnectBtn.addEventListener("click", disconnect);
+
+      window.addEventListener("beforeunload", () => {
+        disconnect();
+      });
+    })();
+  </script>
+</body>
+</html>

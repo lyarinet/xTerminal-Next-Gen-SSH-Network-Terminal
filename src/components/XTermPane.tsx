@@ -137,6 +137,22 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
   const toastTimeoutRef = useRef<any>(null);
   const [backendVersion, setBackendVersion] = useState(0);
 
+  // Keep references always fresh to eliminate stale closures in WebSocket event handlers
+  const onTerminalOutputRef = useRef(onTerminalOutput);
+  onTerminalOutputRef.current = onTerminalOutput;
+
+  const onCursorMoveRef = useRef(onCursorMove);
+  onCursorMoveRef.current = onCursorMove;
+
+  const onTerminalInputRef = useRef(onTerminalInput);
+  onTerminalInputRef.current = onTerminalInput;
+
+  const isMultiplayerParticipantRef = useRef(isMultiplayerParticipant);
+  isMultiplayerParticipantRef.current = isMultiplayerParticipant;
+
+  const isControllerRef = useRef(isController);
+  isControllerRef.current = isController;
+
   useEffect(() => {
     const onBackendChange = () => setBackendVersion((v) => v + 1);
     window.addEventListener('xterminal:backend-url-changed', onBackendChange);
@@ -149,14 +165,21 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
     toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 2200);
   };
 
-  const handlePasteIntoTerminal = (text: string) => {
-    if (isMultiplayerParticipant) {
-      if (onTerminalInput) onTerminalInput(text);
+  const sendKeySequence = (key: string) => {
+    if (isMultiplayerParticipantRef.current) {
+      onTerminalInputRef.current?.(key);
     } else if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(text);
+      wsRef.current.send(key);
     } else if (termRef.current) {
-      termRef.current.write(text);
+      termRef.current.write(key);
     }
+    const cursorX = termRef.current?.buffer?.active?.cursorX || 0;
+    const cursorY = termRef.current?.buffer?.active?.cursorY || 0;
+    onCursorMoveRef.current?.({ x: cursorX, y: cursorY }, true);
+  };
+
+  const handlePasteIntoTerminal = (text: string) => {
+    sendKeySequence(text);
   };
 
   const handleContextMenu = async (e: React.MouseEvent) => {
@@ -296,15 +319,13 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
             }
           } catch {}
           term.write(event.data);
-          if (onTerminalOutput) onTerminalOutput(event.data);
+          onTerminalOutputRef.current?.(event.data);
         } else if (event.data instanceof ArrayBuffer) {
           term.write(new Uint8Array(event.data));
-          if (onTerminalOutput) {
-            try {
-              const str = new TextDecoder().decode(event.data);
-              onTerminalOutput(str);
-            } catch {}
-          }
+          try {
+            const str = new TextDecoder().decode(event.data);
+            onTerminalOutputRef.current?.(str);
+          } catch {}
         }
       };
 
@@ -327,22 +348,18 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
 
     // User typing into xterm
     const onDataDisposable = term.onData((data) => {
-      if (isMultiplayerActive && isController === false) {
+      if (isMultiplayerActive && isControllerRef.current === false) {
         showToast('Terminal control is held by another user. Request control to type.', 'copy');
         return;
       }
-      if (isMultiplayerParticipant) {
-        if (onTerminalInput) {
-          onTerminalInput(data);
-        }
+      if (isMultiplayerParticipantRef.current) {
+        onTerminalInputRef.current?.(data);
       } else if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(data);
       }
-      if (onCursorMove) {
-        const cursorX = term.buffer?.active?.cursorX || 0;
-        const cursorY = term.buffer?.active?.cursorY || 0;
-        onCursorMove({ x: cursorX, y: cursorY }, true);
-      }
+      const cursorX = term.buffer?.active?.cursorX || 0;
+      const cursorY = term.buffer?.active?.cursorY || 0;
+      onCursorMoveRef.current?.({ x: cursorX, y: cursorY }, true);
     });
 
     const onResizeDisposable = term.onResize(({ cols, rows }) => {
@@ -393,13 +410,19 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       }
     };
     const handleTerminalWrite = (e: any) => {
-      if (e.detail?.data && termRef.current) {
-        termRef.current.write(e.detail.data);
-        termRef.current.scrollToBottom();
+      if (!termRef.current || !e.detail?.data) return;
+      const data = e.detail.data;
+      if (typeof data === 'string') {
+        termRef.current.write(data);
+      } else if (data instanceof ArrayBuffer) {
+        termRef.current.write(new Uint8Array(data));
+      } else if (data instanceof Uint8Array) {
+        termRef.current.write(data);
       }
+      termRef.current.scrollToBottom();
     };
     const handleSnapshotRequest = () => {
-      if (!termRef.current || isMultiplayerParticipant) return;
+      if (!termRef.current || isMultiplayerParticipantRef.current) return;
       const term = termRef.current;
       const b = term.buffer.active;
       let text = '\x1b[2J\x1b[H';
@@ -412,8 +435,8 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
           }
         }
       }
-      if (text.trim() && onTerminalOutput) {
-        onTerminalOutput(text);
+      if (text.trim()) {
+        onTerminalOutputRef.current?.(text);
       }
     };
 
@@ -484,74 +507,38 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
           <span>Paste</span>
         </button>
         <button
-          onClick={() => {
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-              wsRef.current.send('\t');
-            } else if (termRef.current) {
-              termRef.current.write('\t');
-            }
-          }}
+          onClick={() => sendKeySequence('\t')}
           className="px-2.5 py-1 rounded bg-[#222226] hover:bg-[#2c2c30] text-gray-300 text-xs font-mono shrink-0"
         >
           Tab
         </button>
         <button
-          onClick={() => {
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-              wsRef.current.send('\u0003');
-            } else if (termRef.current) {
-              termRef.current.write('^C');
-            }
-          }}
+          onClick={() => sendKeySequence('\u0003')}
           className="px-2.5 py-1 rounded bg-[#222226] hover:bg-[#2c2c30] text-rose-400 text-xs font-mono shrink-0"
         >
           Ctrl+C
         </button>
         <button
-          onClick={() => {
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-              wsRef.current.send('\u001b');
-            } else if (termRef.current) {
-              termRef.current.write('\u001b');
-            }
-          }}
+          onClick={() => sendKeySequence('\u001b')}
           className="px-2.5 py-1 rounded bg-[#222226] hover:bg-[#2c2c30] text-gray-300 text-xs font-mono shrink-0"
         >
           Esc
         </button>
         <button
-          onClick={() => {
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-              wsRef.current.send('\u001b[A');
-            } else if (termRef.current) {
-              termRef.current.write('\u001b[A');
-            }
-          }}
+          onClick={() => sendKeySequence('\u001b[A')}
           className="px-2.5 py-1 rounded bg-[#222226] hover:bg-[#2c2c30] text-gray-300 text-xs font-mono shrink-0"
         >
           ↑
         </button>
         <button
-          onClick={() => {
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-              wsRef.current.send('\u001b[B');
-            } else if (termRef.current) {
-              termRef.current.write('\u001b[B');
-            }
-          }}
+          onClick={() => sendKeySequence('\u001b[B')}
           className="px-2.5 py-1 rounded bg-[#222226] hover:bg-[#2c2c30] text-gray-300 text-xs font-mono shrink-0"
         >
           ↓
         </button>
         <button
-          onClick={() => {
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-              wsRef.current.send('\u000c');
-            } else if (termRef.current) {
-              termRef.current.clear();
-            }
-          }}
-          className="px-2.5 py-1 rounded bg-[#222226] hover:bg-[#2c2c30] text-gray-400 text-xs font-mono shrink-0"
+          onClick={() => sendKeySequence('\u000c')}
+          className="px-2.5 py-1 rounded bg-[#222226] hover:bg-[#2c2c30] text-gray-400 hover:text-white text-xs font-mono shrink-0"
         >
           Clear
         </button>

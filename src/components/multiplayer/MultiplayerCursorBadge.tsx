@@ -17,13 +17,15 @@ export const MultiplayerCursorBadge: React.FC<MultiplayerCursorBadgeProps> = ({
 }) => {
   const [imgError, setImgError] = useState(false);
 
-  if (!cursorPosition || !isTyping) return null;
+  if (!isTyping) return null;
 
   // Approximate character cell sizing (xterm default ~9.2px wide x 18px high)
   const cellWidth = 9.2;
   const cellHeight = 18.5;
-  const left = Math.max(16, cursorPosition.x * cellWidth + 14);
-  const top = Math.max(8, cursorPosition.y * cellHeight + 10);
+  const hasCoord = cursorPosition && (cursorPosition.x > 0 || cursorPosition.y > 0);
+  const left = hasCoord ? Math.max(20, Math.min(window.innerWidth - 100, cursorPosition.x * cellWidth + 14)) : 140;
+  const top = hasCoord ? Math.max(12, cursorPosition.y * cellHeight + 10) : undefined;
+  const bottom = hasCoord ? undefined : 42;
 
   const initial = (name || 'U').charAt(0).toUpperCase();
 
@@ -32,8 +34,9 @@ export const MultiplayerCursorBadge: React.FC<MultiplayerCursorBadgeProps> = ({
       className="absolute pointer-events-none transition-all duration-150 ease-out z-40 flex flex-col items-center select-none"
       style={{
         left: `${left}px`,
-        top: `${top}px`,
-        transform: 'translate(-50%, -100%)',
+        top: top !== undefined ? `${top}px` : undefined,
+        bottom: bottom !== undefined ? `${bottom}px` : undefined,
+        transform: top !== undefined ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
       }}
     >
       {/* Name and Avatar Capsule */}

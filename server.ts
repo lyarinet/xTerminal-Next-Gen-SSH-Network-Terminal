@@ -1689,6 +1689,20 @@ async function startServer() {
                 data: msg.data,
                 fromUserId: currentUserId,
               }, ws);
+
+              // Live typing indication broadcasted to all peers including host
+              if (participant) {
+                participant.isTyping = true;
+                broadcastToSession(session, {
+                  type: "participant:typing",
+                  userId: participant.id,
+                  name: participant.name,
+                  avatar: participant.avatar,
+                  color: participant.color,
+                  isTyping: true,
+                  cursor: participant.cursorPosition || { x: 0, y: 0 },
+                }, ws);
+              }
             }
             return;
           }

@@ -96,7 +96,14 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
   const demoSimulatorsRef = useRef<Record<string, MultiplayerDemoSimulator>>({});
 
   const currentUserId = useRef(
-    localStorage.getItem('xterminal_user_id') || `user-${Math.random().toString(36).substring(2, 8)}`
+    (() => {
+      let uid = localStorage.getItem('xterminal_user_id');
+      if (!uid) {
+        uid = `user-${Math.random().toString(36).substring(2, 8)}`;
+        localStorage.setItem('xterminal_user_id', uid);
+      }
+      return uid;
+    })()
   ).current;
   const currentUserName = useRef(
     localStorage.getItem('xterminal_user_name') || 'Admin'
@@ -106,10 +113,19 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
       'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
   ).current;
 
+  const multiplayerSessionsRef = useRef(multiplayerSessions);
+  multiplayerSessionsRef.current = multiplayerSessions;
+
+  const activeTabIdRef = useRef(activeTabId);
+  activeTabIdRef.current = activeTabId;
+
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
   const activePane = activeTab?.panes.find((p) => p.id === activeTab.activePaneId) || activeTab?.panes[0];
   const currentHost = activeTab?.host || hosts.find((h) => h.id === activeTab?.hostId);
-  const currentSession = multiplayerSessions[activeTabId];
+  const currentSession =
+    multiplayerSessions[activeTabId] ||
+    Object.values(multiplayerSessions).find((s) => s.status === 'active') ||
+    Object.values(multiplayerSessions)[0];
 
   // Auto-detect invite link param on load (?session=XT-XXXXXX) or mobile app initial server setup
   useEffect(() => {
@@ -298,27 +314,36 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
 
         if (msg.type === 'participant:typing') {
           if (msg.userId !== currentUserId) {
+            const badgeData = {
+              name: msg.name,
+              avatar: msg.avatar,
+              color: msg.color,
+              cursor: msg.cursor || { x: 0, y: 0 },
+              isTyping: Boolean(msg.isTyping),
+            };
+            const curActive = activeTabIdRef.current;
             setTypingBadges((prev) => ({
               ...prev,
-              [tabId]: {
-                name: msg.name,
-                avatar: msg.avatar,
-                color: msg.color,
-                cursor: msg.cursor,
-                isTyping: msg.isTyping,
-              },
+              [tabId]: badgeData,
+              [curActive]: badgeData,
             }));
 
             // Auto-hide badge after 2.5s of inactivity
             if (typingBadgeTimeoutRef.current[tabId]) {
               clearTimeout(typingBadgeTimeoutRef.current[tabId]);
             }
-            typingBadgeTimeoutRef.current[tabId] = setTimeout(() => {
+            if (typingBadgeTimeoutRef.current[curActive] && curActive !== tabId) {
+              clearTimeout(typingBadgeTimeoutRef.current[curActive]);
+            }
+            const hideTimeout = setTimeout(() => {
               setTypingBadges((prev) => ({
                 ...prev,
                 [tabId]: { ...prev[tabId], isTyping: false },
+                [curActive]: { ...prev[curActive], isTyping: false },
               }));
             }, 2500);
+            typingBadgeTimeoutRef.current[tabId] = hideTimeout;
+            typingBadgeTimeoutRef.current[curActive] = hideTimeout;
           }
           return;
         }
@@ -685,19 +710,43 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
   };
 
   // Broadcast terminal output when host terminal outputs data
-  const handleTerminalOutput = (chunk: string) => {
-    const socket = wsSocketsRef.current[activeTabId];
-    if (socket && socket.readyState === WebSocket.OPEN && currentSession) {
-      if (currentSession.hostUserId === currentUserId) {
-        socket.send(JSON.stringify({ type: 'terminal:output', data: chunk }));
-      }
+  const handleTerminalOutput = (tabId: string, chunk: string) => {
+    if (!chunk) return;
+    const sessions = multiplayerSessionsRef.current;
+    const session =
+      sessions[tabId] ||
+      Object.values(sessions).find((s) => s.hostUserId === currentUserId) ||
+      Object.values(sessions)[0];
+
+    if (!session) return;
+
+    // Send on the open multiplayer WebSocket
+    const socket =
+      wsSocketsRef.current[tabId] ||
+      wsSocketsRef.current[session.tabId] ||
+      Object.values(wsSocketsRef.current).find((ws) => ws.readyState === WebSocket.OPEN);
+
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'terminal:output', data: chunk }));
     }
   };
 
   // Broadcast typing presence
-  const handleCursorMove = (cursor: { x: number; y: number }, isTyping: boolean) => {
-    const socket = wsSocketsRef.current[activeTabId];
-    if (socket && socket.readyState === WebSocket.OPEN && currentSession) {
+  const handleCursorMove = (tabId: string, cursor: { x: number; y: number }, isTyping: boolean) => {
+    const sessions = multiplayerSessionsRef.current;
+    const session =
+      sessions[tabId] ||
+      Object.values(sessions).find((s) => s.hostUserId === currentUserId) ||
+      Object.values(sessions)[0];
+
+    if (!session) return;
+
+    const socket =
+      wsSocketsRef.current[tabId] ||
+      wsSocketsRef.current[session.tabId] ||
+      Object.values(wsSocketsRef.current).find((ws) => ws.readyState === WebSocket.OPEN);
+
+    if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'terminal:typing', cursor, isTyping }));
     }
   };
@@ -706,7 +755,9 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
   const isCurrentController = currentSession
     ? currentSession.controllerId === currentUserId || currentSession.controlMode === 'shared'
     : true;
-  const currentTypingBadge = typingBadges[activeTabId];
+  const currentTypingBadge =
+    typingBadges[activeTabId] ||
+    Object.values(typingBadges).find((b) => b.isTyping);
 
   // Discover live sessions on the network not hosted by this client
   const activeUnjoinedSession = discoveredSessions.find(
@@ -1132,8 +1183,8 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
                     isController={isCurrentController}
                     isMultiplayerParticipant={tab.multiplayerRole === 'participant'}
                     onTerminalInput={(chunk) => handleParticipantInput(tab.id, chunk)}
-                    onTerminalOutput={handleTerminalOutput}
-                    onCursorMove={handleCursorMove}
+                    onTerminalOutput={(chunk) => handleTerminalOutput(tab.id, chunk)}
+                    onCursorMove={(cursor, isTyping) => handleCursorMove(tab.id, cursor, isTyping)}
                   />
                 ))}
               </div>

@@ -1,4 +1,4 @@
-﻿const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
@@ -45,6 +45,41 @@ app.whenReady().then(async () => {
   // Linux standard sizes
   for (const s of [16, 32, 48, 64, 128, 256, 512]) {
     fs.writeFileSync(path.join(buildIconsDir, `${s}x${s}.png`), pngBuffers[s]);
+  }
+
+  // Android mipmap launcher icons & splash screens
+  const resDir = path.join(__dirname, '../android/app/src/main/res');
+  if (fs.existsSync(resDir)) {
+    const androidMipmaps = [
+      { folder: 'mipmap-mdpi', icon: 48, fg: 108 },
+      { folder: 'mipmap-hdpi', icon: 72, fg: 162 },
+      { folder: 'mipmap-xhdpi', icon: 96, fg: 216 },
+      { folder: 'mipmap-xxhdpi', icon: 144, fg: 324 },
+      { folder: 'mipmap-xxxhdpi', icon: 192, fg: 432 },
+    ];
+    for (const m of androidMipmaps) {
+      const dir = path.join(resDir, m.folder);
+      fs.mkdirSync(dir, { recursive: true });
+      const iconBuf = image.resize({ width: m.icon, height: m.icon, quality: 'best' }).toPNG();
+      const fgBuf = image.resize({ width: m.fg, height: m.fg, quality: 'best' }).toPNG();
+      fs.writeFileSync(path.join(dir, 'ic_launcher.png'), iconBuf);
+      fs.writeFileSync(path.join(dir, 'ic_launcher_round.png'), iconBuf);
+      fs.writeFileSync(path.join(dir, 'ic_launcher_foreground.png'), fgBuf);
+    }
+
+    const splashBuf = image.resize({ width: 512, height: 512, quality: 'best' }).toPNG();
+    const drawables = [
+      'drawable',
+      'drawable-port-hdpi', 'drawable-port-mdpi', 'drawable-port-xhdpi', 'drawable-port-xxhdpi', 'drawable-port-xxxhdpi',
+      'drawable-land-hdpi', 'drawable-land-mdpi', 'drawable-land-xhdpi', 'drawable-land-xxhdpi', 'drawable-land-xxxhdpi',
+    ];
+    for (const d of drawables) {
+      const dir = path.join(resDir, d);
+      if (fs.existsSync(dir)) {
+        fs.writeFileSync(path.join(dir, 'splash.png'), splashBuf);
+      }
+    }
+    console.log('[+] Android mipmap launcher icons and splash screens generated!');
   }
 
   // Windows .ico Encoder (multi-layer PNG format)

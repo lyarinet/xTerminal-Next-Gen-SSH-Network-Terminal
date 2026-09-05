@@ -13,19 +13,18 @@ export interface CapacitorConfig {
 
 const config: CapacitorConfig = {
   appId: 'com.xterminalx.pro',
-  appName: 'xTerminalx Pro',
+  appName: 'xTerminal',
   webDir: 'dist',
   server: {
-    androidScheme: 'https',
+    androidScheme: 'http',
     cleartext: true,
   },
   plugins: {
     SplashScreen: {
-      launchShowDuration: 1200,
+      launchAutoHide: true,
+      launchShowDuration: 1500,
       backgroundColor: '#0A0A0B',
       showSpinner: false,
-      splashFullScreen: true,
-      splashImmersive: true,
     },
     StatusBar: {
       style: 'DARK',

@@ -20,13 +20,43 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <script>
-      if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js').catch((err) => {
-            console.log('SW registration note:', err);
+      // Only register service worker for web browser PWA, NEVER in native Capacitor / Electron
+      (function() {
+        var isNative = Boolean(
+          window.Capacitor ||
+          (window.location.hostname === 'localhost' && window.location.port === '') ||
+          window.location.protocol === 'file:' ||
+          navigator.userAgent.includes('Electron')
+        );
+        if (!isNative && 'serviceWorker' in navigator && window.location.protocol === 'https:') {
+          window.addEventListener('load', function() {
+            navigator.serviceWorker.register('./sw.js').catch(function(err) {
+              console.log('SW registration note:', err);
+            });
           });
+        }
+        // If service worker was previously registered in native app, unregister it
+        if (isNative && 'serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            for (var i = 0; i < regs.length; i++) {
+              regs[i].unregister();
+            }
+          }).catch(function() {});
+        }
+
+        // Global startup error catcher
+        window.addEventListener('error', function(e) {
+          console.error('[xTerminal] Global startup error:', e);
+          var root = document.getElementById('root');
+          if (root && (!root.children || root.children.length === 0)) {
+            root.innerHTML = '<div style="background:#0A0A0B;color:#fff;font-family:sans-serif;padding:32px;text-align:center;min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;">' +
+              '<h2 style="color:#10b981;margin-bottom:12px;">xTerminal Pro</h2>' +
+              '<p style="color:#aaa;font-size:13px;max-width:320px;line-height:1.5;">' + (e.message || 'Loading interface...') + '</p>' +
+              '<button onclick="location.reload()" style="margin-top:20px;background:#10b981;color:#000;font-weight:bold;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;">Reload Application</button>' +
+            '</div>';
+          }
         });
-      }
+      })();
     </script>
   </head>
   <body class="bg-[#0A0A0B] text-[#E0E0E0] antialiased selection:bg-emerald-500/30 selection:text-emerald-200">

@@ -19,7 +19,8 @@ import {
   Share2,
   Keyboard,
   Sparkles,
-  LogIn
+  LogIn,
+  Smartphone
 } from 'lucide-react';
 import {
   TerminalTab,
@@ -38,6 +39,8 @@ import { MultiplayerSidebar } from './multiplayer/MultiplayerSidebar';
 import { ShareSessionModal } from './multiplayer/ShareSessionModal';
 import { JoinSessionModal } from './multiplayer/JoinSessionModal';
 import { MultiplayerDemoSimulator } from './multiplayer/MultiplayerDemoSimulator';
+import { MobileServerConfigModal } from './MobileServerConfigModal';
+import { getBackendWsUrl, getBackendHttpUrl, isMobileApp, getStoredBackendUrl } from '../lib/networkConfig';
 
 interface TerminalWorkspaceProps {
   tabs: TerminalTab[];
@@ -76,8 +79,9 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
   // Multiplayer State
   const [multiplayerSessions, setMultiplayerSessions] = useState<Record<string, MultiplayerSession>>({});
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
-  const [shareModalOpen, setShareModalOpen] = useState<boolean>(false);
   const [joinModalOpen, setJoinModalOpen] = useState<boolean>(false);
+  const [shareModalOpen, setShareModalOpen] = useState<boolean>(false);
+  const [mobileConfigOpen, setMobileConfigOpen] = useState<boolean>(false);
   const [initialJoinSessionId, setInitialJoinSessionId] = useState<string>('');
   const [typingBadges, setTypingBadges] = useState<
     Record<string, { name: string; avatar: string; color: string; cursor: { x: number; y: number }; isTyping: boolean }>
@@ -105,7 +109,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
   const currentHost = activeTab?.host || hosts.find((h) => h.id === activeTab?.hostId);
   const currentSession = multiplayerSessions[activeTabId];
 
-  // Auto-detect invite link param on load (?session=XT-XXXXXX)
+  // Auto-detect invite link param on load (?session=XT-XXXXXX) or mobile app initial server setup
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -115,6 +119,10 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
         setJoinModalOpen(true);
       }
     } catch {}
+
+    if (isMobileApp() && !getStoredBackendUrl()) {
+      setMobileConfigOpen(true);
+    }
   }, []);
 
   // Initialize or connect multiplayer WebSocket for a session
@@ -127,8 +135,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
       delete wsSocketsRef.current[tabId];
     }
 
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${window.location.host}/ws/multiplayer`;
+    const wsUrl = getBackendWsUrl('/ws/multiplayer');
     const socket = new WebSocket(wsUrl);
     wsSocketsRef.current[tabId] = socket;
 
@@ -344,7 +351,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
     }
 
     try {
-      const res = await fetch('/api/multiplayer/sessions', {
+      const res = await fetch(getBackendHttpUrl('/api/multiplayer/sessions'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -767,6 +774,22 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
             <span className="hidden md:inline">Join</span>
           </button>
 
+          {/* Mobile Server Bridge Config Button */}
+          <button
+            onClick={() => setMobileConfigOpen(true)}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-md font-sans text-xs border transition-colors ${
+              getStoredBackendUrl()
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                : 'bg-[#1C1C1E] hover:bg-[#252528] text-gray-300 border-[#222224]'
+            }`}
+            title="Configure PC / Server IP Address for Android phone on Wi-Fi"
+          >
+            <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">
+              {getStoredBackendUrl() ? 'Bridge Set' : 'Mobile Bridge'}
+            </span>
+          </button>
+
           {/* Custom Theme Selector */}
           <div className="relative">
             <button
@@ -1021,6 +1044,12 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
         onClose={() => setJoinModalOpen(false)}
         onJoin={handleJoinSession}
         initialSessionId={initialJoinSessionId}
+      />
+
+      {/* Mobile Server Bridge Config Modal */}
+      <MobileServerConfigModal
+        isOpen={mobileConfigOpen}
+        onClose={() => setMobileConfigOpen(false)}
       />
     </div>
   );

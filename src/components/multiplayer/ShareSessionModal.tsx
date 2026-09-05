@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Copy,
@@ -30,10 +30,23 @@ export const ShareSessionModal: React.FC<ShareSessionModalProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [controlMode, setControlMode] = useState<MultiplayerControlMode>(session.controlMode || 'one_controller');
   const [accessMode, setAccessMode] = useState<MultiplayerAccessMode>(session.accessMode || 'link_only');
+  const [networkUrl, setNetworkUrl] = useState<string>('');
+
+  useEffect(() => {
+    fetch('/api/system/network-info')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && d.primaryIp && d.port) {
+          setNetworkUrl(`http://${d.primaryIp}:${d.port}`);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   if (!isOpen) return null;
 
-  const joinUrl = `${window.location.origin}${window.location.pathname}?session=${session.id}`;
+  const baseOrigin = networkUrl || window.location.origin;
+  const joinUrl = `${baseOrigin}/?session=${session.id}`;
 
   const handleCopyId = () => {
     navigator.clipboard.writeText(session.id);

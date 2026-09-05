@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Host, Snippet } from '../types';
-import { Bot, Play, ShieldAlert, Wifi, RefreshCw, Copy, Clipboard, Check } from 'lucide-react';
+import { Bot, Play, ShieldAlert, Wifi, RefreshCw, Copy, Clipboard, Check, Smartphone } from 'lucide-react';
+import { getBackendWsUrl, isMobileApp, getStoredBackendUrl } from '../lib/networkConfig';
 
 export const TERMINAL_THEMES: Record<string, any> = {
   nexus: {
@@ -130,6 +131,13 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
   const [lastPing, setLastPing] = useState(18);
   const [toastMessage, setToastMessage] = useState<{ text: string; icon?: 'copy' | 'paste' } | null>(null);
   const toastTimeoutRef = useRef<any>(null);
+  const [backendVersion, setBackendVersion] = useState(0);
+
+  useEffect(() => {
+    const onBackendChange = () => setBackendVersion((v) => v + 1);
+    window.addEventListener('xterminal:backend-url-changed', onBackendChange);
+    return () => window.removeEventListener('xterminal:backend-url-changed', onBackendChange);
+  }, []);
 
   const showToast = (text: string, icon?: 'copy' | 'paste') => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
@@ -232,8 +240,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
     });
 
     // Establish WebSocket connection to backend SSH / Local PTY bridge
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${window.location.host}/ws/ssh`;
+    const wsUrl = getBackendWsUrl('/ws/ssh');
     const socket = new WebSocket(wsUrl);
     wsRef.current = socket;
     socket.binaryType = 'arraybuffer';
@@ -293,6 +300,14 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
 
     socket.onerror = () => {
       term.writeln('\r\n\x1b[31m[xTerminal] Failed to connect to terminal backend bridge.\x1b[0m\r\n');
+      if (isMobileApp()) {
+        const stored = getStoredBackendUrl();
+        if (!stored) {
+          term.writeln('\x1b[33m[Mobile Bridge] Computer IP not configured. Tap the Mobile Bridge icon in the top bar to set your PC IP (e.g. http://192.168.1.38:3000).\x1b[0m\r\n');
+        } else {
+          term.writeln(`\x1b[90m[Mobile Bridge] Reaching ${stored}... Ensure xTerminal is running on your PC and on the same Wi-Fi.\x1b[0m\r\n`);
+        }
+      }
     };
 
     socket.onclose = () => {
@@ -347,7 +362,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       fitAddonRef.current = null;
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     };
-  }, [host?.id, host?.hostname, host?.username, host?.port, host?.password]);
+  }, [host?.id, host?.hostname, host?.username, host?.port, host?.password, backendVersion]);
 
   // Update theme dynamically
   useEffect(() => {

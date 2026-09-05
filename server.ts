@@ -104,6 +104,26 @@ app.get("/api/system/metrics", (_req, res) => {
   }
 });
 
+// Machine local network interfaces & primary IP for mobile devices & LAN clients
+app.get("/api/system/network-info", (_req, res) => {
+  try {
+    const interfaces = os.networkInterfaces();
+    const addresses: { iface: string; address: string; family: string }[] = [];
+    for (const [name, list] of Object.entries(interfaces)) {
+      if (!list) continue;
+      for (const info of list) {
+        if (!info.internal && (info.family === "IPv4" || (info.family as any) === 4)) {
+          addresses.push({ iface: name, address: info.address, family: "IPv4" });
+        }
+      }
+    }
+    const primaryIp = addresses[0]?.address || "127.0.0.1";
+    res.json({ primaryIp, port: PORT, addresses, fullUrl: `http://${primaryIp}:${PORT}` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Network diagnostic probe (real DNS resolution & TCP port connection test)
 app.post("/api/diagnostics/probe", async (req, res) => {
   const { host = "localhost", port = 22 } = req.body;
@@ -2218,8 +2238,8 @@ async function startServer() {
   const server = http.createServer(app);
   setupWebSocketServer(server);
 
-  server.listen(PORT, "127.0.0.1", () => {
-    console.log(`xTerminal server running on http://127.0.0.1:${PORT}`);
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`xTerminal server running on http://0.0.0.0:${PORT} (LAN & Mobile enabled)`);
   });
 
   server.on("error", (err: any) => {
@@ -2227,11 +2247,11 @@ async function startServer() {
       console.warn(`Port ${PORT} is in use, server will retry on an ephemeral port.`);
       const fallbackServer = http.createServer(app);
       setupWebSocketServer(fallbackServer);
-      fallbackServer.listen(0, "127.0.0.1", () => {
+      fallbackServer.listen(0, "0.0.0.0", () => {
         const addr = fallbackServer.address();
         if (addr && typeof addr === "object") {
           process.env.PORT = String(addr.port);
-          console.log(`xTerminal server running on fallback http://127.0.0.1:${addr.port}`);
+          console.log(`xTerminal server running on fallback http://0.0.0.0:${addr.port}`);
         }
       });
     } else {

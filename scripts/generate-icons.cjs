@@ -1,26 +1,25 @@
-const { app, BrowserWindow } = require('electron');
+const { app, nativeImage } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
 app.disableHardwareAcceleration();
 
 app.whenReady().then(async () => {
-  const win = new BrowserWindow({
-    show: false,
-    width: 1024,
-    height: 1024,
-    backgroundColor: '#00000000',
-  });
+  const imgPath = path.join(__dirname, '../public/logo.jpg');
+  if (!fs.existsSync(imgPath)) {
+    console.error('Missing logo.jpg at', imgPath);
+    app.exit(1);
+    return;
+  }
+  const image = nativeImage.createFromPath(imgPath);
+  if (image.isEmpty()) {
+    console.error('Failed to load image from', imgPath);
+    app.exit(1);
+    return;
+  }
 
-  const imgPath = path.join(__dirname, '../public/logo.png');
   const imgData = fs.readFileSync(imgPath);
   const base64Img = imgData.toString('base64');
-  
-  await win.loadURL(`data:text/html;charset=utf-8,<html><body style="margin:0;padding:0;background:transparent;overflow:hidden;"><img id="logo" src="data:image/jpeg;base64,${base64Img}" style="width:1024px;height:1024px;display:block;" /></body></html>`);
-  
-  await new Promise(r => setTimeout(r, 1000));
-
-  const image = await win.capturePage({ x: 0, y: 0, width: 1024, height: 1024 });
   
   const sizes = [16, 32, 48, 64, 128, 192, 256, 512, 1024];
   const pngBuffers = {};
@@ -38,6 +37,7 @@ app.whenReady().then(async () => {
   fs.mkdirSync(publicDir, { recursive: true });
 
   // Web & Mobile PWA Icons
+  fs.writeFileSync(path.join(publicDir, 'logo.png'), pngBuffers[1024]);
   fs.writeFileSync(path.join(publicDir, 'icon.png'), pngBuffers[512]);
   fs.writeFileSync(path.join(publicDir, 'icon-512.png'), pngBuffers[512]);
   fs.writeFileSync(path.join(publicDir, 'icon-maskable.png'), pngBuffers[512]);
@@ -133,6 +133,21 @@ app.whenReady().then(async () => {
   fs.writeFileSync(path.join(buildDir, 'icon.ico'), icoBuffer);
   fs.writeFileSync(path.join(publicDir, 'icon.ico'), icoBuffer);
   fs.writeFileSync(path.join(publicDir, 'favicon.ico'), icoBuffer);
+
+  const androidAssetsPublic = path.join(__dirname, '../android/app/src/main/assets/public');
+  if (fs.existsSync(androidAssetsPublic)) {
+    const syncedFiles = [
+      'icon.png', 'icon-512.png', 'icon-maskable.png', 'icon-192.png',
+      'apple-touch-icon.png', 'icon.svg', 'favicon.svg', 'icon.ico', 'favicon.ico', 'logo.png', 'logo.jpg'
+    ];
+    for (const file of syncedFiles) {
+      const src = path.join(publicDir, file);
+      if (fs.existsSync(src)) {
+        fs.copyFileSync(src, path.join(androidAssetsPublic, file));
+      }
+    }
+    console.log('[+] Synced updated icons to android/app/src/main/assets/public');
+  }
 
   console.log('SUCCESS: All multi-platform icons (ICO, PNGs, Linux packs, Android, and Web) generated successfully!');
   app.quit();

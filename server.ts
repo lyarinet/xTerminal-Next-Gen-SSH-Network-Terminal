@@ -1728,6 +1728,18 @@ async function startServer() {
             return;
           }
 
+          if (msg.type === "user:update") {
+            if (participant && (msg.name || msg.avatar)) {
+              if (msg.name) participant.name = msg.name;
+              if (msg.avatar) participant.avatar = msg.avatar;
+              broadcastToSession(session, {
+                type: "participant:updated",
+                participant: sanitizeParticipant(participant),
+              });
+            }
+            return;
+          }
+
           if (msg.type === "control:request") {
             if (!participant) return;
             const alreadyPending = session.pendingRequests.some((r) => r.userId === participant.id);

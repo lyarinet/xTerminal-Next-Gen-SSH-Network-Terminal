@@ -28,7 +28,7 @@ import { RemoteDesktopView } from './components/RemoteDesktopView';
 import { TelecomHardwareView } from './components/TelecomHardwareView';
 import { CloudSyncView } from './components/CloudSyncView';
 import { AppCenterView } from './components/AppCenterView';
-import { Menu, Bot, Plus, MessageSquare } from 'lucide-react';
+import { Menu, Bot, Plus, MessageSquare, User } from 'lucide-react';
 
 import {
   Host,
@@ -600,6 +600,13 @@ export default function App() {
               title="AI Copilot"
             >
               <Bot className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('xterminal:open-profile'))}
+              className="p-1.5 rounded-md bg-[#1C1C1E] text-emerald-400 hover:bg-[#252528] border border-[#222224] flex items-center active:scale-95"
+              title="Change Profile & Avatar"
+            >
+              <User className="w-4 h-4" />
             </button>
           </div>
         </header>

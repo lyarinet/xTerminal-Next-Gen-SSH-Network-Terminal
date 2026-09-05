@@ -38,6 +38,8 @@ import { MultiplayerCursorBadge } from './multiplayer/MultiplayerCursorBadge';
 import { MultiplayerSidebar } from './multiplayer/MultiplayerSidebar';
 import { ShareSessionModal } from './multiplayer/ShareSessionModal';
 import { JoinSessionModal } from './multiplayer/JoinSessionModal';
+import { ProfileEditModal } from './ProfileEditModal';
+import { DEFAULT_AVATAR } from '../constants/avatars';
 import { MultiplayerDemoSimulator } from './multiplayer/MultiplayerDemoSimulator';
 import { MobileServerConfigModal } from './MobileServerConfigModal';
 import { getBackendWsUrl, getBackendHttpUrl, isMobileApp, getStoredBackendUrl } from '../lib/networkConfig';
@@ -84,6 +86,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
   const [joinModalOpen, setJoinModalOpen] = useState<boolean>(false);
   const [shareModalOpen, setShareModalOpen] = useState<boolean>(false);
   const [mobileConfigOpen, setMobileConfigOpen] = useState<boolean>(false);
+  const [profileModalOpen, setProfileModalOpen] = useState<boolean>(false);
   const [initialJoinSessionId, setInitialJoinSessionId] = useState<string>('');
   const [typingBadges, setTypingBadges] = useState<
     Record<string, { name: string; avatar: string; color: string; cursor: { x: number; y: number }; isTyping: boolean }>
@@ -105,13 +108,17 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
       return uid;
     })()
   ).current;
-  const currentUserName = useRef(
-    localStorage.getItem('xterminal_user_name') || 'Admin'
-  ).current;
-  const currentUserAvatar = useRef(
-    localStorage.getItem('xterminal_user_avatar') ||
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
-  ).current;
+
+  const [currentUserName, setCurrentUserName] = useState<string>(
+    () => localStorage.getItem('xterminal_user_name') || 'Admin'
+  );
+  const [currentUserAvatar, setCurrentUserAvatar] = useState<string>(
+    () => localStorage.getItem('xterminal_user_avatar') || DEFAULT_AVATAR
+  );
+  const currentUserNameRef = useRef(currentUserName);
+  currentUserNameRef.current = currentUserName;
+  const currentUserAvatarRef = useRef(currentUserAvatar);
+  currentUserAvatarRef.current = currentUserAvatar;
 
   const multiplayerSessionsRef = useRef(multiplayerSessions);
   multiplayerSessionsRef.current = multiplayerSessions;
@@ -181,18 +188,68 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
       setTimeout(sendReq, 400);
       setTimeout(sendReq, 1200);
     };
+    const handleProfileUpdated = (e: any) => {
+      if (e.detail?.name) {
+        setCurrentUserName(e.detail.name);
+        currentUserNameRef.current = e.detail.name;
+      }
+      if (e.detail?.avatar) {
+        setCurrentUserAvatar(e.detail.avatar);
+        currentUserAvatarRef.current = e.detail.avatar;
+      }
+      // Broadcast live user update to open sessions
+      Object.values(wsSocketsRef.current).forEach((ws) => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(
+            JSON.stringify({
+              type: 'user:update',
+              name: e.detail?.name || currentUserNameRef.current,
+              avatar: e.detail?.avatar || currentUserAvatarRef.current,
+            })
+          );
+        }
+      });
+    };
+    const handleOpenProfile = () => setProfileModalOpen(true);
+
     window.addEventListener('xterminal:toggle-chat', handleToggleChat);
     window.addEventListener('xterminal:open-chat', handleOpenChat);
     window.addEventListener('xterminal:request-remote-snapshot', handleRequestRemoteSnapshot);
+    window.addEventListener('xterminal:profile-updated', handleProfileUpdated);
+    window.addEventListener('xterminal:open-profile', handleOpenProfile);
     return () => {
       window.removeEventListener('xterminal:toggle-chat', handleToggleChat);
       window.removeEventListener('xterminal:open-chat', handleOpenChat);
       window.removeEventListener('xterminal:request-remote-snapshot', handleRequestRemoteSnapshot);
+      window.removeEventListener('xterminal:profile-updated', handleProfileUpdated);
+      window.removeEventListener('xterminal:open-profile', handleOpenProfile);
     };
   }, []);
 
   // Initialize or connect multiplayer WebSocket for a session
-  const connectMultiplayerWs = (sessionId: string, tabId: string, role: 'host' | 'participant', passcode?: string) => {
+  const connectMultiplayerWs = (
+    sessionId: string,
+    tabId: string,
+    role: 'host' | 'participant',
+    passcode?: string,
+    userName?: string,
+    userAvatar?: string
+  ) => {
+    // Sync customized name and avatar
+    const finalUserName = userName?.trim() || currentUserNameRef.current || (role === 'host' ? 'Host' : 'Participant');
+    const finalUserAvatar = userAvatar || currentUserAvatarRef.current;
+
+    if (userName?.trim()) {
+      localStorage.setItem('xterminal_user_name', finalUserName);
+      currentUserNameRef.current = finalUserName;
+      setCurrentUserName(finalUserName);
+    }
+    if (userAvatar) {
+      localStorage.setItem('xterminal_user_avatar', finalUserAvatar);
+      currentUserAvatarRef.current = finalUserAvatar;
+      setCurrentUserAvatar(finalUserAvatar);
+    }
+
     // Close any previous socket for this tab or existing participant connections
     if (role === 'participant') {
       Object.keys(wsSocketsRef.current).forEach((key) => {
@@ -220,8 +277,8 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
           passcode,
           user: {
             id: currentUserId,
-            name: currentUserName,
-            avatar: currentUserAvatar,
+            name: finalUserName,
+            avatar: finalUserAvatar,
             color: role === 'host' ? '#10b981' : '#38bdf8',
             role,
           },
@@ -496,14 +553,29 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
   };
 
   // Join existing session via ID or Link (Participant flow)
-  const handleJoinSession = async (sessionId: string, userName: string, userAvatar: string, passcode?: string) => {
+  const handleJoinSession = async (
+    sessionId: string,
+    userName?: string,
+    userAvatar?: string,
+    passcode?: string
+  ) => {
     const cleanSessionId = sessionId.trim().toUpperCase();
+    const finalName = userName?.trim() || currentUserNameRef.current || 'Mobile User';
+    const finalAvatar = userAvatar || currentUserAvatarRef.current;
+
+    localStorage.setItem('xterminal_user_name', finalName);
+    localStorage.setItem('xterminal_user_avatar', finalAvatar);
+    currentUserNameRef.current = finalName;
+    currentUserAvatarRef.current = finalAvatar;
+    setCurrentUserName(finalName);
+    setCurrentUserAvatar(finalAvatar);
+
     const existingTab = tabs.find(
       (t) => t.multiplayerSessionId === cleanSessionId || t.title.includes(cleanSessionId)
     );
     if (existingTab) {
       onSelectTab(existingTab.id);
-      connectMultiplayerWs(cleanSessionId, existingTab.id, 'participant', passcode);
+      connectMultiplayerWs(cleanSessionId, existingTab.id, 'participant', passcode, finalName, finalAvatar);
       setSidebarOpen(false);
       return;
     }
@@ -516,7 +588,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
       multiplayerRole: 'participant',
       multiplayerSessionId: cleanSessionId,
     });
-    connectMultiplayerWs(cleanSessionId, newTabId, 'participant', passcode);
+    connectMultiplayerWs(cleanSessionId, newTabId, 'participant', passcode, finalName, finalAvatar);
     setSidebarOpen(false); // Do NOT auto-open chat so terminal stays full screen
   };
 
@@ -918,6 +990,22 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
 
         {/* Toolbar Controls */}
         <div className="flex items-center gap-1.5 text-gray-400 text-xs pb-1.5">
+          {/* User Profile Button with Avatar */}
+          <button
+            onClick={() => setProfileModalOpen(true)}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#1C1C1E] hover:bg-[#252528] text-gray-300 hover:text-white font-sans text-xs border border-[#222224] transition-all group"
+            title="Edit your Display Name and Profile Picture"
+          >
+            <img
+              src={currentUserAvatar}
+              alt={currentUserName}
+              className="w-4 h-4 rounded-full object-cover border border-emerald-500/60 shrink-0"
+            />
+            <span className="font-medium text-white max-w-[80px] truncate hidden sm:inline">
+              {currentUserName}
+            </span>
+          </button>
+
           {/* Multiplayer Quick Start / Share Button */}
           <button
             onClick={handleStartMultiplayer}
@@ -1280,6 +1368,18 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
       <MobileServerConfigModal
         isOpen={mobileConfigOpen}
         onClose={() => setMobileConfigOpen(false)}
+      />
+
+      {/* User Profile & Avatar Customizer Modal */}
+      <ProfileEditModal
+        isOpen={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+        onSave={(name, avatar) => {
+          setCurrentUserName(name);
+          setCurrentUserAvatar(avatar);
+          currentUserNameRef.current = name;
+          currentUserAvatarRef.current = avatar;
+        }}
       />
     </div>
   );

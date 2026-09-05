@@ -299,7 +299,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
     };
 
     socket.onerror = () => {
-      term.writeln('\r\n\x1b[31m[xTerminal] Failed to connect to terminal backend bridge.\x1b[0m\r\n');
+      term.writeln(`\r\n\x1b[31m[xTerminal] Failed to connect to terminal backend bridge (${wsUrl}).\x1b[0m\r\n`);
       if (isMobileApp()) {
         const stored = getStoredBackendUrl();
         if (!stored) {

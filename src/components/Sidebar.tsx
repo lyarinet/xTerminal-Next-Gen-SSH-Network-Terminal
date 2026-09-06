@@ -83,7 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'tftp', label: 'TFTP Server & Client', icon: HardDrive },
         { id: 'network', label: 'Network Tools & Scanner', icon: Globe },
         { id: 'forwarding', label: 'Port Forwarding', icon: Network, badge: activeTunnelsCount > 0 ? activeTunnelsCount : undefined, badgeColor: 'bg-emerald-500/20 text-emerald-400' },
-        { id: 'monitoring', label: 'Server Health & Stats', icon: Activity },
+        { id: 'monitoring', label: 'Diagnostics & System Health', icon: Activity },
       ],
     },
     {

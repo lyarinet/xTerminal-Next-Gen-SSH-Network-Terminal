@@ -42,6 +42,10 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", service: "NexusTerm Backend Engine", timestamp: new Date().toISOString() });
 });
 
+// Track CPU utilization deltas for accurate cross-platform CPU usage percentage
+let lastCpuMeasure = Date.now();
+let lastCpuTimes = os.cpus().map((c) => c.times);
+
 // System metrics endpoint (real local host metrics for workstation dashboard)
 app.get("/api/system/metrics", (_req, res) => {
   try {
@@ -59,6 +63,53 @@ app.get("/api/system/metrics", (_req, res) => {
       return `${mb.toFixed(0)} MB`;
     };
 
+    // Calculate real CPU utilization percentage across all cores
+    const currentCpuTimes = os.cpus().map((c) => c.times);
+    let totalDiff = 0;
+    let idleDiff = 0;
+    for (let i = 0; i < currentCpuTimes.length; i++) {
+      const cur = currentCpuTimes[i];
+      const prev = lastCpuTimes[i] || cur;
+      const curTotal = cur.user + cur.nice + cur.sys + cur.irq + cur.idle;
+      const prevTotal = prev.user + prev.nice + prev.sys + prev.irq + prev.idle;
+      totalDiff += curTotal - prevTotal;
+      idleDiff += cur.idle - prev.idle;
+    }
+    lastCpuTimes = currentCpuTimes;
+    lastCpuMeasure = Date.now();
+    const cpuUsagePercent =
+      totalDiff > 0
+        ? Math.min(100, Math.max(0, Math.round(((totalDiff - idleDiff) / totalDiff) * 100)))
+        : Math.round(((cpus[0]?.speed || 2400) / 4000) * 15);
+
+    // Compute disk storage via native fs.statfsSync (cross-platform Windows, Linux, macOS)
+    let disk = {
+      totalBytes: 0,
+      freeBytes: 0,
+      usedBytes: 0,
+      totalFormatted: "0 GB",
+      usedFormatted: "0 GB",
+      percentage: 0,
+      mount: process.platform === "win32" ? (process.env.SystemDrive || "C:") : "/",
+    };
+    try {
+      const rootPath = process.platform === "win32" ? (process.env.SystemDrive || "C:") : "/";
+      const s = fs.statfsSync(rootPath);
+      const totalB = s.bsize * s.blocks;
+      const freeB = s.bsize * s.bavail;
+      const usedB = totalB - freeB;
+      const pct = totalB > 0 ? Math.min(100, Math.max(0, Math.round((usedB / totalB) * 100))) : 0;
+      disk = {
+        totalBytes: totalB,
+        freeBytes: freeB,
+        usedBytes: usedB,
+        totalFormatted: formatBytes(totalB),
+        usedFormatted: formatBytes(usedB),
+        percentage: pct,
+        mount: rootPath,
+      };
+    } catch {}
+
     const cpuModel = cpus[0]?.model || "Intel/AMD Virtual CPU";
     const cpuCores = Math.max(1, cpus.length);
     const percentUsed = Math.min(100, Math.max(0, Math.round((usedMem / totalMem) * 100)));
@@ -73,9 +124,11 @@ app.get("/api/system/metrics", (_req, res) => {
         model: cpuModel,
         cores: cpuCores,
         speed: cpus[0]?.speed || 2400,
+        usagePercent: cpuUsagePercent,
       },
       cpuModel,
       cpuCores,
+      cpuUsage: cpuUsagePercent,
       loadAverage: [Number(loadAvg[0].toFixed(2)), Number(loadAvg[1].toFixed(2)), Number(loadAvg[2].toFixed(2))],
       loadAvg: [Number(loadAvg[0].toFixed(2)), Number(loadAvg[1].toFixed(2)), Number(loadAvg[2].toFixed(2))],
       memory: {
@@ -87,15 +140,17 @@ app.get("/api/system/metrics", (_req, res) => {
         percentage: percentUsed,
         percentUsed,
       },
+      disk,
       networkInterfaces: os.networkInterfaces(),
     });
   } catch (err: any) {
     res.status(500).json({
       error: err.message || "Failed to retrieve system metrics",
       uptimeSeconds: 3600,
-      cpu: { model: "Host Virtual CPU", cores: 2 },
+      cpu: { model: "Host Virtual CPU", cores: 2, usagePercent: 15 },
       cpuModel: "Host Virtual CPU",
       cpuCores: 2,
+      cpuUsage: 15,
       loadAverage: [0.1, 0.15, 0.12],
       loadAvg: [0.1, 0.15, 0.12],
       memory: {
@@ -103,6 +158,12 @@ app.get("/api/system/metrics", (_req, res) => {
         usedFormatted: "1.50 GB",
         percentage: 38,
         percentUsed: 38,
+      },
+      disk: {
+        totalFormatted: "100 GB",
+        usedFormatted: "45 GB",
+        percentage: 45,
+        mount: "/",
       },
     });
   }
@@ -1287,11 +1348,12 @@ app.post("/api/network/wol", async (req, res) => {
   }
 });
 
-// Network diagnostic probe (real DNS resolution & TCP port connection test)
-app.post("/api/diagnostics/probe", async (req, res) => {
+// Network diagnostic probe (real DNS resolution, TCP port handshake, and banner capture)
+const handleDiagnosticProbe = async (req: express.Request, res: express.Response) => {
   const { host = "localhost", port = 22 } = req.body;
   const startTime = Date.now();
   const steps: { name: string; latencyMs: number; status: "success" | "failure"; details?: string }[] = [];
+  let capturedBanner: string | null = null;
 
   // Step 1: DNS Resolution
   let resolvedIp = host;
@@ -1331,6 +1393,7 @@ app.post("/api/diagnostics/probe", async (req, res) => {
       resolvedIp: null,
       totalDurationMs: Date.now() - startTime,
       accessible: false,
+      banner: null,
       steps: steps.map((s) => ({
         step: s.name,
         name: s.name,
@@ -1342,7 +1405,7 @@ app.post("/api/diagnostics/probe", async (req, res) => {
     });
   }
 
-  // Step 2: TCP Socket connection
+  // Step 2: TCP Socket connection & Banner capture
   const tcpStart = Date.now();
   const socket = new net.Socket();
   socket.setTimeout(2500);
@@ -1350,16 +1413,45 @@ app.post("/api/diagnostics/probe", async (req, res) => {
   let connected = false;
 
   await new Promise<void>((resolve) => {
+    let resolved = false;
+    const finish = () => {
+      if (!resolved) {
+        resolved = true;
+        try {
+          socket.destroy();
+        } catch {}
+        resolve();
+      }
+    };
+
     socket.connect(Number(port), resolvedIp, () => {
       connected = true;
-      steps.push({
-        name: `TCP Handshake (Port ${port})`,
-        latencyMs: Date.now() - tcpStart,
-        status: "success",
-        details: `Connected to ${resolvedIp}:${port} successfully`,
+
+      // Allow 400ms for banner string (e.g. SSH-2.0, FTP, SMTP)
+      const bannerTimer = setTimeout(() => {
+        if (!capturedBanner) {
+          steps.push({
+            name: `TCP Handshake (Port ${port})`,
+            latencyMs: Date.now() - tcpStart,
+            status: "success",
+            details: `Connected to ${resolvedIp}:${port} successfully`,
+          });
+        }
+        finish();
+      }, 400);
+
+      socket.on("data", (data) => {
+        clearTimeout(bannerTimer);
+        const rawBanner = data.toString("utf8").trim();
+        capturedBanner = rawBanner.slice(0, 200);
+        steps.push({
+          name: `TCP Handshake (Port ${port})`,
+          latencyMs: Date.now() - tcpStart,
+          status: "success",
+          details: `Connected to ${resolvedIp}:${port} (Banner: ${capturedBanner})`,
+        });
+        finish();
       });
-      socket.destroy();
-      resolve();
     });
 
     socket.on("error", (err) => {
@@ -1369,8 +1461,7 @@ app.post("/api/diagnostics/probe", async (req, res) => {
         status: "failure",
         details: err.message || "Connection refused or unreachable",
       });
-      socket.destroy();
-      resolve();
+      finish();
     });
 
     socket.on("timeout", () => {
@@ -1380,8 +1471,7 @@ app.post("/api/diagnostics/probe", async (req, res) => {
         status: "failure",
         details: "Connection timed out after 2500ms",
       });
-      socket.destroy();
-      resolve();
+      finish();
     });
   });
 
@@ -1392,6 +1482,7 @@ app.post("/api/diagnostics/probe", async (req, res) => {
     resolvedIp,
     totalDurationMs: Date.now() - startTime,
     accessible: connected,
+    banner: capturedBanner,
     steps: steps.map((s) => ({
       step: s.name,
       name: s.name,
@@ -1401,7 +1492,10 @@ app.post("/api/diagnostics/probe", async (req, res) => {
       details: s.details,
     })),
   });
-});
+};
+
+app.post("/api/diagnostics/probe", handleDiagnosticProbe);
+app.post("/api/network/probe", handleDiagnosticProbe);
 
 // Common service names mapping for port scanner
 const WELL_KNOWN_SERVICES: Record<number, string> = {

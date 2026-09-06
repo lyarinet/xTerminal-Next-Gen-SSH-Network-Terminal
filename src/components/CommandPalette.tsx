@@ -4,7 +4,6 @@ import {
   Server,
   Terminal,
   FileCode,
-  Shield,
   Radio,
   Zap,
   Lock,
@@ -76,7 +75,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { label: 'Manage Port Forwarding Tunnels', view: 'forwarding', icon: Radio },
     { label: 'Network Diagnostics Toolkit', view: 'network', icon: Activity },
     { label: 'Diagnostics & System Health', view: 'monitoring', icon: Activity },
-    { label: 'Inspect Known Hosts & Fingerprints', view: 'knownHosts', icon: Shield },
     { label: 'Open Encrypted Vault & Identities', view: 'vault', icon: Lock },
     { label: 'Workstation Preferences & Settings', view: 'settings', icon: Settings },
   ].filter((a) => a.label.toLowerCase().includes(query.toLowerCase()));

@@ -7,7 +7,6 @@ import {
   Zap,
   Radio,
   Activity,
-  Shield,
   Lock,
   Unlock,
   History,
@@ -90,7 +89,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       category: 'Security & Identities',
       items: [
         { id: 'sshkeys', label: 'SSH Key Manager', icon: Key },
-        { id: 'knownHosts', label: 'Known Hosts & Fingerprints', icon: Shield },
         { id: 'vault', label: 'Vault & Secrets', icon: vaultSettings.isLocked ? Lock : Unlock },
         { id: 'history', label: 'Audit & Session History', icon: History },
       ],

@@ -336,6 +336,34 @@ export interface TftpTransferItem {
   rate: string;
 }
 
+export interface TftpServerLogEntry {
+  id: string;
+  timestamp: string;
+  level: 'info' | 'success' | 'warn' | 'error';
+  message: string;
+  clientIp?: string;
+  fileName?: string;
+  opcode?: 'WRQ' | 'RRQ';
+  bytes?: number;
+}
+
+export interface TftpServerActiveTransfer {
+  id: string;
+  clientKey: string;
+  clientIp: string;
+  clientPort: number;
+  fileName: string;
+  opcode: 'WRQ' | 'RRQ';
+  blockSize: number;
+  totalBytes: number;
+  transferredBytes: number;
+  percent: number;
+  blocks: number;
+  rate: string;
+  status: 'active' | 'completed' | 'failed';
+  startTime: number;
+}
+
 export interface PortScanResultItem {
   port: number;
   status: 'open' | 'closed' | 'filtered';

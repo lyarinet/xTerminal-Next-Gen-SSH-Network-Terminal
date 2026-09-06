@@ -269,28 +269,179 @@ let tftpConfig = {
 let tftpSocket: dgram.Socket | null = null;
 
 interface ServerUploadSession {
+  id: string;
   clientKey: string;
+  clientIp: string;
+  clientPort: number;
   filePath: string;
   fileName: string;
   chunks: Buffer[];
   expectedBlock: number;
   blockSize: number;
+  totalBytes: number;
+  transferredBytes: number;
+  startTime: number;
   lastActivity: number;
+  rate: string;
+  status: "active" | "completed" | "failed";
 }
 const serverUploadSessions = new Map<string, ServerUploadSession>();
 
 interface ServerDownloadSession {
+  id: string;
   clientKey: string;
+  clientIp: string;
+  clientPort: number;
   filePath: string;
+  fileName: string;
   fileBuffer: Buffer;
   currentBlock: number;
   blockSize: number;
+  totalBytes: number;
+  transferredBytes: number;
+  startTime: number;
   lastActivity: number;
+  rate: string;
+  status: "active" | "completed" | "failed";
 }
 const serverDownloadSessions = new Map<string, ServerDownloadSession>();
 
+interface TftpServerLogEntry {
+  id: string;
+  timestamp: string;
+  level: "info" | "success" | "warn" | "error";
+  message: string;
+  clientIp?: string;
+  fileName?: string;
+  opcode?: "WRQ" | "RRQ";
+  bytes?: number;
+}
+let tftpServerLogs: TftpServerLogEntry[] = [];
+
+const recentServerTransfers: Array<{
+  id: string;
+  clientKey: string;
+  clientIp: string;
+  clientPort: number;
+  fileName: string;
+  opcode: "WRQ" | "RRQ";
+  blockSize: number;
+  totalBytes: number;
+  transferredBytes: number;
+  percent: number;
+  blocks: number;
+  rate: string;
+  status: "active" | "completed" | "failed";
+  startTime: number;
+  completedAt: number;
+}> = [];
+
+function addTftpServerLog(
+  level: "info" | "success" | "warn" | "error",
+  message: string,
+  meta?: { clientIp?: string; fileName?: string; opcode?: "WRQ" | "RRQ"; bytes?: number }
+) {
+  const entry: TftpServerLogEntry = {
+    id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    timestamp: new Date().toLocaleTimeString(),
+    level,
+    message,
+    ...meta,
+  };
+  tftpServerLogs.unshift(entry);
+  if (tftpServerLogs.length > 200) {
+    tftpServerLogs.pop();
+  }
+}
+
+function calculateTftpRate(bytes: number, startTime: number): string {
+  const elapsedSec = Math.max(0.1, (Date.now() - startTime) / 1000);
+  const bytesPerSec = bytes / elapsedSec;
+  if (bytesPerSec >= 1024 * 1024) {
+    return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+  }
+  if (bytesPerSec >= 1024) {
+    return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
+  }
+  return `${Math.round(bytesPerSec)} B/s`;
+}
+
+function formatTftpBytes(bytes: number): string {
+  if (!bytes) return "0 B";
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${bytes} B`;
+}
+
 // TFTP Status Endpoint
 app.get("/api/tftp/status", (_req, res) => {
+  const now = Date.now();
+
+  // Prune recent transfers older than 15s
+  for (let i = recentServerTransfers.length - 1; i >= 0; i--) {
+    if (now - recentServerTransfers[i].completedAt > 15000) {
+      recentServerTransfers.splice(i, 1);
+    }
+  }
+
+  // Prune inactive sessions (> 30s no activity)
+  for (const [key, session] of serverUploadSessions.entries()) {
+    if (now - session.lastActivity > 30000) {
+      addTftpServerLog("warn", `Upload timed out for "${session.fileName}" from ${session.clientIp}:${session.clientPort}`, {
+        clientIp: session.clientIp,
+        fileName: session.fileName,
+        opcode: "WRQ",
+      });
+      serverUploadSessions.delete(key);
+    }
+  }
+  for (const [key, session] of serverDownloadSessions.entries()) {
+    if (now - session.lastActivity > 30000) {
+      addTftpServerLog("warn", `Download timed out for "${session.fileName}" to ${session.clientIp}:${session.clientPort}`, {
+        clientIp: session.clientIp,
+        fileName: session.fileName,
+        opcode: "RRQ",
+      });
+      serverDownloadSessions.delete(key);
+    }
+  }
+
+  const activeTransfers = [
+    ...Array.from(serverUploadSessions.values()).map((s) => ({
+      id: s.id,
+      clientKey: s.clientKey,
+      clientIp: s.clientIp,
+      clientPort: s.clientPort,
+      fileName: s.fileName,
+      opcode: "WRQ" as const,
+      blockSize: s.blockSize,
+      totalBytes: s.totalBytes,
+      transferredBytes: s.transferredBytes,
+      percent: s.totalBytes > 0 ? Math.min(100, Math.round((s.transferredBytes / s.totalBytes) * 100)) : 0,
+      blocks: s.chunks.length,
+      rate: s.rate || "Streaming...",
+      status: s.status,
+      startTime: s.startTime,
+    })),
+    ...Array.from(serverDownloadSessions.values()).map((s) => ({
+      id: s.id,
+      clientKey: s.clientKey,
+      clientIp: s.clientIp,
+      clientPort: s.clientPort,
+      fileName: s.fileName,
+      opcode: "RRQ" as const,
+      blockSize: s.blockSize,
+      totalBytes: s.totalBytes,
+      transferredBytes: s.transferredBytes,
+      percent: s.totalBytes > 0 ? Math.min(100, Math.round((s.transferredBytes / s.totalBytes) * 100)) : 0,
+      blocks: s.currentBlock,
+      rate: s.rate || "Streaming...",
+      status: s.status,
+      startTime: s.startTime,
+    })),
+    ...recentServerTransfers,
+  ];
+
   res.json({
     running: tftpConfig.running,
     port: tftpConfig.port,
@@ -299,14 +450,21 @@ app.get("/api/tftp/status", (_req, res) => {
     presets: getTftpPresets(),
     files: listTftpFiles(tftpConfig.directory),
     error: tftpConfig.error,
+    activeTransfers,
+    logs: tftpServerLogs,
   });
 });
 
-// TFTP Actions (toggle server, update root directory, stage file, delete, open folder)
+// TFTP Actions (toggle server, update root directory, stage file, delete, open folder, clear logs)
 app.post("/api/tftp/action", async (req, res) => {
   const { action, port, directory, file, fileName } = req.body;
 
   try {
+    if (action === "clearLogs") {
+      tftpServerLogs = [];
+      return res.json({ success: true, logs: [] });
+    }
+
     if (action === "setDirectory") {
       if (!directory || typeof directory !== "string") {
         return res.status(400).json({ error: "Invalid directory path specified" });
@@ -317,6 +475,7 @@ app.post("/api/tftp/action", async (req, res) => {
       }
       tftpConfig.directory = resolved;
       tftpConfig.error = null;
+      addTftpServerLog("info", `Root directory switched to: ${resolved}`);
       return res.json({
         success: true,
         directory: tftpConfig.directory,
@@ -336,6 +495,7 @@ app.post("/api/tftp/action", async (req, res) => {
         }
         tftpConfig.running = false;
         tftpConfig.error = null;
+        addTftpServerLog("info", `TFTP Server daemon stopped.`);
         return res.json({ running: false, port: targetPort, directory: tftpConfig.directory });
       } else {
         // Start server
@@ -348,29 +508,39 @@ app.post("/api/tftp/action", async (req, res) => {
           tftpSocket.on("error", (err: any) => {
             console.error("[TFTP Server Error]", err);
             tftpConfig.running = false;
-            tftpConfig.error = err.code === "EACCES"
-              ? `Permission denied on port ${targetPort}. On Linux/macOS, ports below 1024 require root/sudo. You can run on port 6969 or execute with admin rights.`
-              : err.message;
+            tftpConfig.error =
+              err.code === "EACCES"
+                ? `Permission denied on port ${targetPort}. On Linux/macOS, ports below 1024 require root/sudo. You can run on port 6969 or execute with admin rights.`
+                : err.message;
+            addTftpServerLog("error", `Server socket error: ${tftpConfig.error}`);
             if (tftpSocket) {
-              try { tftpSocket.close(); } catch {}
+              try {
+                tftpSocket.close();
+              } catch {}
               tftpSocket = null;
             }
           });
 
-          // Full RFC 1350 & RFC 2348 TFTP Protocol Engine
+          // Full RFC 1350, RFC 2347, RFC 2348, RFC 2349 TFTP Protocol Engine
           tftpSocket.on("message", (msg, rinfo) => {
             if (msg.length < 2) return;
             const opcode = msg.readUInt16BE(0);
             const clientKey = `${rinfo.address}:${rinfo.port}`;
 
-            // Opcode 1: RRQ (Read Request / Remote downloads file from this server)
+            // Opcode 1: RRQ (Read Request / Remote client downloads file from this server)
             if (opcode === 1) {
               let idx = 2;
               while (idx < msg.length && msg[idx] !== 0) idx++;
               const requestedFile = msg.subarray(2, idx).toString("utf8");
-              const filePath = path.join(tftpConfig.directory, path.basename(requestedFile));
+              const safeName = path.basename(requestedFile);
+              const filePath = path.join(tftpConfig.directory, safeName);
 
               if (!fs.existsSync(filePath)) {
+                addTftpServerLog("warn", `Download rejected: "${safeName}" not found in root directory`, {
+                  clientIp: rinfo.address,
+                  fileName: safeName,
+                  opcode: "RRQ",
+                });
                 const errBuf = Buffer.from([0, 5, 0, 1, ...Buffer.from("File not found\0")]);
                 tftpSocket?.send(errBuf, rinfo.port, rinfo.address);
                 return;
@@ -382,31 +552,54 @@ app.post("/api/tftp/action", async (req, res) => {
                 const optStr = msg.subarray(2).toString("ascii");
                 const parts = optStr.split("\0");
                 let hasBlksize = false;
+                let hasTsize = false;
+
                 for (let i = 2; i < parts.length - 1; i += 2) {
-                  if (parts[i].toLowerCase() === "blksize") {
+                  const opt = parts[i].toLowerCase();
+                  if (opt === "blksize") {
                     const val = parseInt(parts[i + 1], 10);
                     if (!isNaN(val) && val >= 512 && val <= 65464) {
                       negotiatedBlockSize = val;
                       hasBlksize = true;
                     }
+                  } else if (opt === "tsize") {
+                    hasTsize = true;
                   }
                 }
 
                 serverDownloadSessions.set(clientKey, {
+                  id: `dl-${Date.now()}-${rinfo.port}`,
                   clientKey,
+                  clientIp: rinfo.address,
+                  clientPort: rinfo.port,
                   filePath,
+                  fileName: safeName,
                   fileBuffer,
                   currentBlock: 1,
                   blockSize: negotiatedBlockSize,
+                  totalBytes: fileBuffer.length,
+                  transferredBytes: 0,
+                  startTime: Date.now(),
                   lastActivity: Date.now(),
+                  rate: "0 KB/s",
+                  status: "active",
                 });
 
-                if (hasBlksize) {
-                  const oack = Buffer.concat([
-                    Buffer.from([0, 6]),
-                    Buffer.from("blksize\0", "ascii"),
-                    Buffer.from(`${negotiatedBlockSize}\0`, "ascii"),
-                  ]);
+                addTftpServerLog(
+                  "info",
+                  `Download started for "${safeName}" (${formatTftpBytes(fileBuffer.length)}) to ${rinfo.address}:${rinfo.port} [blksize: ${negotiatedBlockSize}]`,
+                  { clientIp: rinfo.address, fileName: safeName, opcode: "RRQ", bytes: fileBuffer.length }
+                );
+
+                if (hasBlksize || hasTsize) {
+                  const oackParts: Buffer[] = [Buffer.from([0, 6])];
+                  if (hasBlksize) {
+                    oackParts.push(Buffer.from(`blksize\0${negotiatedBlockSize}\0`, "ascii"));
+                  }
+                  if (hasTsize) {
+                    oackParts.push(Buffer.from(`tsize\0${fileBuffer.length}\0`, "ascii"));
+                  }
+                  const oack = Buffer.concat(oackParts);
                   tftpSocket?.send(oack, rinfo.port, rinfo.address);
                 } else {
                   const chunk = fileBuffer.subarray(0, negotiatedBlockSize);
@@ -417,47 +610,82 @@ app.post("/api/tftp/action", async (req, res) => {
                   tftpSocket?.send(dataPkt, rinfo.port, rinfo.address);
                 }
               } catch (readErr: any) {
+                addTftpServerLog("error", `Error reading "${safeName}": ${readErr.message}`, {
+                  clientIp: rinfo.address,
+                  fileName: safeName,
+                  opcode: "RRQ",
+                });
                 const errBuf = Buffer.from([0, 5, 0, 0, ...Buffer.from(`Error: ${readErr.message}\0`)]);
                 tftpSocket?.send(errBuf, rinfo.port, rinfo.address);
               }
             }
-            // Opcode 2: WRQ (Write Request / Remote uploads file to this server)
+            // Opcode 2: WRQ (Write Request / Remote client uploads file to this server)
             else if (opcode === 2) {
               let idx = 2;
               while (idx < msg.length && msg[idx] !== 0) idx++;
               const targetFileName = msg.subarray(2, idx).toString("utf8");
-              const filePath = path.join(tftpConfig.directory, path.basename(targetFileName));
+              const safeName = path.basename(targetFileName);
+              const filePath = path.join(tftpConfig.directory, safeName);
 
               let negotiatedBlockSize = 512;
+              let reportedSize = 0;
               const optStr = msg.subarray(2).toString("ascii");
               const parts = optStr.split("\0");
               let hasBlksize = false;
+              let hasTsize = false;
+
               for (let i = 2; i < parts.length - 1; i += 2) {
-                if (parts[i].toLowerCase() === "blksize") {
+                const opt = parts[i].toLowerCase();
+                if (opt === "blksize") {
                   const val = parseInt(parts[i + 1], 10);
                   if (!isNaN(val) && val >= 512 && val <= 65464) {
                     negotiatedBlockSize = val;
                     hasBlksize = true;
                   }
+                } else if (opt === "tsize") {
+                  const val = parseInt(parts[i + 1], 10);
+                  if (!isNaN(val) && val >= 0) {
+                    reportedSize = val;
+                    hasTsize = true;
+                  }
                 }
               }
 
               serverUploadSessions.set(clientKey, {
+                id: `up-${Date.now()}-${rinfo.port}`,
                 clientKey,
+                clientIp: rinfo.address,
+                clientPort: rinfo.port,
                 filePath,
-                fileName: targetFileName,
+                fileName: safeName,
                 chunks: [],
                 expectedBlock: 1,
                 blockSize: negotiatedBlockSize,
+                totalBytes: reportedSize,
+                transferredBytes: 0,
+                startTime: Date.now(),
                 lastActivity: Date.now(),
+                rate: "0 KB/s",
+                status: "active",
               });
 
-              if (hasBlksize) {
-                const oack = Buffer.concat([
-                  Buffer.from([0, 6]),
-                  Buffer.from("blksize\0", "ascii"),
-                  Buffer.from(`${negotiatedBlockSize}\0`, "ascii"),
-                ]);
+              addTftpServerLog(
+                "info",
+                `Upload started for "${safeName}" from ${rinfo.address}:${rinfo.port} (Block: ${negotiatedBlockSize} B${
+                  reportedSize ? `, Size: ${formatTftpBytes(reportedSize)}` : ""
+                })`,
+                { clientIp: rinfo.address, fileName: safeName, opcode: "WRQ", bytes: reportedSize }
+              );
+
+              if (hasBlksize || hasTsize) {
+                const oackParts: Buffer[] = [Buffer.from([0, 6])];
+                if (hasBlksize) {
+                  oackParts.push(Buffer.from(`blksize\0${negotiatedBlockSize}\0`, "ascii"));
+                }
+                if (hasTsize) {
+                  oackParts.push(Buffer.from(`tsize\0${reportedSize}\0`, "ascii"));
+                }
+                const oack = Buffer.concat(oackParts);
                 tftpSocket?.send(oack, rinfo.port, rinfo.address);
               } else {
                 const ack = Buffer.from([0, 4, 0, 0]);
@@ -478,6 +706,8 @@ app.post("/api/tftp/action", async (req, res) => {
 
               if (blockNum === session.expectedBlock) {
                 session.chunks.push(Buffer.from(data));
+                session.transferredBytes += data.length;
+                session.rate = calculateTftpRate(session.transferredBytes, session.startTime);
                 session.lastActivity = Date.now();
                 session.expectedBlock = (session.expectedBlock + 1) & 0xffff;
 
@@ -486,17 +716,51 @@ app.post("/api/tftp/action", async (req, res) => {
                 ack.writeUInt16BE(blockNum, 2);
                 tftpSocket?.send(ack, rinfo.port, rinfo.address);
 
+                // Check if final block reached
                 if (data.length < session.blockSize) {
                   try {
                     const fullContent = Buffer.concat(session.chunks);
                     fs.writeFileSync(session.filePath, fullContent);
-                    console.log(`[TFTP Server] Received upload "${session.fileName}" (${fullContent.length} bytes)`);
-                  } catch (writeErr) {
-                    console.error("[TFTP Server] File write error:", writeErr);
+                    session.status = "completed";
+                    session.transferredBytes = fullContent.length;
+                    session.rate = calculateTftpRate(session.transferredBytes, session.startTime);
+
+                    addTftpServerLog(
+                      "success",
+                      `Upload completed: "${session.fileName}" (${formatTftpBytes(session.transferredBytes)}) saved from ${session.clientIp}:${session.clientPort} at ${session.rate}`,
+                      { clientIp: session.clientIp, fileName: session.fileName, opcode: "WRQ", bytes: session.transferredBytes }
+                    );
+
+                    recentServerTransfers.unshift({
+                      id: session.id,
+                      clientKey: session.clientKey,
+                      clientIp: session.clientIp,
+                      clientPort: session.clientPort,
+                      fileName: session.fileName,
+                      opcode: "WRQ",
+                      blockSize: session.blockSize,
+                      totalBytes: session.totalBytes || session.transferredBytes,
+                      transferredBytes: session.transferredBytes,
+                      percent: 100,
+                      blocks: session.chunks.length,
+                      rate: session.rate,
+                      status: "completed",
+                      startTime: session.startTime,
+                      completedAt: Date.now(),
+                    });
+                    if (recentServerTransfers.length > 20) recentServerTransfers.pop();
+                  } catch (writeErr: any) {
+                    session.status = "failed";
+                    addTftpServerLog("error", `File write error for "${session.fileName}": ${writeErr.message}`, {
+                      clientIp: session.clientIp,
+                      fileName: session.fileName,
+                      opcode: "WRQ",
+                    });
                   }
                   serverUploadSessions.delete(clientKey);
                 }
               } else if (blockNum === ((session.expectedBlock - 1 + 65536) & 0xffff)) {
+                // Duplicate block ACK
                 const ack = Buffer.alloc(4);
                 ack.writeUInt16BE(4, 0);
                 ack.writeUInt16BE(blockNum, 2);
@@ -514,6 +778,35 @@ app.post("/api/tftp/action", async (req, res) => {
               if (ackBlock === 0 || ackBlock === session.currentBlock) {
                 const offset = (session.currentBlock - 1) * session.blockSize;
                 if (ackBlock !== 0 && offset >= session.fileBuffer.length) {
+                  session.status = "completed";
+                  session.transferredBytes = session.totalBytes;
+                  session.rate = calculateTftpRate(session.totalBytes, session.startTime);
+
+                  addTftpServerLog(
+                    "success",
+                    `Download completed: "${session.fileName}" (${formatTftpBytes(session.totalBytes)}) delivered to ${session.clientIp}:${session.clientPort} at ${session.rate}`,
+                    { clientIp: session.clientIp, fileName: session.fileName, opcode: "RRQ", bytes: session.totalBytes }
+                  );
+
+                  recentServerTransfers.unshift({
+                    id: session.id,
+                    clientKey: session.clientKey,
+                    clientIp: session.clientIp,
+                    clientPort: session.clientPort,
+                    fileName: session.fileName,
+                    opcode: "RRQ",
+                    blockSize: session.blockSize,
+                    totalBytes: session.totalBytes,
+                    transferredBytes: session.totalBytes,
+                    percent: 100,
+                    blocks: session.currentBlock,
+                    rate: session.rate,
+                    status: "completed",
+                    startTime: session.startTime,
+                    completedAt: Date.now(),
+                  });
+                  if (recentServerTransfers.length > 20) recentServerTransfers.pop();
+
                   serverDownloadSessions.delete(clientKey);
                   return;
                 }
@@ -523,6 +816,9 @@ app.post("/api/tftp/action", async (req, res) => {
                 }
 
                 const currentOffset = (session.currentBlock - 1) * session.blockSize;
+                session.transferredBytes = Math.min(session.totalBytes, currentOffset);
+                session.rate = calculateTftpRate(session.transferredBytes, session.startTime);
+
                 const chunk = session.fileBuffer.subarray(currentOffset, currentOffset + session.blockSize);
                 const dataPkt = Buffer.alloc(4 + chunk.length);
                 dataPkt.writeUInt16BE(3, 0);
@@ -533,6 +829,10 @@ app.post("/api/tftp/action", async (req, res) => {
             }
             // Opcode 5: ERROR
             else if (opcode === 5) {
+              const errMsg = msg.subarray(4).toString("utf8").replace(/\0.*$/, "");
+              addTftpServerLog("error", `TFTP error packet from ${clientKey}: ${errMsg || "Unknown code"}`, {
+                clientIp: rinfo.address,
+              });
               serverUploadSessions.delete(clientKey);
               serverDownloadSessions.delete(clientKey);
             }
@@ -543,12 +843,14 @@ app.post("/api/tftp/action", async (req, res) => {
             tftpConfig.running = true;
             tftpConfig.port = targetPort;
             tftpConfig.error = null;
+            addTftpServerLog("info", `TFTP Server daemon listening on UDP port ${targetPort} (all interfaces)`);
           });
 
           return res.json({ running: true, port: targetPort, directory: tftpConfig.directory });
         } catch (startErr: any) {
           tftpConfig.running = false;
           tftpConfig.error = startErr.message;
+          addTftpServerLog("error", `Failed to start TFTP daemon: ${startErr.message}`);
           return res.status(500).json({ error: startErr.message });
         }
       }
@@ -565,9 +867,13 @@ app.post("/api/tftp/action", async (req, res) => {
           ? file.content
           : Buffer.from(file.content, file.base64 ? "base64" : "utf8");
         fs.writeFileSync(targetPath, buf);
+        addTftpServerLog("info", `Manual file staged: "${safeName}" (${formatTftpBytes(buf.length)})`, {
+          fileName: safeName,
+          bytes: buf.length,
+        });
       } else {
-        // Stage placeholder file
         fs.writeFileSync(targetPath, Buffer.alloc(file.size || 1024));
+        addTftpServerLog("info", `Manual placeholder file staged: "${safeName}"`, { fileName: safeName });
       }
       return res.json({ success: true, files: listTftpFiles(tftpConfig.directory) });
     }
@@ -577,6 +883,7 @@ app.post("/api/tftp/action", async (req, res) => {
       const safePath = path.join(tftpConfig.directory, path.basename(fileName));
       if (fs.existsSync(safePath)) {
         fs.unlinkSync(safePath);
+        addTftpServerLog("info", `File removed from staging: "${path.basename(fileName)}"`);
       }
       return res.json({ success: true, files: listTftpFiles(tftpConfig.directory) });
     }

@@ -23,9 +23,17 @@ import {
   XCircle,
   Send,
   Zap,
-  ArrowUpRight
+  ArrowUpRight,
+  Activity,
+  Terminal,
+  Wifi
 } from 'lucide-react';
-import { TftpStagedFile, TftpTransferItem } from '../types';
+import {
+  TftpStagedFile,
+  TftpTransferItem,
+  TftpServerLogEntry,
+  TftpServerActiveTransfer
+} from '../types';
 
 interface TftpPreset {
   label: string;
@@ -48,6 +56,12 @@ export const TftpView: React.FC = () => {
   const [detectedPlatform, setDetectedPlatform] = useState<string>('windows');
   const [presets, setPresets] = useState<TftpPreset[]>([]);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+
+  // Server Live Transfers & Logs
+  const [serverTransfers, setServerTransfers] = useState<TftpServerActiveTransfer[]>([]);
+  const [serverLogs, setServerLogs] = useState<TftpServerLogEntry[]>([]);
+  const [autoScrollLogs, setAutoScrollLogs] = useState(true);
+  const logsEndRef = useRef<HTMLDivElement>(null);
 
   // Live TFTP Client active transfers
   const [transfers, setTransfers] = useState<TftpTransferItem[]>([]);
@@ -85,9 +99,9 @@ export const TftpView: React.FC = () => {
   const clientFileInputRef = useRef<HTMLInputElement>(null);
   const progressPollRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load server status & initial root directory
-  const fetchServerStatus = async () => {
-    setIsLoading(true);
+  // Load server status, active transfers, logs & initial root directory
+  const fetchServerStatus = async (showLoading = false) => {
+    if (showLoading) setIsLoading(true);
     try {
       const res = await fetch('/api/tftp/status');
       if (res.ok) {
@@ -96,11 +110,19 @@ export const TftpView: React.FC = () => {
         setPort(data.port || 69);
         const activeDir = data.directory || rootDirectory;
         setRootDirectory(activeDir);
-        setCustomPathInput(activeDir);
+        if (!isEditingPath) {
+          setCustomPathInput(activeDir);
+        }
         setStagedFiles(data.files || []);
         setDetectedPlatform(data.platform || 'windows');
         if (data.presets && Array.isArray(data.presets)) {
           setPresets(data.presets);
+        }
+        if (data.activeTransfers && Array.isArray(data.activeTransfers)) {
+          setServerTransfers(data.activeTransfers);
+        }
+        if (data.logs && Array.isArray(data.logs)) {
+          setServerLogs(data.logs);
         }
         if (data.files && data.files.length > 0 && !selectedStagedFile) {
           setSelectedStagedFile(data.files[0].name);
@@ -117,7 +139,7 @@ export const TftpView: React.FC = () => {
     } catch (err) {
       console.error('Failed to fetch TFTP server status:', err);
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
   };
 
@@ -127,14 +149,43 @@ export const TftpView: React.FC = () => {
       setRootDirectory(savedCustomDir);
       setCustomPathInput(savedCustomDir);
     }
-    fetchServerStatus();
+    fetchServerStatus(true);
+
+    // Continuous polling for TFTP server live status, transfers and logs
+    const pollTimer = setInterval(() => {
+      fetchServerStatus(false);
+    }, isRunning ? 1000 : 2500);
 
     return () => {
+      clearInterval(pollTimer);
       if (progressPollRef.current) {
         clearInterval(progressPollRef.current);
       }
     };
-  }, []);
+  }, [isRunning, isEditingPath]);
+
+  // Auto-scroll logs to bottom if enabled
+  useEffect(() => {
+    if (autoScrollLogs && logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [serverLogs, autoScrollLogs]);
+
+  // Clear TFTP server logs
+  const handleClearServerLogs = async () => {
+    try {
+      const res = await fetch('/api/tftp/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clearLogs' }),
+      });
+      if (res.ok) {
+        setServerLogs([]);
+      }
+    } catch (err) {
+      console.error('Failed to clear logs:', err);
+    }
+  };
 
   // Save / Apply Host Root Directory
   const handleSaveRootDirectory = async (targetPath: string) => {
@@ -775,6 +826,199 @@ export const TftpView: React.FC = () => {
               </div>
             </div>
 
+            {/* Live Server Active Transfers & Progress Bar Card */}
+            {serverTransfers.length > 0 && (
+              <div className="p-4 rounded-xl bg-[#111112] border border-emerald-500/30 space-y-3 shadow-md">
+                <div className="flex items-center justify-between border-b border-[#1F1F22] pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
+                    <h2 className="text-xs font-bold text-white uppercase font-mono tracking-wider">
+                      Active Server Transfers ({serverTransfers.length})
+                    </h2>
+                  </div>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    Live Server Activity
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {serverTransfers.map((tx) => {
+                    const isUpload = tx.opcode === 'WRQ';
+                    const isFinished = tx.status === 'completed';
+                    const isFailed = tx.status === 'failed';
+
+                    return (
+                      <div
+                        key={tx.id}
+                        className={`p-3.5 rounded-lg border transition-all ${
+                          isFinished
+                            ? 'bg-emerald-950/20 border-emerald-500/30'
+                            : isFailed
+                            ? 'bg-red-950/20 border-red-500/30'
+                            : isUpload
+                            ? 'bg-purple-950/20 border-purple-500/30'
+                            : 'bg-blue-950/20 border-blue-500/30'
+                        }`}
+                      >
+                        {/* Header row */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 font-mono">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                isFinished
+                                  ? 'bg-emerald-500 text-black'
+                                  : isUpload
+                                  ? 'bg-purple-600 text-white animate-pulse'
+                                  : 'bg-blue-600 text-white animate-pulse'
+                              }`}
+                            >
+                              {isFinished
+                                ? 'Completed'
+                                : isUpload
+                                ? 'Client Uploading to Server (WRQ)'
+                                : 'Client Downloading from Server (RRQ)'}
+                            </span>
+                            <span className="text-xs font-bold text-white truncate max-w-sm">
+                              {tx.fileName}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-xs">
+                            <span className="text-gray-400 text-[11px] flex items-center gap-1">
+                              <Wifi className="w-3 h-3 text-gray-500" />
+                              {tx.clientIp}:{tx.clientPort}
+                            </span>
+                            <span className="text-emerald-400 font-bold">{tx.rate}</span>
+                            <span className="text-white font-bold">{tx.percent}%</span>
+                          </div>
+                        </div>
+
+                        {/* Live Progress Bar */}
+                        <div className="w-full h-3 bg-black/60 rounded-full overflow-hidden border border-zinc-800 p-0.5">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              isFinished
+                                ? 'bg-emerald-500'
+                                : isFailed
+                                ? 'bg-red-500'
+                                : isUpload
+                                ? 'bg-gradient-to-r from-purple-500 via-indigo-500 to-emerald-400 animate-pulse'
+                                : 'bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 animate-pulse'
+                            }`}
+                            style={{ width: `${Math.max(3, tx.percent)}%` }}
+                          />
+                        </div>
+
+                        {/* Footer metrics */}
+                        <div className="flex items-center justify-between text-[11px] font-mono text-gray-400 mt-2">
+                          <span>
+                            Transferred: <span className="text-white font-bold">{formatBytes(tx.transferredBytes)}</span>
+                            {tx.totalBytes > 0 && <span> / {formatBytes(tx.totalBytes)}</span>}
+                          </span>
+                          <span>
+                            Block Size: <span className="text-gray-300">{tx.blockSize} B</span> • Blocks:{' '}
+                            <span className="text-emerald-400 font-bold">#{tx.blocks}</span>
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Live TFTP Server Activity Logs Console Card */}
+            <div className="rounded-xl bg-[#111112] border border-[#222224] overflow-hidden shadow-sm">
+              <div className="px-4 py-2.5 border-b border-[#222224] flex items-center justify-between bg-[#141416]">
+                <div className="flex items-center gap-2">
+                  <Terminal className="w-4 h-4 text-emerald-400" />
+                  <h2 className="text-xs font-bold text-white uppercase font-mono tracking-wider">
+                    TFTP Server Live Activity Logs &amp; Events
+                  </h2>
+                  <span className="px-2 py-0.5 rounded-full bg-[#1C1C1E] text-gray-400 text-[10px] font-mono border border-[#2B2B2F]">
+                    {serverLogs.length} events
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1 text-[10px] text-gray-400 font-mono cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={autoScrollLogs}
+                      onChange={(e) => setAutoScrollLogs(e.target.checked)}
+                      className="rounded border-gray-700 bg-zinc-800 text-emerald-500 focus:ring-0 text-xs"
+                    />
+                    <span>Auto-scroll</span>
+                  </label>
+                  <button
+                    onClick={handleClearServerLogs}
+                    disabled={serverLogs.length === 0}
+                    className="px-2 py-1 rounded bg-[#1C1C1E] hover:bg-[#2A2A2E] text-gray-400 hover:text-red-400 text-[10px] font-mono transition-colors disabled:opacity-40 flex items-center gap-1"
+                    title="Clear server logs"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Clear</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-3 bg-[#0A0A0B] max-h-56 min-h-[120px] overflow-y-auto font-mono text-xs space-y-1 divide-y divide-zinc-900/50">
+                {serverLogs.length === 0 ? (
+                  <div className="p-6 text-center text-gray-500 text-xs font-mono">
+                    No TFTP server activity logged yet.
+                    <div className="mt-1 text-gray-600 text-[11px]">
+                      {isRunning
+                        ? `Listening on UDP port ${port}. Incoming WRQ (upload) or RRQ (download) requests from remote devices will appear here in real time.`
+                        : 'Start the daemon to begin listening for incoming requests.'}
+                    </div>
+                  </div>
+                ) : (
+                  serverLogs.map((log) => {
+                    const isUpload = log.opcode === 'WRQ';
+                    const isDownload = log.opcode === 'RRQ';
+
+                    return (
+                      <div key={log.id} className="pt-1.5 flex items-start gap-2 text-[11px] leading-relaxed">
+                        <span className="text-gray-500 shrink-0 select-none">[{log.timestamp}]</span>
+                        <span
+                          className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase shrink-0 ${
+                            log.level === 'success'
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                              : log.level === 'error'
+                              ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                              : log.level === 'warn'
+                              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                              : isUpload
+                              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                              : isDownload
+                              ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                              : 'bg-zinc-800 text-gray-300 border border-zinc-700'
+                          }`}
+                        >
+                          {isUpload ? 'UPLOAD' : isDownload ? 'DOWNLOAD' : log.level.toUpperCase()}
+                        </span>
+                        {log.clientIp && (
+                          <span className="text-gray-400 shrink-0">[{log.clientIp}]</span>
+                        )}
+                        <span
+                          className={`flex-1 break-all ${
+                            log.level === 'success'
+                              ? 'text-emerald-300'
+                              : log.level === 'error'
+                              ? 'text-red-400'
+                              : log.level === 'warn'
+                              ? 'text-amber-300'
+                              : 'text-gray-300'
+                          }`}
+                        >
+                          {log.message}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={logsEndRef} />
+              </div>
+            </div>
+
             {/* Staged Boot & Firmware Images List */}
             <div className="rounded-xl bg-[#111112] border border-[#222224] overflow-hidden">
               <div className="px-4 py-3 border-b border-[#222224] flex items-center justify-between">
@@ -787,7 +1031,7 @@ export const TftpView: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={fetchServerStatus}
+                    onClick={() => fetchServerStatus(true)}
                     className="p-1 rounded text-gray-400 hover:text-white hover:bg-[#1C1C1E]"
                     title="Refresh file list from disk"
                   >

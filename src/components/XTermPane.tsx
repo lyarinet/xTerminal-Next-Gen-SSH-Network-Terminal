@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { Host, Snippet } from '../types';
+import { Host, Snippet, TerminalSettings } from '../types';
 import { Bot, Play, ShieldAlert, Wifi, RefreshCw, Copy, Clipboard, Check, Smartphone } from 'lucide-react';
 import { getBackendWsUrl, isMobileApp, getStoredBackendUrl } from '../lib/networkConfig';
 import { MultiplayerCursorBadge } from './multiplayer/MultiplayerCursorBadge';
@@ -30,6 +30,54 @@ export const TERMINAL_THEMES: Record<string, any> = {
     brightMagenta: '#C084FC',
     brightCyan: '#22D3EE',
     brightWhite: '#F9FAFB',
+  },
+  'one-dark': {
+    name: 'One Dark Pro',
+    background: '#1E1E24',
+    foreground: '#ABB2BF',
+    cursor: '#528BFF',
+    cursorAccent: '#1E1E24',
+    selectionBackground: '#3E445180',
+    black: '#282C34',
+    red: '#E06C75',
+    green: '#98C379',
+    yellow: '#E5C07B',
+    blue: '#61AFEF',
+    magenta: '#C678DD',
+    cyan: '#56B6C2',
+    white: '#ABB2BF',
+    brightBlack: '#5C6370',
+    brightRed: '#E06C75',
+    brightGreen: '#98C379',
+    brightYellow: '#E5C07B',
+    brightBlue: '#61AFEF',
+    brightMagenta: '#C678DD',
+    brightCyan: '#56B6C2',
+    brightWhite: '#FFFFFF',
+  },
+  'tokyo-night': {
+    name: 'Tokyo Night Storm',
+    background: '#1A1B26',
+    foreground: '#A9B1D6',
+    cursor: '#C0CAF5',
+    cursorAccent: '#1A1B26',
+    selectionBackground: '#28345799',
+    black: '#15161E',
+    red: '#F7768E',
+    green: '#9ECE6A',
+    yellow: '#E0AF68',
+    blue: '#7AA2F7',
+    magenta: '#BB9AF7',
+    cyan: '#7DCFFF',
+    white: '#A9B1D6',
+    brightBlack: '#414868',
+    brightRed: '#F7768E',
+    brightGreen: '#9ECE6A',
+    brightYellow: '#E0AF68',
+    brightBlue: '#7AA2F7',
+    brightMagenta: '#BB9AF7',
+    brightCyan: '#7DCFFF',
+    brightWhite: '#C0CAF5',
   },
   dracula: {
     name: 'Dracula Dark',
@@ -95,6 +143,35 @@ export const TERMINAL_THEMES: Record<string, any> = {
     cyan: '#2aa198',
     white: '#eee8d5',
   },
+  'solarized-dark': {
+    name: 'Solarized Dark',
+    background: '#002b36',
+    foreground: '#839496',
+    cursor: '#2aa198',
+    cursorAccent: '#002b36',
+    selectionBackground: '#073642',
+    black: '#073642',
+    red: '#dc322f',
+    green: '#859900',
+    yellow: '#b58900',
+    blue: '#268bd2',
+    magenta: '#d33682',
+    cyan: '#2aa198',
+    white: '#eee8d5',
+  },
+};
+
+export const resolveTerminalTheme = (themeName?: string) => {
+  if (!themeName) return TERMINAL_THEMES.nexus;
+  const key = themeName.toLowerCase().trim();
+  if (TERMINAL_THEMES[key]) return TERMINAL_THEMES[key];
+  if (key === 'one-dark' || key.includes('onedark') || key.includes('one dark')) return TERMINAL_THEMES['one-dark'];
+  if (key === 'tokyo-night' || key.includes('tokyo')) return TERMINAL_THEMES['tokyo-night'];
+  if (key.includes('dracula')) return TERMINAL_THEMES.dracula;
+  if (key.includes('nord')) return TERMINAL_THEMES.nord;
+  if (key.includes('monokai')) return TERMINAL_THEMES.monokai;
+  if (key.includes('solarized')) return TERMINAL_THEMES['solarized-dark'];
+  return TERMINAL_THEMES.nexus;
 };
 
 interface XTermPaneProps {
@@ -113,6 +190,7 @@ interface XTermPaneProps {
   onTerminalInput?: (chunk: string) => void;
   onTerminalOutput?: (chunk: string) => void;
   onCursorMove?: (cursor: { x: number; y: number }, isTyping: boolean) => void;
+  terminalSettings?: TerminalSettings;
 }
 
 export const XTermPane: React.FC<XTermPaneProps> = ({
@@ -131,6 +209,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
   onTerminalInput,
   onTerminalOutput,
   onCursorMove,
+  terminalSettings,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -269,16 +348,17 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
   useEffect(() => {
     if (!containerRef.current) return;
 
+    const activeTheme = resolveTerminalTheme(terminalSettings?.theme || themeKey);
     const term = new Terminal({
-      cursorBlink: true,
-      cursorStyle: 'block',
-      fontFamily: '"Fira Code", Menlo, Monaco, "Courier New", monospace',
-      fontSize: 13,
+      cursorBlink: terminalSettings?.cursorBlink !== undefined ? terminalSettings.cursorBlink : true,
+      cursorStyle: terminalSettings?.cursorStyle || 'block',
+      fontFamily: terminalSettings?.fontFamily || '"Fira Code", Menlo, Monaco, "Courier New", monospace',
+      fontSize: terminalSettings?.fontSize || 13,
       lineHeight: 1.35,
-      theme: TERMINAL_THEMES[themeKey] || TERMINAL_THEMES.nexus,
+      theme: activeTheme,
       allowTransparency: true,
       convertEol: true,
-      scrollback: 5000,
+      scrollback: terminalSettings?.scrollbackLines || 5000,
     });
 
     const fitAddon = new FitAddon();
@@ -501,12 +581,49 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
     };
   }, [host?.id, host?.hostname, host?.username, host?.port, host?.password, backendVersion, isMultiplayerParticipant, updateBadgePosition]);
 
-  // Update theme dynamically
+  // Real-time dynamic update of font, size, theme, cursor style, blink, and layout
   useEffect(() => {
-    if (termRef.current) {
-      termRef.current.options.theme = TERMINAL_THEMES[themeKey] || TERMINAL_THEMES.nexus;
+    if (!termRef.current) return;
+    const term = termRef.current;
+    if (terminalSettings) {
+      if (terminalSettings.fontSize) term.options.fontSize = terminalSettings.fontSize;
+      if (terminalSettings.fontFamily) term.options.fontFamily = terminalSettings.fontFamily;
+      if (terminalSettings.cursorStyle) term.options.cursorStyle = terminalSettings.cursorStyle;
+      if (terminalSettings.cursorBlink !== undefined) term.options.cursorBlink = terminalSettings.cursorBlink;
+      if (terminalSettings.scrollbackLines) term.options.scrollback = terminalSettings.scrollbackLines;
+
+      const themeObj = resolveTerminalTheme(terminalSettings.theme || themeKey);
+      term.options.theme = themeObj;
+    } else {
+      term.options.theme = resolveTerminalTheme(themeKey);
     }
-  }, [themeKey]);
+
+    try {
+      fitAddonRef.current?.fit();
+    } catch (e) {}
+  }, [terminalSettings, themeKey]);
+
+  // Global event listener for instant real-time preferences update from Workstation Settings
+  useEffect(() => {
+    const handleSettingsEvent = (e: any) => {
+      const s = e.detail as TerminalSettings;
+      if (!s || !termRef.current) return;
+      const term = termRef.current;
+      if (s.fontSize) term.options.fontSize = s.fontSize;
+      if (s.fontFamily) term.options.fontFamily = s.fontFamily;
+      if (s.cursorStyle) term.options.cursorStyle = s.cursorStyle;
+      if (s.cursorBlink !== undefined) term.options.cursorBlink = s.cursorBlink;
+      if (s.scrollbackLines) term.options.scrollback = s.scrollbackLines;
+      if (s.theme) term.options.theme = resolveTerminalTheme(s.theme);
+
+      try {
+        fitAddonRef.current?.fit();
+      } catch (e) {}
+    };
+
+    window.addEventListener('xterminal:settings-changed', handleSettingsEvent);
+    return () => window.removeEventListener('xterminal:settings-changed', handleSettingsEvent);
+  }, []);
   const tabIdRef = useRef(tabId);
   tabIdRef.current = tabId;
 

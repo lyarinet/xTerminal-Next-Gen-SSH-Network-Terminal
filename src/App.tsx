@@ -635,6 +635,7 @@ export default function App() {
             activeTabId={activeTabId}
             hosts={hosts}
             snippets={snippets}
+            terminalSettings={terminalSettings}
             onSelectTab={setActiveTabId}
             onCloseTab={handleCloseTab}
             onNewTab={handleNewTab}

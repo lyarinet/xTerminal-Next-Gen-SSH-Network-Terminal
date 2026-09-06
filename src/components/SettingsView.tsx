@@ -128,9 +128,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setTimeout(() => setSavedSuccess(false), 2000);
   };
 
+  const updateSettingField = <K extends keyof TerminalSettings>(field: K, value: TerminalSettings[K]) => {
+    const updated = { ...localSettings, [field]: value };
+    setLocalSettings(updated);
+    onUpdateSettings(updated);
+    window.dispatchEvent(new CustomEvent('xterminal:settings-changed', { detail: updated }));
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     onUpdateSettings(localSettings);
+    window.dispatchEvent(new CustomEvent('xterminal:settings-changed', { detail: localSettings }));
 
     try {
       const existing = localStorage.getItem('nexusterm_serial_settings');
@@ -271,7 +279,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <label className="block text-gray-400 font-medium mb-1">Color Theme</label>
             <select
               value={localSettings.theme}
-              onChange={(e) => setLocalSettings({ ...localSettings, theme: e.target.value as any })}
+              onChange={(e) => updateSettingField('theme', e.target.value as any)}
               className="w-full px-3 py-1.5 rounded-md bg-[#1C1C1E] border border-[#222224] text-gray-100 focus:outline-hidden focus:border-emerald-500"
             >
               <option value="one-dark">One Dark Pro (Default)</option>
@@ -288,7 +296,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <label className="block text-gray-400 font-medium mb-1">Font Family</label>
               <select
                 value={localSettings.fontFamily}
-                onChange={(e) => setLocalSettings({ ...localSettings, fontFamily: e.target.value })}
+                onChange={(e) => updateSettingField('fontFamily', e.target.value)}
                 className="w-full px-3 py-1.5 rounded-md bg-[#1C1C1E] border border-[#222224] text-gray-100 focus:outline-hidden focus:border-emerald-500 font-mono"
               >
                 <option value="JetBrains Mono, monospace">JetBrains Mono</option>
@@ -305,7 +313,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 max={20}
                 step={1}
                 value={localSettings.fontSize}
-                onChange={(e) => setLocalSettings({ ...localSettings, fontSize: Number(e.target.value) })}
+                onChange={(e) => updateSettingField('fontSize', Number(e.target.value))}
                 className="w-full accent-emerald-500 mt-2"
               />
             </div>
@@ -316,7 +324,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <label className="block text-gray-400 font-medium mb-1">Cursor Style</label>
               <select
                 value={localSettings.cursorStyle}
-                onChange={(e) => setLocalSettings({ ...localSettings, cursorStyle: e.target.value as any })}
+                onChange={(e) => updateSettingField('cursorStyle', e.target.value as any)}
                 className="w-full px-3 py-1.5 rounded-md bg-[#1C1C1E] border border-[#222224] text-gray-100 focus:outline-hidden focus:border-emerald-500"
               >
                 <option value="block">Solid Block (█)</option>
@@ -328,7 +336,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <label className="block text-gray-400 font-medium mb-1">Scrollback Buffer</label>
               <select
                 value={localSettings.scrollbackLines}
-                onChange={(e) => setLocalSettings({ ...localSettings, scrollbackLines: Number(e.target.value) })}
+                onChange={(e) => updateSettingField('scrollbackLines', Number(e.target.value))}
                 className="w-full px-3 py-1.5 rounded-md bg-[#1C1C1E] border border-[#222224] text-gray-100 focus:outline-hidden focus:border-emerald-500 font-mono"
               >
                 <option value={1000}>1,000 lines</option>
@@ -343,7 +351,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               type="checkbox"
               id="cursorBlink"
               checked={localSettings.cursorBlink}
-              onChange={(e) => setLocalSettings({ ...localSettings, cursorBlink: e.target.checked })}
+              onChange={(e) => updateSettingField('cursorBlink', e.target.checked)}
               className="rounded bg-[#1C1C1E] border-[#222224] text-emerald-500 focus:ring-0 accent-emerald-500"
             />
             <label htmlFor="cursorBlink" className="text-gray-300">

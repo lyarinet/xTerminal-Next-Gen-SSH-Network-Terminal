@@ -36,7 +36,8 @@ import {
   MultiplayerSession,
   MultiplayerParticipant,
   MultiplayerControlMode,
-  MultiplayerAccessMode
+  MultiplayerAccessMode,
+  TerminalSettings
 } from '../types';
 import { analyzeCommandRisk } from '../lib/safetyEngine';
 import { XTermPane, TERMINAL_THEMES } from './XTermPane';
@@ -63,6 +64,7 @@ interface TerminalWorkspaceProps {
   onClosePane: (tabId: string, paneId: string) => void;
   onExecuteCommand: (tabId: string, command: string) => void;
   onOpenAiWithContext: (terminalText: string) => void;
+  terminalSettings?: TerminalSettings;
 }
 
 export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
@@ -77,8 +79,16 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
   onClosePane,
   onExecuteCommand,
   onOpenAiWithContext,
+  terminalSettings,
 }) => {
-  const [selectedTheme, setSelectedTheme] = useState<string>('nexus');
+  const [selectedTheme, setSelectedTheme] = useState<string>(terminalSettings?.theme || 'nexus');
+
+  useEffect(() => {
+    if (terminalSettings?.theme) {
+      setSelectedTheme(terminalSettings.theme);
+    }
+  }, [terminalSettings?.theme]);
+
   const [keepaliveInterval, setKeepaliveInterval] = useState<number>(30); // 30s
   const [snippetDropdownOpen, setSnippetDropdownOpen] = useState(false);
   const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
@@ -1683,6 +1693,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
                     host={tabHost}
                     buffer={pane.buffer}
                     themeKey={selectedTheme}
+                    terminalSettings={terminalSettings}
                     keepaliveInterval={keepaliveInterval}
                     onExecuteCommand={(cmd) => onExecuteCommand(tab.id, cmd)}
                     onOpenAiWithContext={onOpenAiWithContext}

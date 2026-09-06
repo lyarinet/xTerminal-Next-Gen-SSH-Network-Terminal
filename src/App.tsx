@@ -28,6 +28,7 @@ import { TelecomHardwareView } from './components/TelecomHardwareView';
 import { CloudSyncView } from './components/CloudSyncView';
 import { AppCenterView } from './components/AppCenterView';
 import { AdbManagerView } from './components/AdbManagerView';
+import { SplashScreen } from './components/SplashScreen';
 import { Menu, Bot, Plus, MessageSquare, User } from 'lucide-react';
 
 import {
@@ -88,6 +89,7 @@ export default function App() {
   const [vaultSettings, setVaultSettings] = useState<VaultSettings>(loadStoredVaultSettings);
 
   // View & UI Navigation
+  const [showSplashScreen, setShowSplashScreen] = useState(true);
   const [activeView, setActiveView] = useState<string>('dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -557,6 +559,11 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#0A0A0B] font-sans antialiased text-[#E0E0E0] select-none">
+      {/* Startup Animated Splash Screen */}
+      {showSplashScreen && (
+        <SplashScreen onFinish={() => setShowSplashScreen(false)} />
+      )}
+
       {/* Primary Left Navigation Bar (Desktop Persistent + Mobile Drawer) */}
       <Sidebar
         currentView={activeView}
@@ -878,7 +885,11 @@ export default function App() {
               [REPLAY RECORDER]
             </button>
             <span>PORT: 3000</span>
-            <span className="hidden sm:inline text-gray-400">xTerminalx PRO V2.4.0</span>
+            <span className="hidden sm:flex items-center gap-1.5 text-gray-400">
+              <span className="text-gray-300 font-semibold">xTerminal Pro</span>
+              <span className="text-gray-600">•</span>
+              <span className="text-emerald-400 font-medium">Powered by Lyarinet</span>
+            </span>
           </div>
         </footer>
       </main>

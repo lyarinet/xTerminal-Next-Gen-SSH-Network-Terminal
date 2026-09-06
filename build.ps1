@@ -105,10 +105,19 @@ function Test-Prerequisites {
     # Check npm
     try {
         $npmVer = npm --version
-        Write-Host "  [+] npm: v$npmVer" -ForegroundColor Green
     } catch {
         Write-Host "  [!] npm was not found in PATH." -ForegroundColor Red
         return $false
+    }
+
+    # Check node_modules
+    if (-not (Test-Path "$ScriptDir\node_modules")) {
+        Write-Host "  [!] Project dependencies not found. Auto-installing via npm install..." -ForegroundColor Yellow
+        npm install
+        if ($LASTEXITCODE -ne 0) {
+            npm install --legacy-peer-deps
+        }
+        Write-Host "  [+] Dependencies installed successfully." -ForegroundColor Green
     }
 
     return $true
@@ -130,11 +139,16 @@ function Build-Windows {
     Show-Banner
     Write-Host ">>> TARGET: Windows Desktop Application (v$script:AppVersion)`n" -ForegroundColor Yellow
     
-    # Terminate any running instances that could lock files
+    # Terminate any running instances or installers that could lock files
     Get-Process -Name "xTerminal", "electron" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Milliseconds 500
     
-    # Clean temporary directories that could trigger EPERM
+    # Clean temporary directories and previous installer files that could trigger file locks
+    if (Test-Path "$ScriptDir\release") {
+        Get-ChildItem -Path "$ScriptDir\release" -Filter "*Setup*.exe" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -Path "$ScriptDir\release" -Filter "*.nsis.7z" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -Path "$ScriptDir\release" -Filter "*.blockmap" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    }
     if (Test-Path "$ScriptDir\release\win-unpacked.tmp") {
         Remove-Item "$ScriptDir\release\win-unpacked.tmp" -Recurse -Force -ErrorAction SilentlyContinue
     }

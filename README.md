@@ -18,6 +18,33 @@
 
 ---
 
+## 🚀 Quick Start / Fresh PC Setup (Windows, Linux, macOS)
+
+xTerminal provides automated, interactive setup scripts that check system prerequisites, install missing dependencies, initialize configuration files, and launch the application on any fresh operating system.
+
+### 🪟 Windows (One-Click Setup)
+Open PowerShell in the project folder and run:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup.ps1
+```
+*Auto-detects and offers to install Node.js LTS and Git via `winget` if missing, creates `.env` from template, installs project dependencies (`npm install`), and verifies the build.*
+
+### 🐧 Linux (Ubuntu, Debian, Fedora, Arch) & 🍎 macOS
+Open your terminal in the project folder and run:
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+*Auto-detects OS package managers (`apt`, `dnf`, `pacman`, `brew`), installs Node.js, npm, git, and native build essentials, configures `.env`, and builds the bundle.*
+
+### 🌐 Universal Command (Any OS with Node.js)
+```bash
+npm run setup
+# or: node setup.cjs
+```
+
+---
+
 ## ✨ Key Features
 
 ### 🌐 Multi-Protocol Terminal Engine
@@ -81,6 +108,11 @@ Complete Android management and debugging environment integrated right into xTer
 - **Full Capacitor Android Integration**: Compile and run xTerminal on Android phones and tablets.
 - **Mobile Soft Keyboard & Accessory Bar**: Touch-friendly virtual accessory keys (Ctrl, Alt, Esc, Tab, Arrows) designed specifically for mobile terminal sessions without duplicate keystrokes.
 - **Standalone Android APK**: Pre-built Android package ready in `release/xTerminal-1.0.0.apk`.
+
+### 🖥️ In-Built VNC Remote Desktop (noVNC)
+- **Zero-External-Server noVNC Engine**: Built-in HTML5 Canvas RFB client powered by `@novnc/novnc` and an embedded Node.js TCP-to-WebSocket bridge (`/ws/vnc`). Connect directly to any Linux, macOS, or Windows VNC server (Port 5900) with zero external servers, Docker containers, websockify, or Guacamole daemons!
+- **Interactive & View-Only Controls**: Full mouse and keyboard event mapping with instant view-only toggle for non-intrusive monitoring.
+- **Ctrl+Alt+Del & Clipboard Sync**: One-click key sequence injection (Ctrl+Alt+Del, Super/WinKey, Esc, Tab) and bidirectional clipboard synchronization between local and remote workstations.
 
 ### 📁 Advanced SFTP Explorer & File Manager
 - **Dual-Pane File Browser**: Browse remote server directories side-by-side with local files.

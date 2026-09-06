@@ -23,7 +23,6 @@ import { SshKeyManagerView } from './components/SshKeyManagerView';
 import { PluginsView } from './components/PluginsView';
 import { SessionRecorderModal } from './components/SessionRecorderModal';
 import { UniversalImportModal } from './components/UniversalImportModal';
-import { DockerK8sView } from './components/DockerK8sView';
 import { RemoteDesktopView } from './components/RemoteDesktopView';
 import { TelecomHardwareView } from './components/TelecomHardwareView';
 import { CloudSyncView } from './components/CloudSyncView';
@@ -829,40 +828,6 @@ export default function App() {
         {activeView === 'plugins' && <PluginsView />}
 
         {activeView === 'rdp' && <RemoteDesktopView />}
-
-        {activeView === 'dockerK8s' && (
-          <DockerK8sView
-            onExecTerminal={(targetName, command) => {
-              const paneId = `pane-${Date.now()}`;
-              const newTab: TerminalTab = {
-                id: `tab-${Date.now()}`,
-                title: targetName,
-                connectionState: 'connected',
-                createdAt: new Date().toISOString(),
-                panes: [
-                  {
-                    id: paneId,
-                    title: targetName,
-                    buffer: [
-                      `\x1b[32m[xTerminalx]\x1b[0m Attached to container/pod: ${targetName}`,
-                      `\x1b[36mExecuting:\x1b[0m ${command}\n`,
-                    ],
-                    currentInput: '',
-                    commandHistory: [],
-                    historyIndex: -1,
-                  },
-                ],
-                activePaneId: paneId,
-              };
-              setTabs((prev) => [...prev, newTab]);
-              setActiveTabId(newTab.id);
-              setActiveView('terminal');
-              setTimeout(() => {
-                handleExecuteCommand(newTab.id, command);
-              }, 400);
-            }}
-          />
-        )}
 
         {activeView === 'telecom' && <TelecomHardwareView />}
 

@@ -318,10 +318,11 @@ export interface SerialPortConfig {
 export interface TftpStagedFile {
   name: string;
   size: number;
-  type: 'firmware' | 'pxe' | 'config';
-  description: string;
-  sha256: string;
-  updatedAt: string;
+  type: 'firmware' | 'pxe' | 'config' | 'raw';
+  description?: string;
+  sha256?: string;
+  updatedAt?: string;
+  modified?: string;
 }
 
 export interface TftpTransferItem {

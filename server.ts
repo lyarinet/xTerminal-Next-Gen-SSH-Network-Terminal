@@ -176,6 +176,644 @@ app.get("/api/system/network-info", async (_req, res) => {
   }
 });
 
+// ==========================================
+// TFTP Server & Client Backend Engine (RFC 1350)
+// Cross-Platform: Windows, Linux, macOS
+// ==========================================
+
+function getDefaultTftpDirectory(): string {
+  const home = os.homedir();
+  const def = path.join(home, "tftpboot");
+  try {
+    if (!fs.existsSync(def)) {
+      fs.mkdirSync(def, { recursive: true });
+    }
+  } catch {}
+  return def;
+}
+
+function getTftpPresets(): { label: string; path: string; os: string }[] {
+  const home = os.homedir();
+  const presets: { label: string; path: string; os: string }[] = [];
+  if (process.platform === "win32") {
+    presets.push(
+      { label: "User Home (tftpboot)", path: path.join(home, "tftpboot"), os: "windows" },
+      { label: "System Root (C:\\tftpboot)", path: "C:\\tftpboot", os: "windows" },
+      { label: "Downloads Folder", path: path.join(home, "Downloads", "tftp"), os: "windows" }
+    );
+  } else if (process.platform === "darwin") {
+    presets.push(
+      { label: "User Home (~/tftpboot)", path: path.join(home, "tftpboot"), os: "macos" },
+      { label: "macOS System (/private/tftpboot)", path: "/private/tftpboot", os: "macos" },
+      { label: "Downloads Folder", path: path.join(home, "Downloads", "tftp"), os: "macos" }
+    );
+  } else {
+    presets.push(
+      { label: "User Home (~/tftpboot)", path: path.join(home, "tftpboot"), os: "linux" },
+      { label: "Linux Standard (/var/lib/tftpboot)", path: "/var/lib/tftpboot", os: "linux" },
+      { label: "System Root (/tftpboot)", path: "/tftpboot", os: "linux" },
+      { label: "Service Staging (/srv/tftp)", path: "/srv/tftp", os: "linux" }
+    );
+  }
+  return presets;
+}
+
+function listTftpFiles(dir: string) {
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const entries = fs.readdirSync(dir);
+    return entries.map((name) => {
+      const full = path.join(dir, name);
+      try {
+        const stat = fs.statSync(full);
+        const ext = path.extname(name).toLowerCase();
+        let type: "firmware" | "pxe" | "config" | "raw" = "raw";
+        if ([".bin", ".img", ".tar", ".gz", ".qcow2", ".iso", ".npk"].includes(ext)) {
+          type = "firmware";
+        } else if ([".0", ".kpxe", ".ipxe", ".efi", ".pxe", ".vmlinuz"].includes(ext)) {
+          type = "pxe";
+        } else if ([".cfg", ".conf", ".txt", ".rsc", ".xml", ".json"].includes(ext)) {
+          type = "config";
+        }
+        return {
+          name,
+          type,
+          description: `${stat.isFile() ? "File" : "Directory"} in ${dir}`,
+          size: stat.size,
+          modified: stat.mtime.toISOString(),
+        };
+      } catch {
+        return {
+          name,
+          type: "raw" as const,
+          description: "Staged item",
+          size: 0,
+          modified: new Date().toISOString(),
+        };
+      }
+    });
+  } catch (err: any) {
+    return [];
+  }
+}
+
+let tftpConfig = {
+  running: false,
+  port: 69,
+  directory: getDefaultTftpDirectory(),
+  error: null as string | null,
+};
+
+let tftpSocket: dgram.Socket | null = null;
+
+// TFTP Status Endpoint
+app.get("/api/tftp/status", (_req, res) => {
+  res.json({
+    running: tftpConfig.running,
+    port: tftpConfig.port,
+    directory: tftpConfig.directory,
+    platform: process.platform,
+    presets: getTftpPresets(),
+    files: listTftpFiles(tftpConfig.directory),
+    error: tftpConfig.error,
+  });
+});
+
+// TFTP Actions (toggle server, update root directory, stage file, delete, open folder)
+app.post("/api/tftp/action", async (req, res) => {
+  const { action, port, directory, file, fileName } = req.body;
+
+  try {
+    if (action === "setDirectory") {
+      if (!directory || typeof directory !== "string") {
+        return res.status(400).json({ error: "Invalid directory path specified" });
+      }
+      const resolved = path.resolve(directory);
+      if (!fs.existsSync(resolved)) {
+        fs.mkdirSync(resolved, { recursive: true });
+      }
+      tftpConfig.directory = resolved;
+      tftpConfig.error = null;
+      return res.json({
+        success: true,
+        directory: tftpConfig.directory,
+        files: listTftpFiles(tftpConfig.directory),
+      });
+    }
+
+    if (action === "toggle") {
+      const targetPort = Number(port) || tftpConfig.port || 69;
+      if (tftpConfig.running) {
+        // Stop server
+        if (tftpSocket) {
+          try {
+            tftpSocket.close();
+          } catch {}
+          tftpSocket = null;
+        }
+        tftpConfig.running = false;
+        tftpConfig.error = null;
+        return res.json({ running: false, port: targetPort, directory: tftpConfig.directory });
+      } else {
+        // Start server
+        try {
+          if (!fs.existsSync(tftpConfig.directory)) {
+            fs.mkdirSync(tftpConfig.directory, { recursive: true });
+          }
+          tftpSocket = dgram.createSocket("udp4");
+
+          tftpSocket.on("error", (err: any) => {
+            console.error("[TFTP Server Error]", err);
+            tftpConfig.running = false;
+            tftpConfig.error = err.code === "EACCES"
+              ? `Permission denied on port ${targetPort}. On Linux/macOS, ports below 1024 require root/sudo. You can run on port 6969 or execute with admin rights.`
+              : err.message;
+            if (tftpSocket) {
+              try { tftpSocket.close(); } catch {}
+              tftpSocket = null;
+            }
+          });
+
+          // RFC 1350 basic listener
+          tftpSocket.on("message", (msg, rinfo) => {
+            if (msg.length < 2) return;
+            const opcode = msg.readUInt16BE(0);
+            // Opcode 1: RRQ (Read Request)
+            if (opcode === 1) {
+              let idx = 2;
+              while (idx < msg.length && msg[idx] !== 0) idx++;
+              const requestedFile = msg.subarray(2, idx).toString("utf8");
+              const filePath = path.join(tftpConfig.directory, path.basename(requestedFile));
+              if (fs.existsSync(filePath)) {
+                try {
+                  const content = fs.readFileSync(filePath);
+                  // Send first block or whole packet if < 512
+                  const blockData = content.subarray(0, 512);
+                  const resp = Buffer.alloc(4 + blockData.length);
+                  resp.writeUInt16BE(3, 0); // Opcode 3: DATA
+                  resp.writeUInt16BE(1, 2); // Block #1
+                  blockData.copy(resp, 4);
+                  tftpSocket?.send(resp, rinfo.port, rinfo.address);
+                } catch (readErr: any) {
+                  const errBuf = Buffer.from([0, 5, 0, 0, ...Buffer.from("Error reading file"), 0]);
+                  tftpSocket?.send(errBuf, rinfo.port, rinfo.address);
+                }
+              } else {
+                // Opcode 5: ERROR (File not found, code 1)
+                const errBuf = Buffer.from([0, 5, 0, 1, ...Buffer.from("File not found"), 0]);
+                tftpSocket?.send(errBuf, rinfo.port, rinfo.address);
+              }
+            } else if (opcode === 2) {
+              // Opcode 2: WRQ (Write Request) -> Send ACK block 0
+              const ack = Buffer.from([0, 4, 0, 0]);
+              tftpSocket?.send(ack, rinfo.port, rinfo.address);
+            }
+          });
+
+          tftpSocket.bind(targetPort, "0.0.0.0", () => {
+            console.log(`[TFTP Server] Listening on 0.0.0.0:${targetPort}, root directory: ${tftpConfig.directory}`);
+            tftpConfig.running = true;
+            tftpConfig.port = targetPort;
+            tftpConfig.error = null;
+          });
+
+          return res.json({ running: true, port: targetPort, directory: tftpConfig.directory });
+        } catch (startErr: any) {
+          tftpConfig.running = false;
+          tftpConfig.error = startErr.message;
+          return res.status(500).json({ error: startErr.message });
+        }
+      }
+    }
+
+    if (action === "upload") {
+      if (!file || !file.name) {
+        return res.status(400).json({ error: "No file details provided" });
+      }
+      const safeName = path.basename(file.name);
+      const targetPath = path.join(tftpConfig.directory, safeName);
+      if (file.content) {
+        const buf = Buffer.isBuffer(file.content)
+          ? file.content
+          : Buffer.from(file.content, file.base64 ? "base64" : "utf8");
+        fs.writeFileSync(targetPath, buf);
+      } else {
+        // Stage placeholder file
+        fs.writeFileSync(targetPath, Buffer.alloc(file.size || 1024));
+      }
+      return res.json({ success: true, files: listTftpFiles(tftpConfig.directory) });
+    }
+
+    if (action === "deleteFile") {
+      if (!fileName) return res.status(400).json({ error: "fileName required" });
+      const safePath = path.join(tftpConfig.directory, path.basename(fileName));
+      if (fs.existsSync(safePath)) {
+        fs.unlinkSync(safePath);
+      }
+      return res.json({ success: true, files: listTftpFiles(tftpConfig.directory) });
+    }
+
+    if (action === "openFolder") {
+      const dir = tftpConfig.directory;
+      if (process.platform === "win32") {
+        exec(`explorer.exe "${dir}"`);
+      } else if (process.platform === "darwin") {
+        exec(`open "${dir}"`);
+      } else {
+        exec(`xdg-open "${dir}"`);
+      }
+      return res.json({ success: true, directory: dir });
+    }
+
+    return res.status(400).json({ error: "Unknown TFTP action" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// TFTP Client Real Remote Transfer Engine
+// Handles WRQ (Upload to Switch/Router) & RRQ (Download)
+// ==========================================
+
+interface ClientTransferSession {
+  id: string;
+  host: string;
+  port: number;
+  opcode: "WRQ" | "RRQ";
+  fileName: string;
+  totalBytes: number;
+  transferredBytes: number;
+  blocks: number;
+  status: "active" | "completed" | "failed";
+  rate: string;
+  error?: string | null;
+  percent: number;
+  socket?: dgram.Socket;
+  timeoutTimer?: NodeJS.Timeout;
+}
+
+const activeClientTransfers = new Map<string, ClientTransferSession>();
+
+function executeTftpClientTransfer(session: ClientTransferSession, dataBuffer: Buffer, preferredBlockSize: number) {
+  const socket = dgram.createSocket("udp4");
+  session.socket = socket;
+  const startTime = Date.now();
+
+  let serverTid = session.port;
+  let serverHost = session.host;
+  let currentBlock = 1;
+  let activeBlockSize = preferredBlockSize;
+  let offset = 0;
+  let retryCount = 0;
+  const maxRetries = 5;
+  let lastPacketSent: Buffer | null = null;
+  let isFinished = false;
+
+  const cleanup = () => {
+    if (session.timeoutTimer) clearTimeout(session.timeoutTimer);
+    try { socket.close(); } catch {}
+  };
+
+  const fail = (errMsg: string) => {
+    if (isFinished) return;
+    isFinished = true;
+    cleanup();
+    session.status = "failed";
+    session.error = errMsg;
+  };
+
+  const succeed = () => {
+    if (isFinished) return;
+    isFinished = true;
+    cleanup();
+    session.status = "completed";
+    session.percent = 100;
+    session.transferredBytes = session.totalBytes;
+    const duration = Math.max(0.1, (Date.now() - startTime) / 1000);
+    const kbps = session.totalBytes / 1024 / duration;
+    session.rate = kbps > 1024 ? `${(kbps / 1024).toFixed(1)} MB/s` : `${kbps.toFixed(1)} KB/s`;
+  };
+
+  const sendPacketWithTimeout = (pkt: Buffer, targetPort: number, targetHost: string) => {
+    if (isFinished) return;
+    lastPacketSent = pkt;
+    if (session.timeoutTimer) clearTimeout(session.timeoutTimer);
+
+    socket.send(pkt, targetPort, targetHost, (err) => {
+      if (err) {
+        fail(`Socket send error: ${err.message}`);
+      }
+    });
+
+    session.timeoutTimer = setTimeout(() => {
+      if (isFinished) return;
+      retryCount++;
+      if (retryCount >= maxRetries) {
+        fail(`Connection timed out after ${maxRetries} retries. Target host ${session.host}:${session.port} did not respond.`);
+      } else {
+        if (lastPacketSent) {
+          sendPacketWithTimeout(lastPacketSent, targetPort, targetHost);
+        }
+      }
+    }, 2500);
+  };
+
+  socket.on("error", (err) => {
+    fail(`UDP Client Socket error: ${err.message}`);
+  });
+
+  if (session.opcode === "WRQ") {
+    // Construct WRQ packet
+    const wrq = Buffer.concat([
+      Buffer.from([0, 2]),
+      Buffer.from(session.fileName, "ascii"),
+      Buffer.from([0]),
+      Buffer.from("octet", "ascii"),
+      Buffer.from([0]),
+      Buffer.from("blksize", "ascii"),
+      Buffer.from([0]),
+      Buffer.from(String(preferredBlockSize), "ascii"),
+      Buffer.from([0]),
+    ]);
+
+    socket.on("message", (msg, rinfo) => {
+      if (isFinished) return;
+      if (msg.length < 2) return;
+      retryCount = 0;
+
+      serverTid = rinfo.port;
+      serverHost = rinfo.address;
+
+      const opcode = msg.readUInt16BE(0);
+
+      // Opcode 5: ERROR
+      if (opcode === 5) {
+        const errCode = msg.length >= 4 ? msg.readUInt16BE(2) : 0;
+        const errMsg = msg.length > 4 ? msg.subarray(4, msg.length - 1).toString("utf8") : "TFTP Error";
+        return fail(`Remote TFTP Error (Code ${errCode}): ${errMsg}`);
+      }
+
+      // Opcode 6: OACK (Option Acknowledgement)
+      if (opcode === 6) {
+        const str = msg.subarray(2).toString("ascii");
+        const parts = str.split("\0");
+        for (let i = 0; i < parts.length - 1; i += 2) {
+          if (parts[i].toLowerCase() === "blksize") {
+            const parsed = parseInt(parts[i + 1], 10);
+            if (!isNaN(parsed) && parsed > 0) {
+              activeBlockSize = parsed;
+            }
+          }
+        }
+        sendNextDataBlock();
+        return;
+      }
+
+      // Opcode 4: ACK
+      if (opcode === 4) {
+        const ackBlock = msg.readUInt16BE(2);
+        if (ackBlock === 0) {
+          sendNextDataBlock();
+        } else if (ackBlock === currentBlock) {
+          offset += (lastPacketSent ? lastPacketSent.length - 4 : 0);
+          session.transferredBytes = Math.min(session.totalBytes, offset);
+          session.blocks = currentBlock;
+          session.percent = session.totalBytes > 0 ? Math.min(99, Math.round((offset / session.totalBytes) * 100)) : 100;
+          const duration = Math.max(0.1, (Date.now() - startTime) / 1000);
+          const kbps = offset / 1024 / duration;
+          session.rate = kbps > 1024 ? `${(kbps / 1024).toFixed(1)} MB/s` : `${kbps.toFixed(1)} KB/s`;
+
+          if (lastPacketSent && (lastPacketSent.length - 4) < activeBlockSize) {
+            succeed();
+            return;
+          }
+
+          currentBlock = (currentBlock + 1) & 0xffff;
+          sendNextDataBlock();
+        }
+      }
+    });
+
+    const sendNextDataBlock = () => {
+      const chunk = dataBuffer.subarray(offset, offset + activeBlockSize);
+      const dataPkt = Buffer.alloc(4 + chunk.length);
+      dataPkt.writeUInt16BE(3, 0); // Opcode 3: DATA
+      dataPkt.writeUInt16BE(currentBlock, 2);
+      chunk.copy(dataPkt, 4);
+      sendPacketWithTimeout(dataPkt, serverTid, serverHost);
+    };
+
+    sendPacketWithTimeout(wrq, session.port, session.host);
+  } else {
+    // RRQ (Download)
+    const rrq = Buffer.concat([
+      Buffer.from([0, 1]),
+      Buffer.from(session.fileName, "ascii"),
+      Buffer.from([0]),
+      Buffer.from("octet", "ascii"),
+      Buffer.from([0]),
+      Buffer.from("blksize", "ascii"),
+      Buffer.from([0]),
+      Buffer.from(String(preferredBlockSize), "ascii"),
+      Buffer.from([0]),
+    ]);
+
+    const receivedChunks: Buffer[] = [];
+
+    socket.on("message", (msg, rinfo) => {
+      if (isFinished) return;
+      if (msg.length < 2) return;
+      retryCount = 0;
+      serverTid = rinfo.port;
+      serverHost = rinfo.address;
+
+      const opcode = msg.readUInt16BE(0);
+
+      if (opcode === 5) {
+        const errCode = msg.length >= 4 ? msg.readUInt16BE(2) : 0;
+        const errMsg = msg.length > 4 ? msg.subarray(4, msg.length - 1).toString("utf8") : "TFTP Error";
+        return fail(`Remote TFTP Error (Code ${errCode}): ${errMsg}`);
+      }
+
+      if (opcode === 6) {
+        const ack = Buffer.from([0, 4, 0, 0]);
+        sendPacketWithTimeout(ack, serverTid, serverHost);
+        return;
+      }
+
+      if (opcode === 3) {
+        const blockNum = msg.readUInt16BE(2);
+        const data = msg.subarray(4);
+        receivedChunks.push(data);
+        session.transferredBytes += data.length;
+        session.blocks = blockNum;
+
+        const ack = Buffer.alloc(4);
+        ack.writeUInt16BE(4, 0);
+        ack.writeUInt16BE(blockNum, 2);
+        sendPacketWithTimeout(ack, serverTid, serverHost);
+
+        if (data.length < activeBlockSize) {
+          try {
+            const outPath = path.join(tftpConfig.directory, path.basename(session.fileName));
+            fs.writeFileSync(outPath, Buffer.concat(receivedChunks));
+            session.totalBytes = session.transferredBytes;
+            succeed();
+          } catch (e: any) {
+            fail(`Failed to write received file: ${e.message}`);
+          }
+        }
+      }
+    });
+
+    sendPacketWithTimeout(rrq, session.port, session.host);
+  }
+}
+
+// Client Transfer Trigger API
+app.post("/api/tftp/client-transfer", async (req, res) => {
+  const {
+    host,
+    port = 69,
+    opcode = "WRQ",
+    fileName,
+    blockSize = 1024,
+    sourceType = "staged",
+    stagedFileName,
+    fileContent,
+    base64,
+  } = req.body;
+
+  if (!host || !fileName) {
+    return res.status(400).json({ error: "Host IP and Target File Name are required" });
+  }
+
+  const transferId = `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  let dataBuffer: Buffer = Buffer.alloc(0);
+
+  if (opcode === "WRQ") {
+    if (sourceType === "staged" && stagedFileName) {
+      const srcPath = path.join(tftpConfig.directory, path.basename(stagedFileName));
+      if (!fs.existsSync(srcPath)) {
+        return res.status(404).json({ error: `Source staged file "${stagedFileName}" not found in root directory` });
+      }
+      dataBuffer = fs.readFileSync(srcPath);
+    } else if (fileContent) {
+      dataBuffer = Buffer.from(fileContent, base64 ? "base64" : "utf8");
+    } else {
+      return res.status(400).json({ error: "No file content or staged file selected for upload" });
+    }
+  }
+
+  const session: ClientTransferSession = {
+    id: transferId,
+    host,
+    port: Number(port) || 69,
+    opcode,
+    fileName,
+    totalBytes: dataBuffer.length,
+    transferredBytes: 0,
+    blocks: 0,
+    status: "active",
+    rate: "0 KB/s",
+    percent: 0,
+  };
+
+  activeClientTransfers.set(transferId, session);
+  executeTftpClientTransfer(session, dataBuffer, Number(blockSize) || 1024);
+
+  res.json({
+    success: true,
+    transferId,
+    session: {
+      id: session.id,
+      host: session.host,
+      port: session.port,
+      opcode: session.opcode,
+      fileName: session.fileName,
+      totalBytes: session.totalBytes,
+      transferredBytes: session.transferredBytes,
+      blocks: session.blocks,
+      status: session.status,
+      rate: session.rate,
+      percent: session.percent,
+    },
+  });
+});
+
+// Client Transfer Status / Polling API
+app.get("/api/tftp/client-progress/:id", (req, res) => {
+  const session = activeClientTransfers.get(req.params.id);
+  if (!session) {
+    return res.status(404).json({ error: "Transfer session not found" });
+  }
+  res.json({
+    id: session.id,
+    host: session.host,
+    port: session.port,
+    opcode: session.opcode,
+    fileName: session.fileName,
+    totalBytes: session.totalBytes,
+    transferredBytes: session.transferredBytes,
+    blocks: session.blocks,
+    status: session.status,
+    rate: session.rate,
+    percent: session.percent,
+    error: session.error || null,
+  });
+});
+
+// Client Transfer Cancel API
+app.post("/api/tftp/client-cancel/:id", (req, res) => {
+  const session = activeClientTransfers.get(req.params.id);
+  if (session) {
+    if (session.timeoutTimer) clearTimeout(session.timeoutTimer);
+    try { session.socket?.close(); } catch {}
+    session.status = "failed";
+    session.error = "Cancelled by user";
+  }
+  res.json({ success: true });
+});
+
+// Wake-on-LAN (WoL) Magic Packet Transmitter
+app.post("/api/network/wol", async (req, res) => {
+  const { macAddress, broadcastIp = "255.255.255.255", port = 9 } = req.body;
+  if (!macAddress || typeof macAddress !== "string") {
+    return res.status(400).json({ error: "Valid MAC address is required" });
+  }
+  const cleanMac = macAddress.replace(/[^0-9A-Fa-f]/g, "");
+  if (cleanMac.length !== 12) {
+    return res.status(400).json({ error: "Invalid MAC address format. Expected 12 hex characters (e.g. 00:11:22:33:44:55)" });
+  }
+  try {
+    const macBytes = Buffer.from(cleanMac, "hex");
+    const magicPacket = Buffer.alloc(6 + 16 * 6);
+    magicPacket.fill(0xff, 0, 6);
+    for (let i = 0; i < 16; i++) {
+      macBytes.copy(magicPacket, 6 + i * 6);
+    }
+    const wolClient = dgram.createSocket("udp4");
+    wolClient.bind(() => {
+      wolClient.setBroadcast(true);
+      wolClient.send(magicPacket, 0, magicPacket.length, Number(port) || 9, broadcastIp || "255.255.255.255", (err) => {
+        try { wolClient.close(); } catch {}
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+        return res.json({
+          success: true,
+          message: `Magic packet successfully broadcasted to ${broadcastIp}:${port} for MAC ${macAddress}`,
+        });
+      });
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Network diagnostic probe (real DNS resolution & TCP port connection test)
 app.post("/api/diagnostics/probe", async (req, res) => {
   const { host = "localhost", port = 22 } = req.body;
@@ -2468,6 +3106,14 @@ app.delete("/api/multiplayer/sessions/:id", (req, res) => {
   res.json({ success: true });
 });
 
+app.get("/api/system/os", (_req, res) => {
+  res.json({
+    platform: process.platform,
+    arch: process.arch,
+    release: os.release(),
+  });
+});
+
 async function startServer() {
   const hasDist = fs.existsSync(path.join(__dirname, "index.html")) || fs.existsSync(path.join(process.cwd(), "dist", "index.html"));
   const isDev = process.env.NODE_ENV === "development" || (!hasDist && process.env.NODE_ENV !== "production");
@@ -2592,6 +3238,7 @@ async function startServer() {
     const serialBridgeWss = new WebSocketServer({ noServer: true });
     const adbWss = new WebSocketServer({ noServer: true });
     const adbBridgeWss = new WebSocketServer({ noServer: true });
+    const vncWss = new WebSocketServer({ noServer: true });
 
     httpServer.on("upgrade", (request, socket, head) => {
       try {
@@ -2618,11 +3265,81 @@ async function startServer() {
           adbBridgeWss.handleUpgrade(request, socket, head, (ws) => {
             adbBridgeWss.emit("connection", ws, request);
           });
+        } else if (pathname === "/ws/vnc") {
+          vncWss.handleUpgrade(request, socket, head, (ws) => {
+            vncWss.emit("connection", ws, request);
+          });
         } else {
           socket.destroy();
         }
       } catch (err) {
         socket.destroy();
+      }
+    });
+
+    // In-Built VNC (RFB) TCP-to-WebSocket Bridge (Zero External Server)
+    vncWss.on("connection", (ws: WebSocket, request: http.IncomingMessage) => {
+      let tcpSocket: net.Socket | null = null;
+      try {
+        const url = new URL(request.url || "", `http://${request.headers.host || "localhost"}`);
+        const targetHost = url.searchParams.get("host") || "127.0.0.1";
+        const targetPort = parseInt(url.searchParams.get("port") || "5900", 10);
+
+        if (isNaN(targetPort) || targetPort <= 0 || targetPort > 65535) {
+          ws.close(1002, "Invalid target port");
+          return;
+        }
+
+        console.log(`[VNC Bridge] Connecting to RFB target: ${targetHost}:${targetPort}`);
+        tcpSocket = net.createConnection({ host: targetHost, port: targetPort }, () => {
+          console.log(`[VNC Bridge] TCP connected to ${targetHost}:${targetPort}`);
+        });
+
+        tcpSocket.on("data", (chunk: Buffer) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(chunk);
+          }
+        });
+
+        ws.on("message", (msg: any) => {
+          if (tcpSocket && !tcpSocket.destroyed) {
+            tcpSocket.write(msg);
+          }
+        });
+
+        tcpSocket.on("error", (err: Error) => {
+          console.warn(`[VNC Bridge] TCP error (${targetHost}:${targetPort}):`, err.message);
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.close(1011, `VNC TCP error: ${err.message}`);
+          }
+        });
+
+        tcpSocket.on("close", () => {
+          console.log(`[VNC Bridge] TCP socket closed (${targetHost}:${targetPort})`);
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.close(1000, "VNC server closed connection");
+          }
+        });
+
+        ws.on("close", () => {
+          console.log(`[VNC Bridge] Client WebSocket closed`);
+          if (tcpSocket && !tcpSocket.destroyed) {
+            tcpSocket.destroy();
+          }
+        });
+
+        ws.on("error", (err: Error) => {
+          console.warn(`[VNC Bridge] WebSocket error:`, err.message);
+          if (tcpSocket && !tcpSocket.destroyed) {
+            tcpSocket.destroy();
+          }
+        });
+      } catch (err: any) {
+        console.error(`[VNC Bridge] Init error:`, err);
+        if (tcpSocket && !tcpSocket.destroyed) {
+          tcpSocket.destroy();
+        }
+        ws.close(1011, "Failed to initialize VNC bridge");
       }
     });
 

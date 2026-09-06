@@ -26,7 +26,8 @@ import {
   Layers,
   ChevronDown,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Radio
 } from 'lucide-react';
 import {
   TerminalTab,

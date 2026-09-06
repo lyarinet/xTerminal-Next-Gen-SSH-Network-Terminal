@@ -10,5 +10,7 @@ contextBridge.exposeInMainWorld('xterminalxNative', {
   maximize: () => ipcRenderer.send('window-maximize'),
   close: () => ipcRenderer.send('window-close'),
   openExternal: (url) => ipcRenderer.send('open-external', url),
+  openPath: (dirPath) => ipcRenderer.send('open-path', dirPath),
+  selectDirectory: (defaultPath) => ipcRenderer.invoke('select-directory', defaultPath),
   onSystemThemeChange: (callback) => ipcRenderer.on('theme-changed', (_event, theme) => callback(theme))
 });

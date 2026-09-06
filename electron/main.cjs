@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Menu, session } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu, session, dialog } = require('electron');
 const path = require('path');
 const http = require('http');
 
@@ -211,6 +211,23 @@ ipcMain.on('open-external', (_event, url) => {
   if (url && (url.startsWith('https:') || (url.startsWith('http:') && !url.includes('127.0.0.1')))) {
     shell.openExternal(url);
   }
+});
+ipcMain.on('open-path', (_event, dirPath) => {
+  if (dirPath) {
+    shell.openPath(dirPath);
+  }
+});
+ipcMain.handle('select-directory', async (_event, defaultPath) => {
+  if (!mainWindow) return null;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Select TFTP Root Directory',
+    defaultPath: defaultPath || undefined,
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+    return null;
+  }
+  return result.filePaths[0];
 });
 
 // Second instance focus

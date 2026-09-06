@@ -40,7 +40,8 @@ function Set-AppVersion([string]$newVer) {
     if (Test-Path $pkgJsonPath) {
         $content = Get-Content $pkgJsonPath -Raw
         $content = $content -replace '("version"\s*:\s*)"[^"]+"', "`$1`"$cleanVer`""
-        Set-Content -Path $pkgJsonPath -Value $content -Encoding utf8
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText($pkgJsonPath, $content, $utf8NoBom)
         Write-Host "  [+] Updated package.json version -> $cleanVer" -ForegroundColor Green
     }
     
@@ -61,7 +62,8 @@ function Set-AppVersion([string]$newVer) {
                 $gradleContent = $gradleContent -replace 'versionCode\s+\d+', "versionCode $newCode"
             } catch {}
         }
-        Set-Content -Path $gradlePath -Value $gradleContent -Encoding utf8
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText($gradlePath, $gradleContent, $utf8NoBom)
         Write-Host "  [+] Updated Android build.gradle versionName -> $cleanVer" -ForegroundColor Green
     }
 

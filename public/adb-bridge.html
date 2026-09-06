@@ -220,6 +220,17 @@
     </div>
 
     <div class="content">
+      <!-- Helper Banner if user wanted Serial Console COM Port -->
+      <div style="background: rgba(14, 165, 233, 0.12); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 10px; padding: 12px 14px; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+        <div style="font-size: 0.82rem; color: #bae6fd; line-height: 1.4;">
+          🔌 <strong>Connecting a Cisco / MikroTik Switch Console Cable (COM Port)?</strong><br />
+          <span style="color: #94a3b8; font-size: 0.75rem;">This page is for Android Phones (ADB). For USB Serial COM Ports:</span>
+        </div>
+        <a href="/serial-bridge.html" style="background: #0284c7; hover:background: #0369a1; color: #fff; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">
+          Open Serial TTY Bridge &rarr;
+        </a>
+      </div>
+
       <div class="steps">
         <div class="step-item">
           <span class="step-num">1</span>
@@ -412,6 +423,9 @@
         log('Requesting USB Android device permission...');
         usbDevice = await navigator.usb.requestDevice({
           filters: [
+            { vendorId: 0x2e04 }, // Transsion (Tecno, Infinix, Itel)
+            { vendorId: 0x0e8d }, // MediaTek
+            { vendorId: 0x1782 }, // Spreadtrum/Unisoc
             { vendorId: 0x18d1 }, // Google
             { vendorId: 0x04e8 }, // Samsung
             { vendorId: 0x2717 }, // Xiaomi
@@ -423,7 +437,6 @@
             { vendorId: 0x0fce }, // Sony
             { vendorId: 0x0b05 }, // Asus
             { vendorId: 0x05c6 }, // Qualcomm
-            { vendorId: 0x0e8d }, // MediaTek
           ]
         });
 

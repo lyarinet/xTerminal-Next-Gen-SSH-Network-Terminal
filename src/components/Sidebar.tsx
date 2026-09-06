@@ -73,6 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'multihost', label: 'Multi-Host Runner', icon: Layers },
         { id: 'sftp', label: 'SFTP Explorer', icon: FolderSync },
         { id: 'serial', label: 'Serial TTY Console', icon: Cpu },
+        { id: 'adb', label: 'Android ADB Console', icon: Smartphone, badge: 'Direct & Remote', badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' },
         { id: 'rdp', label: 'Remote Desktop (RDP/VNC)', icon: Monitor },
       ],
     },

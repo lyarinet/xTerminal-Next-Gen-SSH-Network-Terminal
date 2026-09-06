@@ -28,6 +28,7 @@ import { RemoteDesktopView } from './components/RemoteDesktopView';
 import { TelecomHardwareView } from './components/TelecomHardwareView';
 import { CloudSyncView } from './components/CloudSyncView';
 import { AppCenterView } from './components/AppCenterView';
+import { AdbManagerView } from './components/AdbManagerView';
 import { Menu, Bot, Plus, MessageSquare, User } from 'lucide-react';
 
 import {
@@ -808,6 +809,8 @@ export default function App() {
         )}
 
         {activeView === 'serial' && <SerialConsoleView />}
+
+        {activeView === 'adb' && <AdbManagerView />}
 
         {activeView === 'tftp' && <TftpView />}
 

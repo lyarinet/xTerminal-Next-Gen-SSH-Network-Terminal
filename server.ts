@@ -1724,6 +1724,358 @@ app.get(["/serial-bridge", "/serial-agent"], (_req, res) => {
 });
 
 // ==========================================
+// ANDROID ADB (Android Debug Bridge) SUBSYSTEM
+// ==========================================
+
+interface AdbBridgeSession {
+  id: string;
+  label?: string;
+  passcode?: string;
+  createdAt: number;
+  lastActivity: number;
+  status: "waiting" | "connected" | "disconnected";
+  clientDeviceInfo?: string;
+  engineerWs?: WebSocket;
+  clientWs?: WebSocket;
+  txBytes: number;
+  rxBytes: number;
+}
+
+const activeAdbBridges = new Map<string, AdbBridgeSession>();
+
+function getAdbPath(): string {
+  if (process.env.ADB_PATH && fs.existsSync(process.env.ADB_PATH)) {
+    return process.env.ADB_PATH;
+  }
+  if (process.platform === "win32") {
+    const localAppData = process.env.LOCALAPPDATA || "";
+    const sdkAdb = path.join(localAppData, "Android", "Sdk", "platform-tools", "adb.exe");
+    if (fs.existsSync(sdkAdb)) return sdkAdb;
+    const progAdb = path.join(process.env["ProgramFiles(x86)"] || "", "Android", "android-sdk", "platform-tools", "adb.exe");
+    if (fs.existsSync(progAdb)) return progAdb;
+  } else if (process.platform === "darwin") {
+    const home = process.env.HOME || "";
+    const macAdb = path.join(home, "Library", "Android", "sdk", "platform-tools", "adb");
+    if (fs.existsSync(macAdb)) return macAdb;
+  } else {
+    if (fs.existsSync("/usr/bin/adb")) return "/usr/bin/adb";
+    const home = process.env.HOME || "";
+    const linuxAdb = path.join(home, "Android", "Sdk", "platform-tools", "adb");
+    if (fs.existsSync(linuxAdb)) return linuxAdb;
+  }
+  return "adb";
+}
+
+function execAdb(args: string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+  const adbPath = getAdbPath();
+  return new Promise((resolve) => {
+    try {
+      const proc = spawn(adbPath, args);
+      let stdout = "";
+      let stderr = "";
+      proc.stdout.on("data", (d) => { stdout += d.toString(); });
+      proc.stderr.on("data", (d) => { stderr += d.toString(); });
+      proc.on("close", (code) => {
+        resolve({ stdout, stderr, code: code ?? 0 });
+      });
+      proc.on("error", (err) => {
+        resolve({ stdout, stderr: err.message, code: 1 });
+      });
+    } catch (e: any) {
+      resolve({ stdout: "", stderr: e.message, code: 1 });
+    }
+  });
+}
+
+// 1. ADB Status
+app.get("/api/adb/status", async (_req, res) => {
+  try {
+    const adbPath = getAdbPath();
+    const result = await execAdb(["version"]);
+    if (result.code === 0 && result.stdout.includes("Android Debug Bridge")) {
+      const firstLine = result.stdout.split("\n")[0].trim();
+      res.json({ installed: true, path: adbPath, version: firstLine, raw: result.stdout });
+    } else {
+      res.json({ installed: false, error: result.stderr || "ADB binary not found" });
+    }
+  } catch (err: any) {
+    res.json({ installed: false, error: err.message });
+  }
+});
+
+// 2. List Attached Devices
+app.get("/api/adb/devices", async (_req, res) => {
+  try {
+    const result = await execAdb(["devices", "-l"]);
+    if (result.code !== 0) {
+      return res.status(500).json({ error: result.stderr || "Failed to list devices" });
+    }
+    const lines = result.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
+    const devices: any[] = [];
+    for (const line of lines) {
+      if (line.startsWith("List of devices") || line.startsWith("*")) continue;
+      const parts = line.split(/\s+/);
+      if (parts.length >= 2) {
+        const id = parts[0];
+        const state = parts[1];
+        let model = "";
+        let product = "";
+        let device = "";
+        let transportId = "";
+        for (let i = 2; i < parts.length; i++) {
+          if (parts[i].startsWith("model:")) model = parts[i].replace("model:", "").replace(/_/g, " ");
+          else if (parts[i].startsWith("product:")) product = parts[i].replace("product:", "");
+          else if (parts[i].startsWith("device:")) device = parts[i].replace("device:", "");
+          else if (parts[i].startsWith("transport_id:")) transportId = parts[i].replace("transport_id:", "");
+        }
+        devices.push({
+          id,
+          state,
+          model: model || (id.includes(":") ? "Wireless Android Device" : "Android Device"),
+          product,
+          device,
+          transportId,
+          isWireless: id.includes(":"),
+        });
+      }
+    }
+    res.json({ devices });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Connect Wireless Device (adb connect <ip>:<port>)
+app.post("/api/adb/connect", async (req, res) => {
+  try {
+    const { ip, port = 5555 } = req.body;
+    if (!ip) return res.status(400).json({ error: "IP address is required" });
+    const target = `${ip.trim()}:${Number(port) || 5555}`;
+    const result = await execAdb(["connect", target]);
+    const success = result.stdout.toLowerCase().includes("connected to");
+    res.json({ success, output: (result.stdout + "\n" + result.stderr).trim(), target });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Disconnect Wireless Device (adb disconnect <target>)
+app.post("/api/adb/disconnect", async (req, res) => {
+  try {
+    const { target = "" } = req.body;
+    const args = target ? ["disconnect", target.trim()] : ["disconnect"];
+    const result = await execAdb(args);
+    res.json({ success: result.code === 0, output: (result.stdout + "\n" + result.stderr).trim() });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. Switch USB Device to TCP/IP Wireless Mode (adb -s <id> tcpip <port>)
+app.post("/api/adb/tcpip", async (req, res) => {
+  try {
+    const { deviceId, port = 5555 } = req.body;
+    const args = deviceId ? ["-s", deviceId, "tcpip", String(port)] : ["tcpip", String(port)];
+    const result = await execAdb(args);
+    res.json({ success: result.code === 0, output: (result.stdout + "\n" + result.stderr).trim() });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. Pair Android 11+ Wireless Debugging (adb pair <ip>:<port> <code>)
+app.post("/api/adb/pair", async (req, res) => {
+  try {
+    const { ip, port, code } = req.body;
+    if (!ip || !port || !code) return res.status(400).json({ error: "IP, port, and pairing code required" });
+    const result = await execAdb(["pair", `${ip}:${port}`, code.trim()]);
+    res.json({
+      success: result.stdout.toLowerCase().includes("successfully paired"),
+      output: (result.stdout + "\n" + result.stderr).trim(),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. Get Device Details & Battery Stats
+app.post("/api/adb/device-info", async (req, res) => {
+  try {
+    const { deviceId } = req.body;
+    const prefix = deviceId ? ["-s", deviceId] : [];
+    const [getpropRes, batteryRes] = await Promise.all([
+      execAdb([...prefix, "shell", "getprop"]),
+      execAdb([...prefix, "shell", "dumpsys", "battery"]),
+    ]);
+
+    const props: Record<string, string> = {};
+    const lines = getpropRes.stdout.split("\n");
+    for (const l of lines) {
+      const match = l.match(/\[(.*?)\]:\s*\[(.*?)\]/);
+      if (match) {
+        props[match[1]] = match[2];
+      }
+    }
+
+    let batteryLevel = "";
+    let batteryStatus = "";
+    let batteryTemp = "";
+    for (const bl of batteryRes.stdout.split("\n")) {
+      const trimmed = bl.trim();
+      if (trimmed.startsWith("level:")) batteryLevel = trimmed.replace("level:", "").trim();
+      else if (trimmed.startsWith("status:")) batteryStatus = trimmed.replace("status:", "").trim();
+      else if (trimmed.startsWith("temperature:")) {
+        const rawT = Number(trimmed.replace("temperature:", "").trim());
+        if (!isNaN(rawT)) batteryTemp = `${(rawT / 10).toFixed(1)}°C`;
+      }
+    }
+
+    res.json({
+      manufacturer: props["ro.product.manufacturer"] || "Android",
+      model: props["ro.product.model"] || "Device",
+      androidVersion: props["ro.build.version.release"] || "Unknown",
+      sdkLevel: props["ro.build.version.sdk"] || "Unknown",
+      buildId: props["ro.build.display.id"] || props["ro.build.id"] || "Unknown",
+      cpuAbi: props["ro.product.cpu.abi"] || "Unknown",
+      securityPatch: props["ro.build.version.security_patch"] || "Unknown",
+      battery: {
+        level: batteryLevel ? `${batteryLevel}%` : "N/A",
+        status: batteryStatus === "2" ? "Charging" : batteryStatus === "3" ? "Discharging" : "Normal",
+        temperature: batteryTemp || "N/A",
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 8. Capture Device Screenshot (screencap -p)
+app.post("/api/adb/screenshot", async (req, res) => {
+  try {
+    const { deviceId } = req.body;
+    const adbPath = getAdbPath();
+    const args = deviceId ? ["-s", deviceId, "exec-out", "screencap", "-p"] : ["exec-out", "screencap", "-p"];
+    const proc = spawn(adbPath, args);
+    const chunks: Buffer[] = [];
+    proc.stdout.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    proc.on("close", (code) => {
+      if (code === 0 && chunks.length > 0) {
+        const buffer = Buffer.concat(chunks);
+        res.json({ success: true, image: `data:image/png;base64,${buffer.toString("base64")}` });
+      } else {
+        res.status(500).json({ error: "Failed to capture screen or device is unauthorized" });
+      }
+    });
+    proc.on("error", (err) => res.status(500).json({ error: err.message }));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 9. Reboot Device
+app.post("/api/adb/reboot", async (req, res) => {
+  try {
+    const { deviceId, mode = "system" } = req.body;
+    const prefix = deviceId ? ["-s", deviceId] : [];
+    const args = mode === "system" ? [...prefix, "reboot"] : [...prefix, "reboot", mode];
+    const result = await execAdb(args);
+    res.json({ success: result.code === 0, output: (result.stdout + "\n" + result.stderr).trim() });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 10. List Installed Packages
+app.post("/api/adb/packages", async (req, res) => {
+  try {
+    const { deviceId, thirdPartyOnly = true } = req.body;
+    const prefix = deviceId ? ["-s", deviceId] : [];
+    const args = thirdPartyOnly
+      ? [...prefix, "shell", "pm", "list", "packages", "-3"]
+      : [...prefix, "shell", "pm", "list", "packages"];
+    const result = await execAdb(args);
+    const packages = result.stdout
+      .split("\n")
+      .map((l) => l.trim().replace(/^package:/, ""))
+      .filter(Boolean)
+      .sort();
+    res.json({ packages });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 11. Logcat Snapshot
+app.post("/api/adb/logcat-snapshot", async (req, res) => {
+  try {
+    const { deviceId, lines = 250, filter = "" } = req.body;
+    const prefix = deviceId ? ["-s", deviceId] : [];
+    const result = await execAdb([...prefix, "logcat", "-d", "-v", "time", "-t", String(lines)]);
+    let raw = result.stdout;
+    if (filter) {
+      const regex = new RegExp(filter, "i");
+      raw = raw.split("\n").filter((l) => regex.test(l)).join("\n");
+    }
+    res.json({ logs: raw });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 12. Remote ADB Bridge Session Management
+app.post("/api/adb-bridge/create", (req, res) => {
+  const { passcode, label } = req.body;
+  const sessionId = `adb-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+  const bridge: AdbBridgeSession = {
+    id: sessionId,
+    label: label || "Remote Android Device",
+    passcode: passcode || undefined,
+    createdAt: Date.now(),
+    lastActivity: Date.now(),
+    status: "waiting",
+    txBytes: 0,
+    rxBytes: 0,
+  };
+  activeAdbBridges.set(sessionId, bridge);
+  res.json({
+    success: true,
+    session: { id: bridge.id, status: bridge.status },
+    sharePath: `/adb-bridge.html?session=${sessionId}`,
+  });
+});
+
+app.get("/api/adb-bridge/session/:id", (req, res) => {
+  const bridge = activeAdbBridges.get(req.params.id);
+  if (!bridge) return res.status(404).json({ error: "Session not found" });
+  res.json({
+    id: bridge.id,
+    label: bridge.label,
+    status: bridge.status,
+    hasPasscode: Boolean(bridge.passcode),
+    clientDeviceInfo: bridge.clientDeviceInfo,
+    clientConnected: Boolean(bridge.clientWs && bridge.clientWs.readyState === WebSocket.OPEN),
+  });
+});
+
+app.delete("/api/adb-bridge/session/:id", (req, res) => {
+  const bridge = activeAdbBridges.get(req.params.id);
+  if (bridge) {
+    try { bridge.clientWs?.close(); } catch {}
+    try { bridge.engineerWs?.close(); } catch {}
+    activeAdbBridges.delete(req.params.id);
+  }
+  res.json({ success: true });
+});
+
+app.get(["/adb-bridge", "/adb-agent"], (_req, res) => {
+  const distPath = path.join(process.cwd(), "dist", "adb-bridge.html");
+  const publicPath = path.join(process.cwd(), "public", "adb-bridge.html");
+  if (fs.existsSync(distPath)) return res.sendFile(distPath);
+  if (fs.existsSync(publicPath)) return res.sendFile(publicPath);
+  res.redirect("/adb-bridge.html");
+});
+
+// ==========================================
 // REAL SYSTEM PROCESSES & DOCKER ENGINE
 // ==========================================
 app.get("/api/system/processes", async (_req, res) => {
@@ -2205,11 +2557,13 @@ async function startServer() {
     });
   }
 
-  // Real SSH & Local Terminal WebSocket Bridge + Multiplayer Gateway + Serial Bridge Gateway
+  // Real SSH & Local Terminal WebSocket Bridge + Multiplayer Gateway + Serial Bridge Gateway + ADB Gateways
   function setupWebSocketServer(httpServer: http.Server) {
     const sshWss = new WebSocketServer({ noServer: true });
     const multiplayerWss = new WebSocketServer({ noServer: true });
     const serialBridgeWss = new WebSocketServer({ noServer: true });
+    const adbWss = new WebSocketServer({ noServer: true });
+    const adbBridgeWss = new WebSocketServer({ noServer: true });
 
     httpServer.on("upgrade", (request, socket, head) => {
       try {
@@ -2227,6 +2581,14 @@ async function startServer() {
         } else if (pathname === "/ws/serial-bridge") {
           serialBridgeWss.handleUpgrade(request, socket, head, (ws) => {
             serialBridgeWss.emit("connection", ws, request);
+          });
+        } else if (pathname === "/ws/adb") {
+          adbWss.handleUpgrade(request, socket, head, (ws) => {
+            adbWss.emit("connection", ws, request);
+          });
+        } else if (pathname === "/ws/adb-bridge") {
+          adbBridgeWss.handleUpgrade(request, socket, head, (ws) => {
+            adbBridgeWss.emit("connection", ws, request);
           });
         } else {
           socket.destroy();
@@ -2855,6 +3217,157 @@ async function startServer() {
               type: "engineer:disconnected",
               message: "Engineer closed session.",
             }));
+          }
+        }
+      });
+    });
+
+    // Interactive ADB Shell WebSocket Gateway
+    adbWss.on("connection", (ws: WebSocket) => {
+      let adbProc: any = null;
+
+      ws.on("message", (raw: any) => {
+        try {
+          const msg = JSON.parse(raw.toString());
+          if (!msg) return;
+
+          if (msg.type === "init") {
+            const { deviceId, cols = 80, rows = 24 } = msg;
+            const adbPath = getAdbPath();
+            const args = deviceId ? ["-s", deviceId, "shell"] : ["shell"];
+            adbProc = spawn(adbPath, args, {
+              env: { ...process.env, TERM: "xterm-256color", COLUMNS: String(cols), LINES: String(rows) },
+            });
+
+            adbProc.stdout.on("data", (chunk: any) => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: "data", data: chunk.toString() }));
+              }
+            });
+
+            adbProc.stderr.on("data", (chunk: any) => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: "data", data: chunk.toString() }));
+              }
+            });
+
+            adbProc.on("close", (code: any) => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: "exit", code }));
+              }
+            });
+
+            adbProc.on("error", (err: any) => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: "error", message: err.message }));
+              }
+            });
+            return;
+          }
+
+          if (msg.type === "input" && adbProc && adbProc.stdin) {
+            adbProc.stdin.write(msg.data);
+            return;
+          }
+
+          if (msg.type === "resize" && adbProc && adbProc.stdin) {
+            try {
+              adbProc.stdin.write(`stty cols ${msg.cols} rows ${msg.rows} 2>/dev/null\n`);
+            } catch {}
+            return;
+          }
+        } catch (e: any) {
+          console.error("ADB WS error:", e.message);
+        }
+      });
+
+      ws.on("close", () => {
+        if (adbProc) {
+          try {
+            adbProc.kill();
+          } catch {}
+        }
+      });
+    });
+
+    // Remote Client ADB WebUSB Bridge Gateway
+    adbBridgeWss.on("connection", (ws: WebSocket) => {
+      let activeId: string | null = null;
+      let activeRole: "engineer" | "client" | null = null;
+
+      ws.on("message", (raw: any) => {
+        try {
+          const msg = JSON.parse(raw.toString());
+          if (!msg || !msg.type) return;
+
+          if (msg.type === "join") {
+            const { sessionId, role, passcode, deviceInfo } = msg;
+            const bridge = activeAdbBridges.get(sessionId);
+            if (!bridge) {
+              ws.send(JSON.stringify({ type: "error", message: "ADB bridge session not found or expired." }));
+              ws.close();
+              return;
+            }
+            if (bridge.passcode && bridge.passcode !== passcode) {
+              ws.send(JSON.stringify({ type: "error", message: "Invalid passcode for ADB session." }));
+              ws.close();
+              return;
+            }
+            activeId = sessionId;
+            activeRole = role;
+
+            if (role === "engineer") {
+              bridge.engineerWs = ws;
+              ws.send(JSON.stringify({
+                type: "session:state",
+                sessionId: bridge.id,
+                status: bridge.status,
+                clientDeviceInfo: bridge.clientDeviceInfo,
+                clientConnected: Boolean(bridge.clientWs && bridge.clientWs.readyState === WebSocket.OPEN),
+              }));
+            } else if (role === "client") {
+              bridge.clientWs = ws;
+              bridge.clientDeviceInfo = deviceInfo || "Android USB Device";
+              bridge.status = "connected";
+              ws.send(JSON.stringify({ type: "session:ready", sessionId: bridge.id }));
+
+              if (bridge.engineerWs && bridge.engineerWs.readyState === WebSocket.OPEN) {
+                bridge.engineerWs.send(JSON.stringify({
+                  type: "client:connected",
+                  deviceInfo: bridge.clientDeviceInfo,
+                }));
+              }
+            }
+            return;
+          }
+
+          if (!activeId) return;
+          const bridge = activeAdbBridges.get(activeId);
+          if (!bridge) return;
+
+          if (msg.type === "adb:data") {
+            bridge.lastActivity = Date.now();
+            if (activeRole === "client" && bridge.engineerWs && bridge.engineerWs.readyState === WebSocket.OPEN) {
+              bridge.engineerWs.send(JSON.stringify({ type: "adb:data", data: msg.data }));
+            } else if (activeRole === "engineer" && bridge.clientWs && bridge.clientWs.readyState === WebSocket.OPEN) {
+              bridge.clientWs.send(JSON.stringify({ type: "adb:data", data: msg.data }));
+            }
+          }
+        } catch {}
+      });
+
+      ws.on("close", () => {
+        if (!activeId) return;
+        const bridge = activeAdbBridges.get(activeId);
+        if (bridge) {
+          if (activeRole === "client") {
+            bridge.status = "disconnected";
+            bridge.clientWs = undefined;
+            if (bridge.engineerWs && bridge.engineerWs.readyState === WebSocket.OPEN) {
+              bridge.engineerWs.send(JSON.stringify({ type: "client:disconnected" }));
+            }
+          } else if (activeRole === "engineer") {
+            bridge.engineerWs = undefined;
           }
         }
       });

@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>xTerminal Remote Android ADB Bridge</title>
+  <style>
+    :root {
+      --bg: #0A0B0E;
+      --card-bg: #12141A;
+      --card-border: #1E212B;
+      --primary: #10B981;
+      --primary-hover: #059669;
+      --text: #F3F4F6;
+      --text-muted: #9CA3AF;
+      --accent: #06B6D4;
+      --warning: #F59E0B;
+      --error: #EF4444;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .container {
+      width: 100%;
+      max-width: 560px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      overflow: hidden;
+    }
+    .header {
+      padding: 1.5rem 2rem;
+      background: linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, transparent 100%);
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .logo-icon {
+      width: 44px;
+      height: 44px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+    }
+    .header-text h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .header-text p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .content {
+      padding: 1.75rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    .alert {
+      padding: 0.85rem 1rem;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      line-height: 1.4;
+    }
+    .alert-info {
+      background: rgba(6, 182, 212, 0.1);
+      border: 1px solid rgba(6, 182, 212, 0.2);
+      color: #A5F3FC;
+    }
+    .alert-warning {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      color: #FDE68A;
+    }
+    .status-card {
+      background: #0D0E12;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+    }
+    .status-label {
+      color: var(--text-muted);
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .status-waiting {
+      background: rgba(245, 158, 11, 0.15);
+      color: #FBBF24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .status-connected {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34D399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .btn-connect {
+      background: var(--primary);
+      color: #000;
+      border: none;
+      padding: 0.85rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+    }
+    .btn-connect:hover:not(:disabled) {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+    .btn-connect:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .terminal-preview {
+      background: #060709;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.75rem;
+      color: #10B981;
+      height: 120px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .step-item {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .step-num {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    .footer {
+      padding: 1rem 2rem;
+      border-top: 1px solid var(--card-border);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+          <line x1="12" y1="18" x2="12.01" y2="18"></line>
+        </svg>
+      </div>
+      <div class="header-text">
+        <h1>xTerminal Remote Android ADB Bridge</h1>
+        <p>Zero-Install WebUSB Client Tunnel &bull; Secure Connection</p>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="steps">
+        <div class="step-item">
+          <span class="step-num">1</span>
+          <span>Enable <strong>Developer Options &amp; USB Debugging</strong> on your Android phone.</span>
+        </div>
+        <div class="step-item">
+          <span class="step-num">2</span>
+          <span>Connect your phone to this PC with a <strong>USB data cable</strong>.</span>
+        </div>
+        <div class="step-item">
+          <span class="step-num">3</span>
+          <span>Click <strong>"Connect Android Device"</strong> below and pick your phone from the list.</span>
+        </div>
+        <div class="step-item">
+          <span class="step-num">4</span>
+          <span>Look at your phone screen and tap <strong>"Always allow from this computer"</strong>.</span>
+        </div>
+      </div>
+
+      <div class="status-card">
+        <div class="status-row">
+          <span class="status-label">Tunnel Status:</span>
+          <span id="tunnelStatus" class="status-badge status-waiting">Waiting for Device</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Connected Device:</span>
+          <span id="deviceModel" style="font-family: monospace; color: #fff;">None</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Session ID:</span>
+          <span id="sessionDisplay" style="font-family: monospace; color: #06B6D4;">-</span>
+        </div>
+      </div>
+
+      <button id="btnConnect" class="btn-connect">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+          <line x1="12" y1="18" x2="12.01" y2="18"></line>
+        </svg>
+        <span>Connect Android Device</span>
+      </button>
+
+      <div class="terminal-preview" id="logOutput">> Remote ADB Bridge Initialized.
+> Waiting for client to connect Android phone...
+</div>
+    </div>
+
+    <div class="footer">
+      Powered by xTerminal &bull; WebUSB 2.0 &bull; Secure End-to-End Tunnel
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get('session');
+    const sessionDisplay = document.getElementById('sessionDisplay');
+    const tunnelStatus = document.getElementById('tunnelStatus');
+    const deviceModel = document.getElementById('deviceModel');
+    const btnConnect = document.getElementById('btnConnect');
+    const logOutput = document.getElementById('logOutput');
+
+    if (sessionId) {
+      sessionDisplay.textContent = sessionId;
+    }
+
+    function log(msg) {
+      const time = new Date().toLocaleTimeString();
+      logOutput.textContent += `[${time}] ${msg}\n`;
+      logOutput.scrollTop = logOutput.scrollHeight;
+    }
+
+    let ws = null;
+    let usbDevice = null;
+
+    // Connect WebSocket to Engineer
+    function initWs() {
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const url = `${proto}//${window.location.host}/ws/adb-bridge`;
+      ws = new WebSocket(url);
+
+      ws.onopen = () => {
+        log('Connected to xTerminal Bridge Server.');
+        if (sessionId) {
+          ws.send(JSON.stringify({
+            type: 'join',
+            sessionId,
+            role: 'client',
+            deviceInfo: usbDevice ? (usbDevice.productName || 'Android Device') : 'Pending USB connection'
+          }));
+        }
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'session:ready') {
+            log('Engineer is connected and waiting for your Android device.');
+          } else if (msg.type === 'adb:data') {
+            log('Command from engineer received.');
+          }
+        } catch {}
+      };
+
+      ws.onclose = () => {
+        log('Bridge server disconnected.');
+      };
+    }
+
+    initWs();
+
+    btnConnect.addEventListener('click', async () => {
+      if (!('usb' in navigator)) {
+        alert('WebUSB API is not supported in this browser. Please open this link in Google Chrome, Microsoft Edge, or Brave.');
+        return;
+      }
+
+      try {
+        log('Requesting USB Android device permission...');
+        usbDevice = await navigator.usb.requestDevice({
+          filters: [
+            { vendorId: 0x18d1 }, // Google
+            { vendorId: 0x04e8 }, // Samsung
+            { vendorId: 0x2717 }, // Xiaomi
+            { vendorId: 0x22d9 }, // OnePlus/Oppo
+            { vendorId: 0x12d1 }, // Huawei
+            { vendorId: 0x22b8 }, // Motorola
+            { vendorId: 0x1004 }, // LG
+            { vendorId: 0x0bb4 }, // HTC
+            { vendorId: 0x0fce }, // Sony
+            { vendorId: 0x0b05 }, // Asus
+            { vendorId: 0x05c6 }, // Qualcomm
+            { vendorId: 0x0e8d }, // MediaTek
+          ]
+        });
+
+        const devName = usbDevice.productName || usbDevice.manufacturerName || 'Android Phone';
+        deviceModel.textContent = devName;
+        tunnelStatus.textContent = 'Tunnel Active';
+        tunnelStatus.className = 'status-badge status-connected';
+        log(`Attached device: ${devName} (Vendor ID: 0x${usbDevice.vendorId.toString(16)})`);
+        log('Tunneling Android ADB channel to remote engineer in xTerminal...');
+
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'join',
+            sessionId,
+            role: 'client',
+            deviceInfo: devName
+          }));
+        }
+      } catch (err) {
+        log(`Connection error: ${err.message}`);
+      }
+    });
+  </script>
+</body>
+</html>

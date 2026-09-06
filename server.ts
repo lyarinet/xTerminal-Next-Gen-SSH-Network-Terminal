@@ -1845,6 +1845,18 @@ app.get("/api/adb/devices", async (_req, res) => {
   }
 });
 
+// 2b. Restart ADB Server (adb kill-server && adb start-server)
+app.post("/api/adb/restart-server", async (_req, res) => {
+  try {
+    await execAdb(["kill-server"]);
+    const startRes = await execAdb(["start-server"]);
+    const devRes = await execAdb(["devices", "-l"]);
+    res.json({ success: true, output: (startRes.stdout + "\n" + devRes.stdout).trim() });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 3. Connect Wireless Device (adb connect <ip>:<port>)
 app.post("/api/adb/connect", async (req, res) => {
   try {

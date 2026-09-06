@@ -110,8 +110,13 @@ export const AdbManagerView: React.FC = () => {
       const list: AdbDevice[] = devicesData.devices || [];
       setDevices(list);
 
-      if (list.length > 0 && !selectedDeviceId) {
-        setSelectedDeviceId(list[0].id);
+      if (list.length > 0) {
+        setSelectedDeviceId((prev) => {
+          if (!prev || !list.find((d) => d.id === prev)) {
+            return list[0].id;
+          }
+          return prev;
+        });
       }
     } catch (e) {
       console.error('Error fetching ADB status/devices:', e);
@@ -120,8 +125,36 @@ export const AdbManagerView: React.FC = () => {
     }
   };
 
+  // Restart ADB Server (adb kill-server && adb start-server)
+  const handleRestartAdbServer = async () => {
+    try {
+      setIsLoading(true);
+      await fetch('/api/adb/restart-server', { method: 'POST' });
+      await fetchStatusAndDevices();
+    } catch (e: any) {
+      alert(`ADB Restart error: ${e.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchStatusAndDevices();
+    const interval = setInterval(() => {
+      fetch('/api/adb/devices')
+        .then((r) => r.json())
+        .then((data) => {
+          const list: AdbDevice[] = data.devices || [];
+          setDevices(list);
+          setSelectedDeviceId((prev) => {
+            if (!prev && list.length > 0) return list[0].id;
+            if (prev && !list.find((d) => d.id === prev) && list.length > 0) return list[0].id;
+            return prev;
+          });
+        })
+        .catch(() => {});
+    }, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   // Fetch Device Details when selected device changes or actions tab is clicked
@@ -386,12 +419,14 @@ export const AdbManagerView: React.FC = () => {
       const data = await res.json();
       if (data.success) {
         setRemoteSessionId(data.session.id);
-        const host = localStorage.getItem('nexusterm_serial_remote_ip') || window.location.hostname;
+        const rawHost = localStorage.getItem('nexusterm_serial_remote_ip') || window.location.hostname;
+        const host = rawHost.replace(/\/+$/, '').trim();
         const isLocal = host === 'localhost' || host === '127.0.0.1';
         const isDomain = !isLocal && !/^(\d{1,3}\.){3}\d{1,3}$/.test(host);
         const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
         const port = isDomain ? '' : (window.location.protocol === 'https:' ? ':3443' : ':3000');
-        const url = `${proto}//${host}${port}${data.sharePath}`;
+        const sharePath = data.sharePath.startsWith('/') ? data.sharePath : `/${data.sharePath}`;
+        const url = `${proto}//${host}${port}${sharePath}`;
         setRemoteShareUrl(url);
 
         // Connect Engineer WS to listen for client events
@@ -473,10 +508,20 @@ export const AdbManagerView: React.FC = () => {
             onClick={fetchStatusAndDevices}
             disabled={isLoading}
             className="p-1.5 rounded-md bg-[#1C1C20] hover:bg-[#25252A] text-gray-300 hover:text-white border border-[#2A2B30] text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-            title="Refresh Devices"
+            title="Refresh Devices List"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Refresh</span>
+          </button>
+
+          <button
+            onClick={handleRestartAdbServer}
+            disabled={isLoading}
+            className="p-1.5 rounded-md bg-[#1C1C20] hover:bg-[#25252A] text-amber-300 hover:text-amber-200 border border-amber-500/30 text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+            title="Restart ADB Host Server (kill & restart adb daemon)"
+          >
+            <RotateCcw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Reset ADB</span>
           </button>
 
           <button
@@ -566,20 +611,28 @@ export const AdbManagerView: React.FC = () => {
       {/* Main Content Area */}
       <div className="flex-1 overflow-hidden relative">
         {/* Warning if device is unauthorized */}
-        {selectedDevice && selectedDevice.state === 'unauthorized' && (
-          <div className="p-3 bg-amber-500/10 border-b border-amber-500/20 text-amber-300 text-xs flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>
-                <strong>Device Unauthorized:</strong> Check your phone screen now and tap <strong>"Allow USB debugging"</strong>.
-              </span>
+        {((selectedDevice && selectedDevice.state === 'unauthorized') || devices.some((d) => d.state === 'unauthorized')) && (
+          <div className="p-3 bg-amber-500/15 border-b border-amber-500/30 text-amber-300 text-xs flex items-center justify-between animate-pulse">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+              <div>
+                <strong>Device Unauthorized:</strong> Phone ki screen unlock karke <strong>"Always allow from this computer"</strong> tick karein aur <strong>"Allow"</strong> dabayein.
+              </div>
             </div>
-            <button
-              onClick={fetchStatusAndDevices}
-              className="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-semibold cursor-pointer"
-            >
-              Re-check
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleRestartAdbServer}
+                className="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-semibold cursor-pointer transition-colors"
+              >
+                Reset ADB
+              </button>
+              <button
+                onClick={fetchStatusAndDevices}
+                className="px-2.5 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-semibold cursor-pointer transition-colors"
+              >
+                Re-check
+              </button>
+            </div>
           </div>
         )}
 

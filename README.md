@@ -1,9 +1,9 @@
 <div align="center">
 
 # ⚡ xTerminal
-### Next-Generation Multi-Protocol SSH, Telnet, Serial & DevOps Desktop & Mobile Workstation
+### Next-Generation Multi-Protocol SSH, Telnet, Serial, Android ADB & DevOps Workstation
 
-[![Version](https://img.shields.io/badge/version-1.1.0-emerald.svg?style=for-the-badge)](package.json)
+[![Version](https://img.shields.io/badge/version-1.2.0-emerald.svg?style=for-the-badge)](package.json)
 [![Electron](https://img.shields.io/badge/Electron-44.2.0-47848F?style=for-the-badge&logo=electron&logoColor=white)](https://electronjs.org/)
 [![Android](https://img.shields.io/badge/Android-Capacitor-3DDC84?style=for-the-badge&logo=android&logoColor=white)](android/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
@@ -37,6 +37,22 @@ A groundbreaking feature for remote network engineering: Access and configure re
 - **Auto IP Detection & Host Assignment**: Built-in network scanner detects all local host IP addresses (Wi-Fi, Ethernet, LAN, WSL, Hyper-V) and automatically synchronizes with the remote link generator.
 - **Built-in HTTPS Server (:3443)**: Overcomes Chromium's strict `SecureContext` requirement for the Web Serial API on network IP addresses with automated in-memory TLS and WebSocket upgrade (`wss://`).
 - **Hardware Signals & Hex View**: Monitor real-time CTS, DSR, DCD, RI hardware pins, switch between ASCII and Hex views, and send hardware Break signals.
+
+---
+
+### 🤖 Android ADB Console (Direct USB, Wireless Wi-Fi & WebUSB Remote Bridge)
+Complete Android management and debugging environment integrated right into xTerminal:
+- **Interactive ADB Shell**: Full-duplex interactive Linux terminal (`adb shell`) running on `xterm.js` with auto-resizing, colors, and raw PTY stream.
+- **Wireless Wi-Fi ADB (`adb connect`)**: Connect to any Android device on your local Wi-Fi network without cables (e.g. `192.168.1.34:5555`).
+- **1-Click TCP/IP Switch**: Convert any USB-connected device to Wireless Wi-Fi mode on port 5555 with one click (`adb tcpip 5555`).
+- **Android 11+ Wireless Debugging Pairing**: Built-in support for 6-digit Wi-Fi pairing codes and dynamic port allocation (`adb pair`).
+- **Live Logcat Streaming**: Real-time logcat viewer with tag/keyword filters, live pausing, and snapshot dumping.
+- **Hardware Specs & Battery Telemetry**: Real-time display of manufacturer, model, Android OS version, SDK level, CPU architecture, security patch level, battery percentage, charging state, and temperature.
+- **Reboot Controls**: 1-click reboot to System, Recovery, or Bootloader (Fastboot) mode.
+- **3rd-Party Package Inspector**: View all installed third-party APK packages with instant search and package name copy.
+- **Live Display Screen Capture**: Capture high-resolution PNG screenshots from the phone display directly in xTerminal.
+- **Remote Client ADB Tunnel (Zero-Install WebUSB)**: Send a secure link (`https://yourdomain/adb-bridge.html?session=...`) to remote clients. They open it in Chrome, plug in their phone via USB, and the ADB connection is tunneled across the internet into your xTerminal workstation with zero client-side driver or tool installation!
+- **Auto-Polling & Smart Authorization Alert**: Detects unauthorized devices and guides the user to tap "Always allow from this computer" on their phone screen, plus one-click ADB host server daemon reset (`kill-server` & `start-server`).
 
 ---
 
@@ -121,9 +137,20 @@ A groundbreaking feature for remote network engineering: Access and configure re
 
 ## 📦 Building Binaries
 
+### Automated Multi-Platform Cross-Build Engine (Windows, Android, Linux, macOS)
+xTerminal includes an interactive PowerShell packaging utility that automates versioning across all targets:
+```powershell
+# Interactive menu: choose Windows, Android, Linux, macOS, or All
+.\build.ps1
+
+# Direct target build with custom version
+.\build.ps1 -Target win -Version 1.2.0
+.\build.ps1 -Target android -Version 1.2.0
+```
+
 ### Desktop (Electron)
 ```bash
-# Windows Installer (.exe)
+# Windows Installer (.exe NSIS)
 npm run build:electron:win
 
 # Windows Portable Standalone Executable
@@ -135,7 +162,7 @@ npm run build:electron:mac
 # Linux (AppImage & DEB)
 npm run build:electron:linux
 ```
-*Output location: `release/xTerminal Setup 1.1.0.exe` and `release/win-unpacked/xTerminal.exe`*
+*Output location: `release/xTerminal Setup 1.2.0.exe` and `release/win-unpacked/xTerminal.exe`*
 
 ### Android APK (Capacitor)
 ```bash
@@ -146,7 +173,7 @@ npx cap sync android
 # Compile Debug APK using Gradle
 cd android && ./gradlew assembleDebug
 ```
-*Output location: `release/xTerminal-1.0.0.apk`*
+*Output location: `release/xTerminal-1.2.0.apk`*
 
 ---
 
@@ -181,8 +208,10 @@ xterminal/
 ├── electron/               # Electron main and preload scripts
 │   ├── main.cjs            # Electron window management & lifecycle
 │   └── preload.cjs         # Context bridge
+├── build.ps1               # Multi-platform interactive cross-build & packaging engine
 ├── public/                 # Static assets & client portals
-│   └── serial-bridge.html  # Zero-install WebSerial client portal
+│   ├── serial-bridge.html  # Zero-install WebSerial client portal (COM Ports)
+│   └── adb-bridge.html     # Zero-install WebUSB client portal (Android ADB)
 ├── release/                # Compiled desktop installers and Android APK
 ├── src/
 │   ├── components/         # React UI views & components
@@ -190,6 +219,7 @@ xterminal/
 │   │   ├── TerminalWorkspace.tsx   # Persistent multi-tab container
 │   │   ├── XTermPane.tsx           # xterm.js terminal pane with WebSocket bridge
 │   │   ├── SerialConsoleView.tsx   # Serial TTY & Remote Bridge Manager
+│   │   ├── AdbManagerView.tsx      # Android ADB Console (Shell, Logcat, Specs, WebUSB)
 │   │   ├── SerialSettingsModal.tsx # Serial & Remote IP Tunnel configuration
 │   │   ├── SftpView.tsx            # Dual-pane SFTP file browser
 │   │   ├── VaultView.tsx           # Encrypted credential keystore
@@ -201,7 +231,7 @@ xterminal/
 │   │   └── vault.ts        # Encryption and security helpers
 │   ├── types.ts            # TypeScript interfaces and types
 │   └── App.tsx             # Main application layout and state
-├── server.ts               # Express, WebSocket & HTTPS bridge server
+├── server.ts               # Express, WebSocket, HTTPS & ADB bridge server
 ├── package.json            # Scripts and dependencies
 └── vite.config.ts          # Vite build configuration
 ```

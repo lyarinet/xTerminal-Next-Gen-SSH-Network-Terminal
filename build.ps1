@@ -356,6 +356,83 @@ function Prompt-ChangeVersion {
     }
 }
 
+function Publish-GitHubRelease {
+    Show-Banner
+    Write-Host ">>> GitHub Multi-Platform Auto-Release (v$script:AppVersion)`n" -ForegroundColor Magenta
+
+    Write-Host "This will:" -ForegroundColor White
+    Write-Host "  1. Commit any pending changes to git" -ForegroundColor DarkGray
+    Write-Host "  2. Create git tag: v$script:AppVersion" -ForegroundColor DarkGray
+    Write-Host "  3. Push tag to GitHub (triggers GitHub Actions)" -ForegroundColor DarkGray
+    Write-Host "  4. GitHub Actions will build:" -ForegroundColor DarkGray
+    Write-Host "       Windows .exe  (windows-latest runner)" -ForegroundColor Cyan
+    Write-Host "       Linux .deb + .AppImage  (ubuntu-latest runner)" -ForegroundColor Yellow
+    Write-Host "       macOS .dmg   (macos-latest runner)" -ForegroundColor Magenta
+    Write-Host "       Android .apk  (ubuntu-latest + Android SDK)" -ForegroundColor Green
+    Write-Host "  5. Auto-create GitHub Release with all artifacts" -ForegroundColor DarkGray
+    Write-Host ""
+
+    $confirm = Read-Host "Continue? Tag and push v$script:AppVersion to GitHub? [y/N]"
+    if ($confirm.ToLower() -ne "y") {
+        Write-Host "Cancelled." -ForegroundColor DarkGray
+        return
+    }
+
+    # Check git status
+    Write-Host "`n[1/4] Checking git status..." -ForegroundColor Cyan
+    $gitStatus = git status --porcelain
+    if ($gitStatus) {
+        Write-Host "  [!] Uncommitted changes found. Committing them first..." -ForegroundColor Yellow
+        git add -A
+        git commit -m "chore: prepare release v$script:AppVersion"
+        Write-Host "  [+] Changes committed." -ForegroundColor Green
+    } else {
+        Write-Host "  [+] Working tree is clean." -ForegroundColor Green
+    }
+
+    # Delete existing local tag if present
+    Write-Host "`n[2/4] Creating git tag v$script:AppVersion..." -ForegroundColor Cyan
+    $existingTag = git tag --list "v$script:AppVersion"
+    if ($existingTag) {
+        Write-Host "  [!] Tag v$script:AppVersion already exists locally. Deleting and recreating..." -ForegroundColor Yellow
+        git tag -d "v$script:AppVersion" | Out-Null
+    }
+    git tag -a "v$script:AppVersion" -m "xTerminal Pro v$script:AppVersion — Multi-Platform Release"
+    Write-Host "  [+] Tag v$script:AppVersion created." -ForegroundColor Green
+
+    # Push commits
+    Write-Host "`n[3/4] Pushing commits to GitHub..." -ForegroundColor Cyan
+    git push origin main
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  [+] Commits pushed." -ForegroundColor Green
+    }
+
+    # Push tag (delete remote if exists first)
+    Write-Host "`n[4/4] Pushing tag v$script:AppVersion to GitHub (triggers auto-release)..." -ForegroundColor Cyan
+    git push origin "v$script:AppVersion" --force
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  [+] Tag pushed successfully!" -ForegroundColor Green
+    } else {
+        Write-Host "  [!] Tag push failed. Check git remote access." -ForegroundColor Red
+        return
+    }
+
+    Write-Host "`n=====================================================================" -ForegroundColor Magenta
+    Write-Host " [SUCCESS] GitHub Actions release workflow triggered!" -ForegroundColor Green
+    Write-Host "=====================================================================" -ForegroundColor Magenta
+    Write-Host ""
+    Write-Host "  Monitor your build at:" -ForegroundColor White
+    $repoUrl = git remote get-url origin
+    $repoUrl = $repoUrl -replace '\.git$', ''
+    Write-Host "  $repoUrl/actions" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  Release will appear at:" -ForegroundColor White
+    Write-Host "  $repoUrl/releases/tag/v$script:AppVersion" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  Estimated build time: ~15-25 minutes (4 parallel runners)" -ForegroundColor DarkGray
+    Write-Host ""
+}
+
 # --- Main CLI Dispatcher ---
 if (!(Test-Prerequisites)) {
     Read-Host "`nPress Enter to exit..."
@@ -371,6 +448,7 @@ if ($Target -ne "") {
         "mac"     { Build-MacOS; exit }
         "macos"   { Build-MacOS; exit }
         "all"     { Build-All; exit }
+        "release" { Publish-GitHubRelease; exit }
         default   { Write-Host "Unknown target: $Target" -ForegroundColor Red; exit 1 }
     }
 }
@@ -389,10 +467,11 @@ do {
     Write-Host "  [6]  Launch Desktop App    (Run locally via Electron)" -ForegroundColor DarkCyan
     Write-Host "  [7]  Regenerate Icons      (Refresh .ico, .png, Android, Web icons)" -ForegroundColor DarkGray
     Write-Host "  [8]  Change Version        (Current: v$script:AppVersion)" -ForegroundColor Yellow
+    Write-Host "  [9]  GitHub Auto-Release   (Tag + Push -> GitHub Actions builds all platforms)" -ForegroundColor Magenta
     Write-Host "  [0]  Exit" -ForegroundColor Red
     Write-Host ""
     
-    $choice = Read-Host "Enter option number [0-8]"
+    $choice = Read-Host "Enter option number [0-9]"
     
     switch ($choice) {
         "1" { Build-Windows; Pause }
@@ -403,7 +482,9 @@ do {
         "6" { Run-DevDesktop; Pause }
         "7" { Refresh-Icons; Pause }
         "8" { Prompt-ChangeVersion }
+        "9" { Publish-GitHubRelease; Pause }
         "0" { Write-Host "`nExiting builder. Good bye!" -ForegroundColor DarkGray; break }
-        default { Write-Host "Invalid option. Please choose between 0 and 8." -ForegroundColor Red; Start-Sleep -Seconds 1 }
+        default { Write-Host "Invalid option. Please choose between 0 and 9." -ForegroundColor Red; Start-Sleep -Seconds 1 }
     }
 } while ($choice -ne "0")
+

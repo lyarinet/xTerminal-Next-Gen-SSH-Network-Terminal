@@ -1,0 +1,274 @@
+name: 🚀 xTerminal Multi-Platform Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v1.2.0)'
+        required: true
+        default: 'v1.2.0'
+
+# Needed to create GitHub releases and upload artifacts
+permissions:
+  contents: write
+
+jobs:
+  # ─────────────────────────────────────────────────────
+  # STAGE 1: Build Windows .exe Installer
+  # ─────────────────────────────────────────────────────
+  build-windows:
+    name: 🪟 Windows Desktop (.exe)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build Vite frontend + server bundle
+        run: npm run build
+
+      - name: Package Windows NSIS installer
+        run: npx electron-builder --win nsis --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: |
+            release/*.exe
+            release/*.blockmap
+            release/latest.yml
+          retention-days: 5
+
+  # ─────────────────────────────────────────────────────
+  # STAGE 2: Build Linux .deb + .AppImage
+  # ─────────────────────────────────────────────────────
+  build-linux:
+    name: 🐧 Linux Desktop (.deb + AppImage)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y fuse libfuse2 rpm
+
+      - name: Install Node dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build Vite frontend + server bundle
+        run: npm run build
+
+      - name: Package Linux AppImage + .deb
+        run: npx electron-builder --linux AppImage deb --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release
+          path: |
+            release/*.AppImage
+            release/*.deb
+          retention-days: 5
+
+  # ─────────────────────────────────────────────────────
+  # STAGE 3: Build macOS .dmg
+  # ─────────────────────────────────────────────────────
+  build-macos:
+    name: 🍎 macOS Desktop (.dmg)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build Vite frontend + server bundle
+        run: npm run build
+
+      - name: Package macOS .dmg
+        run: npx electron-builder --mac dmg --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          path: |
+            release/*.dmg
+            release/*.dmg.blockmap
+          retention-days: 5
+
+  # ─────────────────────────────────────────────────────
+  # STAGE 4: Build Android .apk
+  # ─────────────────────────────────────────────────────
+  build-android:
+    name: 🤖 Android Mobile (.apk)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17 for Gradle
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build Vite frontend
+        run: npm run build
+
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Get version from package.json
+        id: pkg
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Build Android Debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Copy APK to release folder
+        run: |
+          mkdir -p release
+          APK_SRC="android/app/build/outputs/apk/debug/app-debug.apk"
+          cp "$APK_SRC" "release/xTerminal-${{ steps.pkg.outputs.VERSION }}.apk"
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: release/*.apk
+          retention-days: 5
+
+  # ─────────────────────────────────────────────────────
+  # STAGE 5: Create GitHub Release with all platform artifacts
+  # ─────────────────────────────────────────────────────
+  create-release:
+    name: 📦 Create GitHub Release
+    needs: [build-windows, build-linux, build-macos, build-android]
+    runs-on: ubuntu-latest
+    if: always() && (needs.build-windows.result == 'success' || needs.build-linux.result == 'success' || needs.build-macos.result == 'success' || needs.build-android.result == 'success')
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Get version from tag or input
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "TAG=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./dist-release
+
+      - name: List downloaded artifacts
+        run: find ./dist-release -type f | sort
+
+      - name: Create GitHub Release with all artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.TAG }}
+          name: "xTerminal Pro ${{ steps.version.outputs.TAG }} — Multi-Platform Release"
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## 🚀 xTerminal Pro ${{ steps.version.outputs.TAG }}
+            
+            **Enterprise Remote Access & Infrastructure Suite**
+            > Powered by [Lyarinet](https://github.com/lyarinet)
+            
+            ---
+            
+            ### 📥 Downloads
+            
+            | Platform | File | Description |
+            |----------|------|-------------|
+            | 🪟 **Windows** | `xTerminal Setup *.exe` | NSIS Installer (64-bit) |
+            | 🐧 **Linux** | `*.AppImage` | Portable AppImage (no install needed) |
+            | 🐧 **Linux** | `*.deb` | Debian/Ubuntu Package |
+            | 🍎 **macOS** | `*.dmg` | macOS Disk Image |
+            | 🤖 **Android** | `xTerminal-*.apk` | Android APK (sideload) |
+            
+            ---
+            
+            ### ✨ Features
+            - 🔐 SSH/Telnet with multi-tab, split-pane terminal
+            - 📁 SFTP dual-pane file manager with progress bars
+            - 📡 TFTP server with upload/download status
+            - 🖥️ Remote Desktop (noVNC/RDP) viewer
+            - 🔌 Serial console (TTY/COM)
+            - 📱 ADB Android device manager
+            - 🤖 AI Assistant (Google Gemini)
+            - 🎨 7 terminal themes with real-time switching
+            - 🌐 Multiplayer collaboration sessions
+            
+            ---
+            
+            ### ⚙️ Installation Notes
+            - **Windows**: Run the `.exe` installer as Administrator
+            - **Linux AppImage**: `chmod +x *.AppImage && ./*.AppImage`
+            - **Linux .deb**: `sudo dpkg -i *.deb`
+            - **macOS**: Open `.dmg` and drag to Applications
+            - **Android**: Enable "Install from Unknown Sources" → install `.apk`
+          files: |
+            ./dist-release/windows-release/**
+            ./dist-release/linux-release/**
+            ./dist-release/macos-release/**
+            ./dist-release/android-release/**
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

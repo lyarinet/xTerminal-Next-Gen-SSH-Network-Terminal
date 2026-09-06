@@ -1,16 +1,17 @@
 <div align="center">
 
 # ⚡ xTerminal
-### Next-Generation Multi-Protocol SSH, Telnet & DevOps Desktop Workstation
+### Next-Generation Multi-Protocol SSH, Telnet, Serial & DevOps Desktop & Mobile Workstation
 
-[![Version](https://img.shields.io/badge/version-1.0.0-emerald.svg?style=for-the-badge)](package.json)
+[![Version](https://img.shields.io/badge/version-1.1.0-emerald.svg?style=for-the-badge)](package.json)
 [![Electron](https://img.shields.io/badge/Electron-44.2.0-47848F?style=for-the-badge&logo=electron&logoColor=white)](https://electronjs.org/)
+[![Android](https://img.shields.io/badge/Android-Capacitor-3DDC84?style=for-the-badge&logo=android&logoColor=white)](android/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge)](LICENSE)
 
 <p align="center">
-  A blazing-fast, modern, feature-packed terminal workstation designed for DevOps engineers, sysadmins, and network professionals. Built with Electron, React 19, Vite, xterm.js, and Node.js.
+  A blazing-fast, modern, feature-packed terminal workstation designed for DevOps engineers, sysadmins, and network professionals. Built with Electron, Capacitor, React 19, Vite, xterm.js, and Node.js.
 </p>
 
 </div>
@@ -23,8 +24,21 @@
 - **Full-Duplex SSH Engine**: Powered by `ssh2` with support for password authentication, private keys (Ed25519, RSA, ECDSA), and interactive masked password prompts.
 - **Real-Time Telnet Engine**: Native raw TCP Telnet client (Port 23 or custom) with auto-login detection (`login:`, `password:`) and terminal stream piping.
 - **Local Station PTY**: Instant local terminal access (PowerShell on Windows, Bash/Zsh on Linux and macOS).
-- **Serial Console**: Hardware serial communication (COM/TTY ports, baud rate, data bits, parity, stop bits).
+- **Serial TTY & Microcontroller Console**: Local hardware serial communication via WebSerial API (COM / TTY ports, baud rates up to 921600, data bits, parity, stop bits, flow control, RTS/DTR pins, and 250ms Break signals).
 - **TFTP Engine**: Built-in TFTP client and server for router/switch firmware and configuration management.
+
+---
+
+### 🔌 Remote Serial Console Bridge (WebSerial over IP / Reverse Console Tunnel)
+A groundbreaking feature for remote network engineering: Access and configure remote switches/routers (Cisco, MikroTik, Juniper, Huawei, Fortinet) even when they have **zero IP or network configuration**!
+- **Shareable Client Portal**: Generate an instant, secure remote link from xTerminal and send it to your remote client via WhatsApp, Slack, or Email.
+- **Zero Client Installation**: The client simply opens the link in Google Chrome or Microsoft Edge, plugs their console cable into their laptop, and clicks **Connect**.
+- **Live Bi-Directional Tunnel**: The client's serial data is tunneled directly into your xTerminal console with synchronized bi-directional terminal I/O.
+- **Auto IP Detection & Host Assignment**: Built-in network scanner detects all local host IP addresses (Wi-Fi, Ethernet, LAN, WSL, Hyper-V) and automatically synchronizes with the remote link generator.
+- **Built-in HTTPS Server (:3443)**: Overcomes Chromium's strict `SecureContext` requirement for the Web Serial API on network IP addresses with automated in-memory TLS and WebSocket upgrade (`wss://`).
+- **Hardware Signals & Hex View**: Monitor real-time CTS, DSR, DCD, RI hardware pins, switch between ASCII and Hex views, and send hardware Break signals.
+
+---
 
 ### 👥 xTerminal Multiplayer (Collaborative Remote Terminal)
 - **Real-Time Multi-User Collaboration**: Multiple authorized engineers join the same SSH, Telnet, or Local terminal session in real time with synchronized output and ordered keystroke processing.
@@ -47,10 +61,15 @@
 - **Pre-Flight Reachability Probes**: Instant network latency diagnostics and DNS resolution checks before connecting.
 - **Proxy Jump / Bastion Support**: Multi-hop SSH proxy jump chains.
 
-### 📁 SFTP File Manager
+### 📱 Android & Mobile Support
+- **Full Capacitor Android Integration**: Compile and run xTerminal on Android phones and tablets.
+- **Mobile Soft Keyboard & Accessory Bar**: Touch-friendly virtual accessory keys (Ctrl, Alt, Esc, Tab, Arrows) designed specifically for mobile terminal sessions without duplicate keystrokes.
+- **Standalone Android APK**: Pre-built Android package ready in `release/xTerminal-1.0.0.apk`.
+
+### 📁 Advanced SFTP Explorer & File Manager
 - **Dual-Pane File Browser**: Browse remote server directories side-by-side with local files.
 - **Background Transfer Queue**: Live upload/download queue with progress bars, pause/resume, and speed metrics.
-- **Quick Actions**: Edit, rename, delete, chmod, and inspect remote files directly.
+- **Quick Actions**: Edit, rename, delete, chmod, and inspect remote files directly with breadcrumb navigation and search.
 
 ### 🛡️ Safety Engine & Security Vault
 - **Command Risk Analyzer**: Pre-evaluates terminal commands and highlights risk levels (`SAFE`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`).
@@ -100,29 +119,34 @@
 
 ---
 
-## 📦 Building Desktop Binaries
+## 📦 Building Binaries
 
-xTerminal can be compiled into native installers and standalone executables using `electron-builder`:
-
-### Windows
+### Desktop (Electron)
 ```bash
-# Full NSIS Windows Installer (.exe)
+# Windows Installer (.exe)
 npm run build:electron:win
 
-# Portable Standalone Executable
+# Windows Portable Standalone Executable
 npm run build:electron:portable
-```
-*Output location: `release/xTerminal Setup 1.0.0.exe` and `release/win-unpacked/xTerminal.exe`*
 
-### macOS
-```bash
+# macOS (DMG)
 npm run build:electron:mac
-```
 
-### Linux (AppImage & DEB)
-```bash
+# Linux (AppImage & DEB)
 npm run build:electron:linux
 ```
+*Output location: `release/xTerminal Setup 1.1.0.exe` and `release/win-unpacked/xTerminal.exe`*
+
+### Android APK (Capacitor)
+```bash
+# Build frontend web assets & sync with Android
+npm run build
+npx cap sync android
+
+# Compile Debug APK using Gradle
+cd android && ./gradlew assembleDebug
+```
+*Output location: `release/xTerminal-1.0.0.apk`*
 
 ---
 
@@ -132,6 +156,7 @@ npm run build:electron:linux
 | :--- | :--- |
 | `Ctrl + K` / `Cmd + K` | Open Universal Command Palette |
 | `Ctrl + T` / `Cmd + T` | Open New Local Terminal Tab |
+| `Alt + S` | Open Serial Terminal Configuration Modal |
 | `Mouse Select` | Auto-copy selected text to clipboard |
 | `Right Click` | Paste clipboard text into terminal |
 | `Ctrl + C` | Send SIGINT / interrupt process |
@@ -141,7 +166,8 @@ npm run build:electron:linux
 ## 🛠️ Tech Stack
 
 - **Frontend**: React 19, TypeScript, Tailwind CSS, Lucide Icons, xterm.js, xterm-addon-fit, xterm-addon-search
-- **Backend / Desktop**: Electron, Node.js, Express, `ws` (WebSockets), `ssh2` (SSH & SFTP engine), Node `net` (Telnet TCP bridge)
+- **Backend / Desktop**: Electron, Node.js, Express, `ws` (WebSockets), `ssh2` (SSH & SFTP engine), Node `net` (Telnet TCP bridge), `selfsigned` (TLS engine)
+- **Mobile**: Capacitor 6, Android SDK, Gradle
 - **Bundler & Build**: Vite 6, esbuild, electron-builder
 - **AI Integration**: `@google/genai` (Google Gemini API)
 
@@ -151,16 +177,23 @@ npm run build:electron:linux
 
 ```
 xterminal/
+├── android/                # Capacitor Android native project & Gradle build
 ├── electron/               # Electron main and preload scripts
 │   ├── main.cjs            # Electron window management & lifecycle
 │   └── preload.cjs         # Context bridge
+├── public/                 # Static assets & client portals
+│   └── serial-bridge.html  # Zero-install WebSerial client portal
+├── release/                # Compiled desktop installers and Android APK
 ├── src/
 │   ├── components/         # React UI views & components
 │   │   ├── HostsView.tsx           # Host, Group & Environment Manager
 │   │   ├── TerminalWorkspace.tsx   # Persistent multi-tab container
 │   │   ├── XTermPane.tsx           # xterm.js terminal pane with WebSocket bridge
+│   │   ├── SerialConsoleView.tsx   # Serial TTY & Remote Bridge Manager
+│   │   ├── SerialSettingsModal.tsx # Serial & Remote IP Tunnel configuration
 │   │   ├── SftpView.tsx            # Dual-pane SFTP file browser
 │   │   ├── VaultView.tsx           # Encrypted credential keystore
+│   │   ├── SettingsView.tsx        # System settings & IP Detection
 │   │   └── QuickConnectModal.tsx   # Fast connection dialog
 │   ├── lib/
 │   │   ├── storage.ts      # Local persistent storage & defaults
@@ -168,7 +201,7 @@ xterminal/
 │   │   └── vault.ts        # Encryption and security helpers
 │   ├── types.ts            # TypeScript interfaces and types
 │   └── App.tsx             # Main application layout and state
-├── server.ts               # Local Express & WebSocket SSH/Telnet bridge
+├── server.ts               # Express, WebSocket & HTTPS bridge server
 ├── package.json            # Scripts and dependencies
 └── vite.config.ts          # Vite build configuration
 ```

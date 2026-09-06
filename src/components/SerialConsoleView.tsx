@@ -247,6 +247,7 @@ export const SerialConsoleView: React.FC = () => {
     const saved = localStorage.getItem('nexusterm_serial_remote_port');
     return saved ? Number(saved) : 3000;
   });
+  const [useHttps, setUseHttps] = useState<boolean>(true);
   const [detectedHostIps, setDetectedHostIps] = useState<Array<{ iface: string; address: string }>>([]);
   const remoteBridgeWsRef = useRef<WebSocket | null>(null);
 
@@ -903,10 +904,11 @@ export const SerialConsoleView: React.FC = () => {
       }
 
       const targetHost = remoteHostIp || localStorage.getItem('nexusterm_serial_remote_ip') || window.location.hostname;
-      const targetPort = remoteHostPort || localStorage.getItem('nexusterm_serial_remote_port') || window.location.port || '3000';
-      const portPart = targetPort ? `:${targetPort}` : '';
-      const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-      const shareUrl = `${protocol}//${targetHost}${portPart}${data.sharePath}`;
+      const isLocal = targetHost === 'localhost' || targetHost === '127.0.0.1';
+      const proto = (useHttps && !isLocal) ? 'https:' : (window.location.protocol === 'https:' ? 'https:' : 'http:');
+      const port = (useHttps && !isLocal) ? '3443' : (remoteHostPort || '3000');
+      const portPart = port ? `:${port}` : '';
+      const shareUrl = `${proto}//${targetHost}${portPart}${data.sharePath}`;
       setRemoteShareUrl(shareUrl);
       setRemoteSessionId(data.session.id);
 
@@ -1692,10 +1694,38 @@ export const SerialConsoleView: React.FC = () => {
                       </button>
                     </div>
 
+                    <div className="flex items-center justify-between pt-1 border-t border-[#222226]">
+                      <span className="text-[11px] text-gray-300 font-medium">Protocol:</span>
+                      <div className="inline-flex rounded-md p-0.5 bg-[#121316] border border-[#2A2B30]">
+                        <button
+                          type="button"
+                          onClick={() => setUseHttps(true)}
+                          className={`px-2 py-0.5 text-[10px] font-semibold rounded cursor-pointer transition-colors ${
+                            useHttps
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'text-gray-400 hover:text-gray-200'
+                          }`}
+                        >
+                          🔒 HTTPS :3443 (Recommended)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setUseHttps(false)}
+                          className={`px-2 py-0.5 text-[10px] font-semibold rounded cursor-pointer transition-colors ${
+                            !useHttps
+                              ? 'bg-sky-600 text-white shadow-xs'
+                              : 'text-gray-400 hover:text-gray-200'
+                          }`}
+                        >
+                          HTTP :3000
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="text-[11px] text-gray-400 flex items-center justify-between">
                       <span>Target Base:</span>
                       <span className="text-sky-300 font-mono font-semibold">
-                        http://{remoteHostIp || '127.0.0.1'}:{remoteHostPort}
+                        {(useHttps && remoteHostIp !== 'localhost' && remoteHostIp !== '127.0.0.1') ? 'https' : 'http'}://{remoteHostIp || '127.0.0.1'}:{(useHttps && remoteHostIp !== 'localhost' && remoteHostIp !== '127.0.0.1') ? '3443' : remoteHostPort}
                       </span>
                     </div>
                   </div>

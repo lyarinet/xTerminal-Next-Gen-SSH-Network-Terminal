@@ -2,6 +2,8 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import http from "http";
+import https from "https";
+import selfsigned from "selfsigned";
 import { exec, spawn } from "child_process";
 import util from "util";
 import { GoogleGenAI } from "@google/genai";
@@ -16,6 +18,7 @@ const execPromise = util.promisify(exec);
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
+const HTTPS_PORT = Number(process.env.HTTPS_PORT) || 3443;
 
 app.use(express.json({ limit: "100mb" }));
 app.use(express.urlencoded({ extended: true, limit: "100mb" }));
@@ -119,7 +122,14 @@ app.get("/api/system/network-info", (_req, res) => {
       }
     }
     const primaryIp = addresses[0]?.address || "127.0.0.1";
-    res.json({ primaryIp, port: PORT, addresses, fullUrl: `http://${primaryIp}:${PORT}` });
+    res.json({
+      primaryIp,
+      port: PORT,
+      httpsPort: HTTPS_PORT,
+      addresses,
+      fullUrl: `http://${primaryIp}:${PORT}`,
+      fullHttpsUrl: `https://${primaryIp}:${HTTPS_PORT}`,
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -3134,6 +3144,31 @@ async function startServer() {
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`xTerminal server running on http://0.0.0.0:${PORT} (LAN & Mobile enabled)`);
   });
+
+  // HTTPS Server for WebSerial SecureContext & Remote Network Bridges
+  try {
+    const pems = (selfsigned as any).generate(
+      [
+        { name: "commonName", value: "xterminal.local" },
+        { name: "organizationName", value: "xTerminal Secure Serial Bridge" },
+      ],
+      {
+        days: 365,
+        keySize: 2048,
+        algorithm: "sha256",
+      }
+    );
+    const httpsServer = https.createServer({ key: pems.private, cert: pems.cert }, app);
+    setupWebSocketServer(httpsServer);
+    httpsServer.listen(HTTPS_PORT, "0.0.0.0", () => {
+      console.log(`xTerminal HTTPS server running on https://0.0.0.0:${HTTPS_PORT} (WebSerial SecureContext enabled)`);
+    });
+    httpsServer.on("error", (err: any) => {
+      console.warn(`HTTPS server on port ${HTTPS_PORT} warning:`, err.message);
+    });
+  } catch (e: any) {
+    console.warn("Could not start HTTPS server:", e.message);
+  }
 
   server.on("error", (err: any) => {
     if (err.code === "EADDRINUSE") {

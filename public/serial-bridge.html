@@ -315,6 +315,33 @@
       color: #fda4af;
     }
 
+    .btn-action {
+      background: #0284c7;
+      color: #fff;
+      padding: 0.45rem 0.85rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-action:hover {
+      background: #0369a1;
+    }
+    .btn-action.btn-outline {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: var(--text);
+    }
+    .btn-action.btn-outline:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
     .footer {
       padding: 1rem 2rem;
       border-top: 1px solid var(--card-border);
@@ -347,11 +374,20 @@
     </div>
 
     <div class="content">
-      <!-- Browser Compatibility Check -->
-      <div id="compatAlert" class="alert alert-warning hidden">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-        <div>
-          <strong>Web Serial Not Supported:</strong> Please open this page in <strong>Google Chrome</strong>, <strong>Microsoft Edge</strong>, or <strong>Opera</strong> to connect to your console cable.
+      <!-- Browser Compatibility & Security Context Check -->
+      <div id="compatAlert" class="alert alert-warning hidden" style="flex-direction: column; align-items: flex-start; gap: 0.65rem;">
+        <div style="display: flex; align-items: flex-start; gap: 0.65rem;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0; margin-top: 2px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          <div>
+            <div id="compatTitle" style="font-weight: 700; font-size: 0.9rem;">Web Serial Restricted</div>
+            <div id="compatMessage" style="margin-top: 3px; font-size: 0.82rem; color: #fde68a;">
+              Google Chrome &amp; Microsoft Edge require a secure connection (HTTPS or localhost) to access USB hardware.
+            </div>
+          </div>
+        </div>
+        <div id="compatActions" style="display: flex; gap: 8px; flex-wrap: wrap; margin-left: 28px;">
+          <a id="btnSwitchHttps" href="#" class="btn-action">🔒 Switch to HTTPS (Port 3443)</a>
+          <a id="btnSwitchLocalhost" href="#" class="btn-action btn-outline">💻 Open via localhost</a>
         </div>
       </div>
 
@@ -487,11 +523,42 @@
         baudDisplay.textContent = baudSelect.value + " bps";
       });
 
+      const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      const isHttps = window.location.protocol === "https:";
+      const isSecure = window.isSecureContext || isLocalhost || isHttps;
+      const hasSerial = "serial" in navigator;
+
+      const compatTitle = document.getElementById("compatTitle");
+      const compatMessage = document.getElementById("compatMessage");
+      const compatActions = document.getElementById("compatActions");
+      const btnSwitchHttps = document.getElementById("btnSwitchHttps");
+      const btnSwitchLocalhost = document.getElementById("btnSwitchLocalhost");
+
+      // Setup redirect links
+      const currentPort = window.location.port;
+      const targetHttpsPort = currentPort === "3000" ? "3443" : (window.location.protocol === "https:" ? currentPort : "3443");
+      const httpsUrl = `https://${window.location.hostname}:${targetHttpsPort}${window.location.pathname}${window.location.search}`;
+      const localhostUrl = `http://localhost:${currentPort || 3000}${window.location.pathname}${window.location.search}`;
+
+      if (btnSwitchHttps) btnSwitchHttps.href = httpsUrl;
+      if (btnSwitchLocalhost) btnSwitchLocalhost.href = localhostUrl;
+
       // Verify Web Serial Support
-      if (!("serial" in navigator)) {
+      if (!hasSerial) {
         compatAlert.classList.remove("hidden");
-        connectBtn.disabled = true;
-        appendLog("[WARNING] Web Serial API is NOT supported in this browser. Please open in Google Chrome or MS Edge.");
+        if (!isSecure) {
+          if (compatTitle) compatTitle.textContent = "🔒 HTTPS / Secure Context Required by Chrome";
+          if (compatMessage) compatMessage.innerHTML = "Google Chrome &amp; Edge require a secure connection (HTTPS or localhost) to access USB Serial ports. You are currently on an HTTP network IP. Click below to switch to <strong>HTTPS</strong>:";
+          if (compatActions) compatActions.classList.remove("hidden");
+          appendLog("[SECURITY] Chrome requires HTTPS or localhost for Web Serial hardware access. Click 'Switch to HTTPS' above.");
+        } else {
+          if (compatTitle) compatTitle.textContent = "Web Serial Not Supported in this Browser";
+          if (compatMessage) compatMessage.textContent = "Please open this page in Google Chrome, Microsoft Edge, Brave, or Opera to connect to your console cable.";
+          if (compatActions) compatActions.classList.add("hidden");
+          appendLog("[WARNING] Browser does not support Web Serial API. Please use Google Chrome or MS Edge.");
+        }
+      } else {
+        compatAlert.classList.add("hidden");
       }
 
       function appendLog(msg) {
@@ -527,6 +594,20 @@
 
       // Connect button click handler
       connectBtn.addEventListener("click", async () => {
+        if (!("serial" in navigator)) {
+          if (!isSecure) {
+            const goToHttps = confirm(
+              "🔒 HTTPS Required by Browser:\n\nGoogle Chrome & Microsoft Edge require a secure HTTPS connection to access your USB Console Cable.\n\nClick OK to switch to HTTPS (Port 3443) now.\n(If your browser shows an SSL warning on your local network, click 'Advanced' -> 'Proceed')."
+            );
+            if (goToHttps) {
+              window.location.href = httpsUrl;
+            }
+            return;
+          }
+          alert("Web Serial is not supported in this browser. Please open this page in Google Chrome, Microsoft Edge, Brave, or Opera.");
+          return;
+        }
+
         if (!sessionId) {
           alert("Invalid session link. Please ask your engineer for a fresh URL.");
           return;

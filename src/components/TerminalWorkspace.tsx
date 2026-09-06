@@ -89,6 +89,18 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
     }
   }, [terminalSettings?.theme]);
 
+  const handleSelectTheme = (key: string) => {
+    setSelectedTheme(key);
+    setThemeDropdownOpen(false);
+    const updated = { ...(terminalSettings || {}), theme: key };
+    try {
+      const stored = localStorage.getItem('xterminal_settings');
+      const parsed = stored ? JSON.parse(stored) : {};
+      localStorage.setItem('xterminal_settings', JSON.stringify({ ...parsed, theme: key }));
+    } catch {}
+    window.dispatchEvent(new CustomEvent('xterminal:settings-changed', { detail: updated }));
+  };
+
   const [keepaliveInterval, setKeepaliveInterval] = useState<number>(30); // 30s
   const [snippetDropdownOpen, setSnippetDropdownOpen] = useState(false);
   const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
@@ -1452,32 +1464,40 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
               title="Change Terminal Color Theme"
             >
               <Palette className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden xl:inline">Theme</span>
+              <span className="hidden xl:inline">
+                {TERMINAL_THEMES[selectedTheme]?.name?.split(' ')[0] || 'Theme'}
+              </span>
             </button>
 
             {themeDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1 w-48 bg-[#111112] border border-[#222224] rounded-lg shadow-2xl py-1 z-30 font-sans text-xs">
+              <div className="absolute right-0 top-full mt-1 w-52 bg-[#111112] border border-[#222224] rounded-lg shadow-2xl py-1 z-30 font-sans text-xs">
                 <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
                   Select Theme
                 </div>
-                {Object.entries(TERMINAL_THEMES).map(([key, th]) => (
-                  <button
-                    key={key}
-                    onClick={() => {
-                      setSelectedTheme(key);
-                      setThemeDropdownOpen(false);
-                    }}
-                    className={`w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-[#1C1C1E] ${
-                      selectedTheme === key ? 'text-emerald-400 font-bold' : 'text-gray-300'
-                    }`}
-                  >
-                    <span>{th.name}</span>
-                    <span
-                      className="w-3 h-3 rounded-full border border-gray-600"
-                      style={{ backgroundColor: th.cursor }}
-                    />
-                  </button>
-                ))}
+                {Object.entries(TERMINAL_THEMES)
+                  .filter(([key]) => key !== 'solarized')
+                  .map(([key, th]) => (
+                    <button
+                      key={key}
+                      onClick={() => handleSelectTheme(key)}
+                      className={`w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-[#1C1C1E] transition-colors ${
+                        selectedTheme === key ? 'text-emerald-400 font-bold bg-emerald-500/10' : 'text-gray-300'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="w-3 h-3 rounded-full border border-gray-600 inline-block shrink-0"
+                          style={{ backgroundColor: th.background }}
+                        />
+                        <span>{th.name}</span>
+                      </span>
+                      <span
+                        className="w-2.5 h-2.5 rounded-full border border-gray-600 inline-block shrink-0"
+                        style={{ backgroundColor: th.cursor }}
+                        title="Cursor Color"
+                      />
+                    </button>
+                  ))}
               </div>
             )}
           </div>

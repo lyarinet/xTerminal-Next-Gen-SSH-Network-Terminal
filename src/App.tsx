@@ -178,6 +178,17 @@ export default function App() {
     return () => window.removeEventListener('xterminal:update-host-password' as any, handleUpdateHostPassword);
   }, []);
 
+  // Real-time terminal settings sync from Workstation Settings & Workspace dropdown
+  useEffect(() => {
+    const handleSettingsChanged = (e: any) => {
+      if (e.detail) {
+        setTerminalSettings((prev) => ({ ...prev, ...e.detail }));
+      }
+    };
+    window.addEventListener('xterminal:settings-changed' as any, handleSettingsChanged);
+    return () => window.removeEventListener('xterminal:settings-changed' as any, handleSettingsChanged);
+  }, []);
+
   // Global Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

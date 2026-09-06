@@ -246,6 +246,9 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
     return () => window.removeEventListener('xterminal:backend-url-changed', onBackendChange);
   }, []);
 
+  const [activeThemeState, setActiveThemeState] = useState(() =>
+    resolveTerminalTheme(themeKey || terminalSettings?.theme || 'nexus')
+  );
   const [badgePixelPos, setBadgePixelPos] = useState<{ x: number; y: number }>({ x: 24, y: 40 });
 
   const updateBadgePosition = useCallback(() => {
@@ -348,7 +351,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const activeTheme = resolveTerminalTheme(terminalSettings?.theme || themeKey);
+    const activeTheme = resolveTerminalTheme(themeKey || terminalSettings?.theme || 'nexus');
     const term = new Terminal({
       cursorBlink: terminalSettings?.cursorBlink !== undefined ? terminalSettings.cursorBlink : true,
       cursorStyle: terminalSettings?.cursorStyle || 'block',
@@ -356,7 +359,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       fontSize: terminalSettings?.fontSize || 13,
       lineHeight: 1.35,
       theme: activeTheme,
-      allowTransparency: true,
+      allowTransparency: false,
       convertEol: true,
       scrollback: terminalSettings?.scrollbackLines || 5000,
     });
@@ -583,6 +586,10 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
 
   // Real-time dynamic update of font, size, theme, cursor style, blink, and layout
   useEffect(() => {
+    const chosenTheme = themeKey || terminalSettings?.theme || 'nexus';
+    const themeObj = resolveTerminalTheme(chosenTheme);
+    setActiveThemeState(themeObj);
+
     if (!termRef.current) return;
     const term = termRef.current;
     if (terminalSettings) {
@@ -591,12 +598,8 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       if (terminalSettings.cursorStyle) term.options.cursorStyle = terminalSettings.cursorStyle;
       if (terminalSettings.cursorBlink !== undefined) term.options.cursorBlink = terminalSettings.cursorBlink;
       if (terminalSettings.scrollbackLines) term.options.scrollback = terminalSettings.scrollbackLines;
-
-      const themeObj = resolveTerminalTheme(terminalSettings.theme || themeKey);
-      term.options.theme = themeObj;
-    } else {
-      term.options.theme = resolveTerminalTheme(themeKey);
     }
+    term.options.theme = themeObj;
 
     try {
       fitAddonRef.current?.fit();
@@ -607,14 +610,21 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
   useEffect(() => {
     const handleSettingsEvent = (e: any) => {
       const s = e.detail as TerminalSettings;
-      if (!s || !termRef.current) return;
+      if (!s) return;
+      if (s.theme) {
+        const themeObj = resolveTerminalTheme(s.theme);
+        setActiveThemeState(themeObj);
+        if (termRef.current) {
+          termRef.current.options.theme = themeObj;
+        }
+      }
+      if (!termRef.current) return;
       const term = termRef.current;
       if (s.fontSize) term.options.fontSize = s.fontSize;
       if (s.fontFamily) term.options.fontFamily = s.fontFamily;
       if (s.cursorStyle) term.options.cursorStyle = s.cursorStyle;
       if (s.cursorBlink !== undefined) term.options.cursorBlink = s.cursorBlink;
       if (s.scrollbackLines) term.options.scrollback = s.scrollbackLines;
-      if (s.theme) term.options.theme = resolveTerminalTheme(s.theme);
 
       try {
         fitAddonRef.current?.fit();
@@ -696,7 +706,10 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
   }, [keepaliveInterval]);
 
   return (
-    <div className="h-full flex flex-col bg-[#0A0A0B] select-none relative">
+    <div
+      className="h-full flex flex-col select-none relative transition-colors duration-200"
+      style={{ backgroundColor: activeThemeState.background || '#0A0A0B' }}
+    >
       {/* Toast Notification for Auto-Copy & Right-Click Paste */}
       {toastMessage && (
         <div className="absolute top-4 right-4 z-40 px-3 py-1.5 rounded-lg bg-[#0e2a22] border border-emerald-500/40 text-emerald-300 text-xs font-mono shadow-xl flex items-center gap-2 backdrop-blur-md animate-in fade-in slide-in-from-top-2 select-none">
@@ -714,7 +727,8 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
         ref={containerRef}
         onContextMenu={handleContextMenu}
         onMouseUp={handleMouseUp}
-        className="flex-1 overflow-hidden p-3 select-text cursor-text relative"
+        className="flex-1 overflow-hidden p-3 select-text cursor-text relative transition-colors duration-200"
+        style={{ backgroundColor: activeThemeState.background || '#0A0A0B' }}
         title="Select text to auto-copy | Right-click to paste"
       >
         {/* Real-time Multiplayer Typing Presence Badge placed directly over active prompt cursor */}

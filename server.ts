@@ -268,6 +268,27 @@ let tftpConfig = {
 
 let tftpSocket: dgram.Socket | null = null;
 
+interface ServerUploadSession {
+  clientKey: string;
+  filePath: string;
+  fileName: string;
+  chunks: Buffer[];
+  expectedBlock: number;
+  blockSize: number;
+  lastActivity: number;
+}
+const serverUploadSessions = new Map<string, ServerUploadSession>();
+
+interface ServerDownloadSession {
+  clientKey: string;
+  filePath: string;
+  fileBuffer: Buffer;
+  currentBlock: number;
+  blockSize: number;
+  lastActivity: number;
+}
+const serverDownloadSessions = new Map<string, ServerDownloadSession>();
+
 // TFTP Status Endpoint
 app.get("/api/tftp/status", (_req, res) => {
   res.json({
@@ -336,39 +357,184 @@ app.post("/api/tftp/action", async (req, res) => {
             }
           });
 
-          // RFC 1350 basic listener
+          // Full RFC 1350 & RFC 2348 TFTP Protocol Engine
           tftpSocket.on("message", (msg, rinfo) => {
             if (msg.length < 2) return;
             const opcode = msg.readUInt16BE(0);
-            // Opcode 1: RRQ (Read Request)
+            const clientKey = `${rinfo.address}:${rinfo.port}`;
+
+            // Opcode 1: RRQ (Read Request / Remote downloads file from this server)
             if (opcode === 1) {
               let idx = 2;
               while (idx < msg.length && msg[idx] !== 0) idx++;
               const requestedFile = msg.subarray(2, idx).toString("utf8");
               const filePath = path.join(tftpConfig.directory, path.basename(requestedFile));
-              if (fs.existsSync(filePath)) {
-                try {
-                  const content = fs.readFileSync(filePath);
-                  // Send first block or whole packet if < 512
-                  const blockData = content.subarray(0, 512);
-                  const resp = Buffer.alloc(4 + blockData.length);
-                  resp.writeUInt16BE(3, 0); // Opcode 3: DATA
-                  resp.writeUInt16BE(1, 2); // Block #1
-                  blockData.copy(resp, 4);
-                  tftpSocket?.send(resp, rinfo.port, rinfo.address);
-                } catch (readErr: any) {
-                  const errBuf = Buffer.from([0, 5, 0, 0, ...Buffer.from("Error reading file"), 0]);
-                  tftpSocket?.send(errBuf, rinfo.port, rinfo.address);
+
+              if (!fs.existsSync(filePath)) {
+                const errBuf = Buffer.from([0, 5, 0, 1, ...Buffer.from("File not found\0")]);
+                tftpSocket?.send(errBuf, rinfo.port, rinfo.address);
+                return;
+              }
+
+              try {
+                const fileBuffer = fs.readFileSync(filePath);
+                let negotiatedBlockSize = 512;
+                const optStr = msg.subarray(2).toString("ascii");
+                const parts = optStr.split("\0");
+                let hasBlksize = false;
+                for (let i = 2; i < parts.length - 1; i += 2) {
+                  if (parts[i].toLowerCase() === "blksize") {
+                    const val = parseInt(parts[i + 1], 10);
+                    if (!isNaN(val) && val >= 512 && val <= 65464) {
+                      negotiatedBlockSize = val;
+                      hasBlksize = true;
+                    }
+                  }
                 }
-              } else {
-                // Opcode 5: ERROR (File not found, code 1)
-                const errBuf = Buffer.from([0, 5, 0, 1, ...Buffer.from("File not found"), 0]);
+
+                serverDownloadSessions.set(clientKey, {
+                  clientKey,
+                  filePath,
+                  fileBuffer,
+                  currentBlock: 1,
+                  blockSize: negotiatedBlockSize,
+                  lastActivity: Date.now(),
+                });
+
+                if (hasBlksize) {
+                  const oack = Buffer.concat([
+                    Buffer.from([0, 6]),
+                    Buffer.from("blksize\0", "ascii"),
+                    Buffer.from(`${negotiatedBlockSize}\0`, "ascii"),
+                  ]);
+                  tftpSocket?.send(oack, rinfo.port, rinfo.address);
+                } else {
+                  const chunk = fileBuffer.subarray(0, negotiatedBlockSize);
+                  const dataPkt = Buffer.alloc(4 + chunk.length);
+                  dataPkt.writeUInt16BE(3, 0);
+                  dataPkt.writeUInt16BE(1, 2);
+                  chunk.copy(dataPkt, 4);
+                  tftpSocket?.send(dataPkt, rinfo.port, rinfo.address);
+                }
+              } catch (readErr: any) {
+                const errBuf = Buffer.from([0, 5, 0, 0, ...Buffer.from(`Error: ${readErr.message}\0`)]);
                 tftpSocket?.send(errBuf, rinfo.port, rinfo.address);
               }
-            } else if (opcode === 2) {
-              // Opcode 2: WRQ (Write Request) -> Send ACK block 0
-              const ack = Buffer.from([0, 4, 0, 0]);
-              tftpSocket?.send(ack, rinfo.port, rinfo.address);
+            }
+            // Opcode 2: WRQ (Write Request / Remote uploads file to this server)
+            else if (opcode === 2) {
+              let idx = 2;
+              while (idx < msg.length && msg[idx] !== 0) idx++;
+              const targetFileName = msg.subarray(2, idx).toString("utf8");
+              const filePath = path.join(tftpConfig.directory, path.basename(targetFileName));
+
+              let negotiatedBlockSize = 512;
+              const optStr = msg.subarray(2).toString("ascii");
+              const parts = optStr.split("\0");
+              let hasBlksize = false;
+              for (let i = 2; i < parts.length - 1; i += 2) {
+                if (parts[i].toLowerCase() === "blksize") {
+                  const val = parseInt(parts[i + 1], 10);
+                  if (!isNaN(val) && val >= 512 && val <= 65464) {
+                    negotiatedBlockSize = val;
+                    hasBlksize = true;
+                  }
+                }
+              }
+
+              serverUploadSessions.set(clientKey, {
+                clientKey,
+                filePath,
+                fileName: targetFileName,
+                chunks: [],
+                expectedBlock: 1,
+                blockSize: negotiatedBlockSize,
+                lastActivity: Date.now(),
+              });
+
+              if (hasBlksize) {
+                const oack = Buffer.concat([
+                  Buffer.from([0, 6]),
+                  Buffer.from("blksize\0", "ascii"),
+                  Buffer.from(`${negotiatedBlockSize}\0`, "ascii"),
+                ]);
+                tftpSocket?.send(oack, rinfo.port, rinfo.address);
+              } else {
+                const ack = Buffer.from([0, 4, 0, 0]);
+                tftpSocket?.send(ack, rinfo.port, rinfo.address);
+              }
+            }
+            // Opcode 3: DATA (Incoming data block for active upload)
+            else if (opcode === 3) {
+              const session = serverUploadSessions.get(clientKey);
+              if (!session) {
+                const errBuf = Buffer.from([0, 5, 0, 5, ...Buffer.from("Unknown transfer session\0")]);
+                tftpSocket?.send(errBuf, rinfo.port, rinfo.address);
+                return;
+              }
+
+              const blockNum = msg.readUInt16BE(2);
+              const data = msg.subarray(4);
+
+              if (blockNum === session.expectedBlock) {
+                session.chunks.push(Buffer.from(data));
+                session.lastActivity = Date.now();
+                session.expectedBlock = (session.expectedBlock + 1) & 0xffff;
+
+                const ack = Buffer.alloc(4);
+                ack.writeUInt16BE(4, 0);
+                ack.writeUInt16BE(blockNum, 2);
+                tftpSocket?.send(ack, rinfo.port, rinfo.address);
+
+                if (data.length < session.blockSize) {
+                  try {
+                    const fullContent = Buffer.concat(session.chunks);
+                    fs.writeFileSync(session.filePath, fullContent);
+                    console.log(`[TFTP Server] Received upload "${session.fileName}" (${fullContent.length} bytes)`);
+                  } catch (writeErr) {
+                    console.error("[TFTP Server] File write error:", writeErr);
+                  }
+                  serverUploadSessions.delete(clientKey);
+                }
+              } else if (blockNum === ((session.expectedBlock - 1 + 65536) & 0xffff)) {
+                const ack = Buffer.alloc(4);
+                ack.writeUInt16BE(4, 0);
+                ack.writeUInt16BE(blockNum, 2);
+                tftpSocket?.send(ack, rinfo.port, rinfo.address);
+              }
+            }
+            // Opcode 4: ACK (Remote acknowledged a block during download)
+            else if (opcode === 4) {
+              const session = serverDownloadSessions.get(clientKey);
+              if (!session) return;
+
+              const ackBlock = msg.readUInt16BE(2);
+              session.lastActivity = Date.now();
+
+              if (ackBlock === 0 || ackBlock === session.currentBlock) {
+                const offset = (session.currentBlock - 1) * session.blockSize;
+                if (ackBlock !== 0 && offset >= session.fileBuffer.length) {
+                  serverDownloadSessions.delete(clientKey);
+                  return;
+                }
+
+                if (ackBlock !== 0) {
+                  session.currentBlock = (session.currentBlock + 1) & 0xffff;
+                }
+
+                const currentOffset = (session.currentBlock - 1) * session.blockSize;
+                const chunk = session.fileBuffer.subarray(currentOffset, currentOffset + session.blockSize);
+                const dataPkt = Buffer.alloc(4 + chunk.length);
+                dataPkt.writeUInt16BE(3, 0);
+                dataPkt.writeUInt16BE(session.currentBlock, 2);
+                chunk.copy(dataPkt, 4);
+                tftpSocket?.send(dataPkt, rinfo.port, rinfo.address);
+              }
+            }
+            // Opcode 5: ERROR
+            else if (opcode === 5) {
+              serverUploadSessions.delete(clientKey);
+              serverDownloadSessions.delete(clientKey);
             }
           });
 

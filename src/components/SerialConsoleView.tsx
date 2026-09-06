@@ -903,7 +903,8 @@ export const SerialConsoleView: React.FC = () => {
         return;
       }
 
-      const targetHost = (remoteHostIp || localStorage.getItem('nexusterm_serial_remote_ip') || window.location.hostname).trim();
+      const rawHost = (remoteHostIp || localStorage.getItem('nexusterm_serial_remote_ip') || window.location.hostname).trim();
+      const targetHost = rawHost.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
       const isLocal = targetHost === 'localhost' || targetHost === '127.0.0.1';
       const isDomain = !isLocal && !/^(\d{1,3}\.){3}\d{1,3}$/.test(targetHost);
       const proto = (useHttps && !isLocal) ? 'https:' : (window.location.protocol === 'https:' ? 'https:' : 'http:');

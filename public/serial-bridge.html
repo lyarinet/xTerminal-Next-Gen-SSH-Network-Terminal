@@ -702,7 +702,8 @@
           ws.onerror = (err) => {
             console.error("WS error:", err);
             appendLog("[ERROR] WebSocket connection failed.");
-            setStatus("", "Tunnel connection error");
+            appendLog("💡 TIP: If you are using Nginx Proxy Manager or Cloudflare, ensure 'Websockets Support' is toggled ON in Proxy Host settings.");
+            setStatus("", "Tunnel connection error (Proxy / WS)");
           };
 
           ws.onclose = () => {

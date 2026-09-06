@@ -108,11 +108,11 @@ app.get("/api/system/metrics", (_req, res) => {
   }
 });
 
-// Machine local network interfaces & primary IP for mobile devices & LAN clients
-app.get("/api/system/network-info", (_req, res) => {
+// Machine local network interfaces & router / public WAN IP for mobile & remote clients
+app.get("/api/system/network-info", async (_req, res) => {
   try {
     const interfaces = os.networkInterfaces();
-    const addresses: { iface: string; address: string; family: string }[] = [];
+    const addresses: { iface: string; address: string; family: string; isPublic?: boolean }[] = [];
     for (const [name, list] of Object.entries(interfaces)) {
       if (!list) continue;
       for (const info of list) {
@@ -121,14 +121,55 @@ app.get("/api/system/network-info", (_req, res) => {
         }
       }
     }
+
+    // Auto-detect Router / Public WAN IP via lightweight external probe
+    let publicIp: string | null = null;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const wanRes = await fetch("https://api.ipify.org?format=json", { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (wanRes.ok) {
+        const data = (await wanRes.json()) as { ip?: string };
+        if (data.ip && /^(\d{1,3}\.){3}\d{1,3}$/.test(data.ip)) {
+          publicIp = data.ip;
+        }
+      }
+    } catch {
+      try {
+        const controller2 = new AbortController();
+        const timeoutId2 = setTimeout(() => controller2.abort(), 2000);
+        const wanRes2 = await fetch("https://icanhazip.com", { signal: controller2.signal });
+        clearTimeout(timeoutId2);
+        if (wanRes2.ok) {
+          const text = (await wanRes2.text()).trim();
+          if (text && /^(\d{1,3}\.){3}\d{1,3}$/.test(text)) {
+            publicIp = text;
+          }
+        }
+      } catch {}
+    }
+
+    if (publicIp) {
+      addresses.unshift({
+        iface: "🌐 Router / Public WAN IP",
+        address: publicIp,
+        family: "IPv4",
+        isPublic: true,
+      });
+    }
+
     const primaryIp = addresses[0]?.address || "127.0.0.1";
     res.json({
       primaryIp,
+      publicIp,
       port: PORT,
       httpsPort: HTTPS_PORT,
       addresses,
       fullUrl: `http://${primaryIp}:${PORT}`,
       fullHttpsUrl: `https://${primaryIp}:${HTTPS_PORT}`,
+      fullWanUrl: publicIp ? `http://${publicIp}:${PORT}` : null,
+      fullWanHttpsUrl: publicIp ? `https://${publicIp}:${HTTPS_PORT}` : null,
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

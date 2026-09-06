@@ -926,7 +926,10 @@ export const SerialSettingsModal: React.FC<SerialSettingsModalProps> = ({
                   <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">Assigned Remote Bridge URL</span>
                   <div className="text-xs font-mono font-bold text-emerald-400 mt-1 flex items-center gap-1.5">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>http://{assignedIp || '127.0.0.1'}:{assignedPort}/serial-bridge.html?...</span>
+                    <span>https://{assignedIp || '127.0.0.1'}:3443/serial-bridge.html?...</span>
+                  </div>
+                  <div className="text-[10px] font-mono text-gray-500 mt-0.5">
+                    HTTP: http://{assignedIp || '127.0.0.1'}:{assignedPort}/serial-bridge.html?...
                   </div>
                 </div>
                 <button
@@ -942,10 +945,11 @@ export const SerialSettingsModal: React.FC<SerialSettingsModalProps> = ({
 
               {/* Detected Interfaces */}
               <div className="space-y-2">
-                <div className="text-xs font-medium text-gray-300">Available PC Network Interfaces:</div>
+                <div className="text-xs font-medium text-gray-300">Available Network Interfaces &amp; Router Public IP:</div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {detectedIps.map((net) => {
                     const isSelected = assignedIp === net.address;
+                    const isWan = net.iface.includes('WAN') || net.iface.includes('Router') || (net as any).isPublic;
                     return (
                       <div
                         key={net.address}
@@ -956,12 +960,21 @@ export const SerialSettingsModal: React.FC<SerialSettingsModalProps> = ({
                         className={`p-2.5 rounded-lg border text-xs flex items-center justify-between cursor-pointer transition-all ${
                           isSelected
                             ? 'bg-sky-500/15 border-sky-500/50 text-white'
+                            : isWan
+                            ? 'bg-[#181a24] border-sky-500/30 text-gray-200 hover:border-sky-400'
                             : 'bg-[#18181A] border-[#222224] text-gray-300 hover:border-gray-600'
                         }`}
                       >
                         <div>
-                          <div className="font-semibold text-gray-200">{net.iface}</div>
-                          <div className="font-mono text-sky-400 text-[11px]">{net.address}</div>
+                          <div className="font-semibold text-gray-200 flex items-center gap-1.5">
+                            <span>{net.iface}</span>
+                            {isWan && (
+                              <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 text-[9px] font-bold border border-sky-400/30">
+                                ROUTER / WAN
+                              </span>
+                            )}
+                          </div>
+                          <div className="font-mono text-sky-400 text-[11px] font-bold">{net.address}</div>
                         </div>
                         <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${isSelected ? 'bg-emerald-500 text-black' : 'bg-[#252528] text-gray-400'}`}>
                           {isSelected ? 'Assigned' : 'Assign'}

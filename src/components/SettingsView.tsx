@@ -627,7 +627,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">Assigned Remote TTY URL</span>
                 <div className="text-xs font-mono font-bold text-emerald-400 mt-0.5 flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>http://{assignedIp || '127.0.0.1'}:{assignedPort}/serial-bridge.html?...</span>
+                  <span>https://{assignedIp || '127.0.0.1'}:3443/serial-bridge.html?...</span>
+                </div>
+                <div className="text-[10px] font-mono text-gray-500 mt-0.5">
+                  HTTP: http://{assignedIp || '127.0.0.1'}:{assignedPort}/serial-bridge.html?...
                 </div>
               </div>
               <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-mono text-[10px]">
@@ -638,10 +641,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             {/* Detected PC Interfaces List */}
             {detectedIps.length > 0 && (
               <div className="space-y-1.5">
-                <span className="text-[11px] font-medium text-gray-400">Detected PC Network Interfaces:</span>
+                <span className="text-[11px] font-medium text-gray-400">Detected Network Interfaces &amp; Router Public IP:</span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {detectedIps.map((net) => {
                     const isSelected = assignedIp === net.address;
+                    const isWan = net.iface.includes('WAN') || net.iface.includes('Router') || (net as any).isPublic;
                     return (
                       <div
                         key={net.address}
@@ -649,15 +653,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         className={`p-2 rounded-lg border text-xs flex items-center justify-between cursor-pointer transition-all ${
                           isSelected
                             ? 'bg-sky-500/15 border-sky-500/50 text-white shadow-xs'
+                            : isWan
+                            ? 'bg-[#181a24] border-sky-500/30 text-gray-200 hover:border-sky-400'
                             : 'bg-[#18191D] border-[#25262C] text-gray-300 hover:border-gray-500'
                         }`}
                       >
                         <div className="flex flex-col">
                           <span className="font-semibold text-[11px] text-gray-200 flex items-center gap-1">
-                            <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-sky-400' : 'bg-gray-500'}`} />
+                            <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-sky-400' : isWan ? 'bg-emerald-400' : 'bg-gray-500'}`} />
                             {net.iface}
+                            {isWan && (
+                              <span className="ml-1 px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 text-[9px] font-bold border border-sky-400/30">
+                                ROUTER / WAN
+                              </span>
+                            )}
                           </span>
-                          <span className="font-mono text-[11px] text-sky-400">{net.address}</span>
+                          <span className="font-mono text-[11px] text-sky-400 font-bold">{net.address}</span>
                         </div>
                         <button
                           type="button"

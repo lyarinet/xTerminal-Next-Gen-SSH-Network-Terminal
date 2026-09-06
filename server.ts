@@ -4938,13 +4938,25 @@ async function startServer() {
               isHandshake = true;
               const { cols = 80, rows = 24 } = data;
               const isWin = process.platform === "win32";
+              const userHome = os.homedir() || process.env.USERPROFILE || process.env.HOME || process.cwd();
               const shellCmd = isWin ? "powershell.exe" : (process.env.SHELL || "bash");
+              const shellArgs = isWin
+                ? ["-NoLogo", "-NoExit", "-ExecutionPolicy", "Bypass"]
+                : ["-i"];
 
               ws.send(`\r\n\x1b[32m[xTerminal] Local Station Initialized (${isWin ? "PowerShell" : "Bash"})\x1b[0m\r\n\r\n`);
 
-              localProcess = spawn(shellCmd, isWin ? ["-NoLogo"] : [], {
-                env: { ...process.env, TERM: "xterm-256color", COLUMNS: String(cols), LINES: String(rows) },
-                shell: true,
+              localProcess = spawn(shellCmd, shellArgs, {
+                cwd: userHome,
+                env: {
+                  ...process.env,
+                  TERM: "xterm-256color",
+                  COLUMNS: String(cols),
+                  LINES: String(rows),
+                  HOME: userHome,
+                  USERPROFILE: userHome,
+                },
+                shell: false,
               });
 
               localProcess.stdout.on("data", (chunk: Buffer) => {
@@ -4982,7 +4994,16 @@ async function startServer() {
           if (stream) {
             stream.write(rawMessage);
           } else if (localProcess && localProcess.stdin) {
-            localProcess.stdin.write(rawMessage);
+            try {
+              const inputStr = rawMessage.toString();
+              if (process.platform === "win32") {
+                localProcess.stdin.write(inputStr.replace(/\r(?!\n)/g, "\r\n"));
+              } else {
+                localProcess.stdin.write(inputStr.replace(/\r/g, "\n"));
+              }
+            } catch (err) {
+              console.error("[Local Station] Error writing to stdin:", err);
+            }
           }
         }
       });

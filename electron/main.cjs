@@ -2,6 +2,11 @@ const { app, BrowserWindow, ipcMain, shell, Menu, session, dialog } = require('e
 const path = require('path');
 const http = require('http');
 
+// Set Windows Application User Model ID so taskbar, dock, and notifications display the custom xTerminal icon
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.xterminal.desktop');
+}
+
 // Enforce single instance lock - NEVER allow multiple instances or duplicate processes
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -109,6 +114,13 @@ function createWindow() {
       allowRunningInsecureContent: true,
     },
   });
+
+  try {
+    const appIcon = process.platform === 'win32'
+      ? path.join(__dirname, '../build/icon.ico')
+      : path.join(__dirname, '../build/icon.png');
+    mainWindow.setIcon(appIcon);
+  } catch {}
 
   Menu.setApplicationMenu(null);
 

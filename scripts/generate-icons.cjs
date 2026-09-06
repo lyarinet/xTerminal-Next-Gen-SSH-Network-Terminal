@@ -97,7 +97,29 @@ app.whenReady().then(async () => {
     console.log('[+] Android mipmap launcher icons and splash screens generated!');
   }
 
-  // Windows .ico Encoder (multi-layer PNG format)
+  // Windows .ico Encoder (Standard Windows DIB bitmaps for 16-128, PNG for 256)
+  function createDIB(rawBitmap, width, height) {
+    const bih = Buffer.alloc(40);
+    bih.writeUInt32LE(40, 0);
+    bih.writeInt32LE(width, 4);
+    bih.writeInt32LE(height * 2, 8); // biHeight * 2 for XOR + AND masks
+    bih.writeUInt16LE(1, 12);
+    bih.writeUInt16LE(32, 14);
+    bih.writeUInt32LE(0, 16);
+    bih.writeUInt32LE(width * height * 4, 20);
+
+    const rowSize = width * 4;
+    const dibRows = [];
+    for (let y = height - 1; y >= 0; y--) {
+      dibRows.push(rawBitmap.subarray(y * rowSize, (y + 1) * rowSize));
+    }
+    const xorMask = Buffer.concat(dibRows);
+    const andRowBytes = Math.floor((width + 31) / 32) * 4;
+    const andMask = Buffer.alloc(andRowBytes * height, 0);
+
+    return Buffer.concat([bih, xorMask, andMask]);
+  }
+
   const icoSizes = [16, 32, 48, 64, 128, 256];
   const count = icoSizes.length;
   const headerSize = 6;
@@ -113,7 +135,14 @@ app.whenReady().then(async () => {
   const imageBuffers = [];
 
   for (const s of icoSizes) {
-    const buf = pngBuffers[s];
+    let buf;
+    if (s === 256) {
+      buf = pngBuffers[s];
+    } else {
+      const resized = image.resize({ width: s, height: s, quality: 'best' });
+      buf = createDIB(resized.toBitmap(), s, s);
+    }
+
     const entry = Buffer.alloc(dirEntrySize);
     entry.writeUInt8(s === 256 ? 0 : s, 0); // Width (0 means 256)
     entry.writeUInt8(s === 256 ? 0 : s, 1); // Height (0 means 256)

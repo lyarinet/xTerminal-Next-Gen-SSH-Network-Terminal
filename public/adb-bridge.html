@@ -293,23 +293,53 @@
 
     let ws = null;
     let usbDevice = null;
+    let isConnectedToServer = false;
+    let reconnectTimer = null;
 
-    // Connect WebSocket to Engineer
+    // Send HTTP status sync to server
+    async function syncStatusHttp(status, info) {
+      if (!sessionId) return;
+      try {
+        await fetch(`/api/adb-bridge/session/${sessionId}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: status || (usbDevice ? 'connected' : 'waiting'),
+            deviceInfo: info || (usbDevice ? (usbDevice.productName || 'Android Phone') : 'Pending USB connection')
+          })
+        });
+      } catch (e) {}
+    }
+
+    // Connect WebSocket to Engineer with Auto-Reconnect
     function initWs() {
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+
       const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const url = `${proto}//${window.location.host}/ws/adb-bridge`;
-      ws = new WebSocket(url);
+      try {
+        ws = new WebSocket(url);
+      } catch (e) {
+        scheduleReconnect();
+        return;
+      }
 
       ws.onopen = () => {
+        isConnectedToServer = true;
         log('Connected to xTerminal Bridge Server.');
+        const devName = usbDevice ? (usbDevice.productName || 'Android Phone') : '';
         if (sessionId) {
           ws.send(JSON.stringify({
             type: 'join',
             sessionId,
             role: 'client',
-            deviceInfo: usbDevice ? (usbDevice.productName || 'Android Device') : 'Pending USB connection'
+            deviceInfo: devName || 'Pending USB connection'
           }));
+          syncStatusHttp(usbDevice ? 'connected' : 'waiting', devName);
         }
+        updateBadge();
       };
 
       ws.onmessage = (event) => {
@@ -317,6 +347,7 @@
           const msg = JSON.parse(event.data);
           if (msg.type === 'session:ready') {
             log('Engineer is connected and waiting for your Android device.');
+            updateBadge();
           } else if (msg.type === 'adb:data') {
             log('Command from engineer received.');
           }
@@ -324,11 +355,52 @@
       };
 
       ws.onclose = () => {
-        log('Bridge server disconnected.');
+        isConnectedToServer = false;
+        log('Bridge server disconnected. Reconnecting in 2s...');
+        updateBadge();
+        scheduleReconnect();
+      };
+
+      ws.onerror = () => {
+        ws.close();
       };
     }
 
+    function scheduleReconnect() {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => {
+        initWs();
+      }, 2000);
+    }
+
+    function updateBadge() {
+      if (usbDevice && isConnectedToServer) {
+        tunnelStatus.textContent = 'Tunnel Active';
+        tunnelStatus.className = 'status-badge status-connected';
+      } else if (usbDevice && !isConnectedToServer) {
+        tunnelStatus.textContent = 'Device Ready (Reconnecting to Server...)';
+        tunnelStatus.className = 'status-badge status-waiting';
+      } else if (!usbDevice && isConnectedToServer) {
+        tunnelStatus.textContent = 'Connected to Server (Attach Phone)';
+        tunnelStatus.className = 'status-badge status-waiting';
+      } else {
+        tunnelStatus.textContent = 'Connecting to Server...';
+        tunnelStatus.className = 'status-badge status-waiting';
+      }
+    }
+
     initWs();
+
+    // Heartbeat every 4 seconds
+    setInterval(() => {
+      if (sessionId) {
+        const devName = usbDevice ? (usbDevice.productName || 'Android Phone') : '';
+        syncStatusHttp(usbDevice ? 'connected' : 'waiting', devName);
+      }
+      if (!isConnectedToServer) {
+        initWs();
+      }
+    }, 4000);
 
     btnConnect.addEventListener('click', async () => {
       if (!('usb' in navigator)) {
@@ -357,10 +429,11 @@
 
         const devName = usbDevice.productName || usbDevice.manufacturerName || 'Android Phone';
         deviceModel.textContent = devName;
-        tunnelStatus.textContent = 'Tunnel Active';
-        tunnelStatus.className = 'status-badge status-connected';
         log(`Attached device: ${devName} (Vendor ID: 0x${usbDevice.vendorId.toString(16)})`);
         log('Tunneling Android ADB channel to remote engineer in xTerminal...');
+
+        updateBadge();
+        syncStatusHttp('connected', devName);
 
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
@@ -369,6 +442,8 @@
             role: 'client',
             deviceInfo: devName
           }));
+        } else {
+          initWs();
         }
       } catch (err) {
         log(`Connection error: ${err.message}`);

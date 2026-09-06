@@ -94,6 +94,7 @@ export const AdbManagerView: React.FC = () => {
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const remoteWsRef = useRef<WebSocket | null>(null);
 
   // Fetch ADB status and devices list
   const fetchStatusAndDevices = async () => {
@@ -156,6 +157,28 @@ export const AdbManagerView: React.FC = () => {
     }, 3000);
     return () => clearInterval(interval);
   }, []);
+
+  // Poll Remote ADB Bridge Session Status (HTTP Fallback + Resilience)
+  useEffect(() => {
+    if (!remoteSessionId) return;
+    const pollSession = () => {
+      fetch(`/api/adb-bridge/session/${remoteSessionId}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data && (data.status === 'connected' || data.clientDeviceInfo || data.clientConnected)) {
+            setRemoteClientConnected(true);
+            if (data.clientDeviceInfo) setRemoteClientInfo(data.clientDeviceInfo);
+          } else if (data && data.status === 'waiting') {
+            setRemoteClientConnected(false);
+          }
+        })
+        .catch(() => {});
+    };
+
+    pollSession();
+    const interval = setInterval(pollSession, 2000);
+    return () => clearInterval(interval);
+  }, [remoteSessionId]);
 
   // Fetch Device Details when selected device changes or actions tab is clicked
   useEffect(() => {
@@ -430,8 +453,13 @@ export const AdbManagerView: React.FC = () => {
         setRemoteShareUrl(url);
 
         // Connect Engineer WS to listen for client events
+        if (remoteWsRef.current) {
+          try { remoteWsRef.current.close(); } catch {}
+        }
         const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const ws = new WebSocket(`${wsProto}//${window.location.host}/ws/adb-bridge`);
+        remoteWsRef.current = ws;
+
         ws.onopen = () => {
           ws.send(JSON.stringify({ type: 'join', sessionId: data.session.id, role: 'engineer' }));
         };
@@ -441,6 +469,11 @@ export const AdbManagerView: React.FC = () => {
             if (m.type === 'client:connected') {
               setRemoteClientConnected(true);
               setRemoteClientInfo(m.deviceInfo || 'Android Phone');
+            } else if (m.type === 'session:state') {
+              if (m.status === 'connected' || m.clientConnected) {
+                setRemoteClientConnected(true);
+                if (m.clientDeviceInfo) setRemoteClientInfo(m.clientDeviceInfo);
+              }
             } else if (m.type === 'client:disconnected') {
               setRemoteClientConnected(false);
             }

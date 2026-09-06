@@ -2069,6 +2069,22 @@ app.get("/api/adb-bridge/session/:id", (req, res) => {
   });
 });
 
+app.post("/api/adb-bridge/session/:id/status", (req, res) => {
+  const bridge = activeAdbBridges.get(req.params.id);
+  if (!bridge) return res.status(404).json({ error: "Session not found" });
+  const { status, deviceInfo } = req.body;
+  if (status) bridge.status = status;
+  if (deviceInfo) bridge.clientDeviceInfo = deviceInfo;
+  bridge.lastActivity = Date.now();
+  if (status === "connected" && bridge.engineerWs && bridge.engineerWs.readyState === WebSocket.OPEN) {
+    bridge.engineerWs.send(JSON.stringify({
+      type: "client:connected",
+      deviceInfo: bridge.clientDeviceInfo,
+    }));
+  }
+  res.json({ success: true, status: bridge.status, clientDeviceInfo: bridge.clientDeviceInfo });
+});
+
 app.delete("/api/adb-bridge/session/:id", (req, res) => {
   const bridge = activeAdbBridges.get(req.params.id);
   if (bridge) {

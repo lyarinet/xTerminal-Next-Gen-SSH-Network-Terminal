@@ -923,14 +923,29 @@ export const SerialSettingsModal: React.FC<SerialSettingsModalProps> = ({
               {/* Assigned IP Card */}
               <div className="p-3.5 rounded-lg bg-[#18181A] border border-[#222224] flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">Assigned Remote Bridge URL</span>
-                  <div className="text-xs font-mono font-bold text-emerald-400 mt-1 flex items-center gap-1.5">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>https://{assignedIp || '127.0.0.1'}:3443/serial-bridge.html?...</span>
-                  </div>
-                  <div className="text-[10px] font-mono text-gray-500 mt-0.5">
-                    HTTP: http://{assignedIp || '127.0.0.1'}:{assignedPort}/serial-bridge.html?...
-                  </div>
+                  {(() => {
+                    const isDomain = assignedIp && !['localhost', '127.0.0.1'].includes(assignedIp) && !/^(\d{1,3}\.){3}\d{1,3}$/.test(assignedIp);
+                    return (
+                      <>
+                        <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">
+                          {isDomain ? 'Assigned Remote Bridge Domain (NPM / Reverse Proxy)' : 'Assigned Remote Bridge URL'}
+                        </span>
+                        <div className="text-xs font-mono font-bold text-emerald-400 mt-1 flex items-center gap-1.5">
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>
+                            {isDomain
+                              ? `https://${assignedIp}/serial-bridge.html?...`
+                              : `https://${assignedIp || '127.0.0.1'}:3443/serial-bridge.html?...`}
+                          </span>
+                        </div>
+                        <div className="text-[10px] font-mono text-gray-500 mt-0.5">
+                          {isDomain
+                            ? 'NPM Standard Port 443 (Forward to local PC :3000 with WebSockets ON)'
+                            : `HTTP: http://${assignedIp || '127.0.0.1'}:${assignedPort}/serial-bridge.html?...`}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
                 <button
                   type="button"

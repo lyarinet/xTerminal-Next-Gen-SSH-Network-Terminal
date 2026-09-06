@@ -903,11 +903,21 @@ export const SerialConsoleView: React.FC = () => {
         return;
       }
 
-      const targetHost = remoteHostIp || localStorage.getItem('nexusterm_serial_remote_ip') || window.location.hostname;
+      const targetHost = (remoteHostIp || localStorage.getItem('nexusterm_serial_remote_ip') || window.location.hostname).trim();
       const isLocal = targetHost === 'localhost' || targetHost === '127.0.0.1';
+      const isDomain = !isLocal && !/^(\d{1,3}\.){3}\d{1,3}$/.test(targetHost);
       const proto = (useHttps && !isLocal) ? 'https:' : (window.location.protocol === 'https:' ? 'https:' : 'http:');
-      const port = (useHttps && !isLocal) ? '3443' : (remoteHostPort || '3000');
-      const portPart = port ? `:${port}` : '';
+      
+      // When a domain is used (e.g. Nginx Proxy Manager / Cloudflare), NPM listens on standard 443/80
+      let portPart = '';
+      if (isDomain) {
+        if (remoteHostPort && remoteHostPort !== 80 && remoteHostPort !== 443 && remoteHostPort !== 3000 && remoteHostPort !== 3443) {
+          portPart = `:${remoteHostPort}`;
+        }
+      } else {
+        const port = (useHttps && !isLocal) ? '3443' : (remoteHostPort || '3000');
+        portPart = port ? `:${port}` : '';
+      }
       const shareUrl = `${proto}//${targetHost}${portPart}${data.sharePath}`;
       setRemoteShareUrl(shareUrl);
       setRemoteSessionId(data.session.id);
@@ -1725,9 +1735,25 @@ export const SerialConsoleView: React.FC = () => {
                     <div className="text-[11px] text-gray-400 flex items-center justify-between">
                       <span>Target Base:</span>
                       <span className="text-sky-300 font-mono font-semibold">
-                        {(useHttps && remoteHostIp !== 'localhost' && remoteHostIp !== '127.0.0.1') ? 'https' : 'http'}://{remoteHostIp || '127.0.0.1'}:{(useHttps && remoteHostIp !== 'localhost' && remoteHostIp !== '127.0.0.1') ? '3443' : remoteHostPort}
+                        {(() => {
+                          const host = (remoteHostIp || '127.0.0.1').trim();
+                          const isLoc = host === 'localhost' || host === '127.0.0.1';
+                          const isDom = !isLoc && !/^(\d{1,3}\.){3}\d{1,3}$/.test(host);
+                          const p = (useHttps && !isLoc) ? 'https' : 'http';
+                          if (isDom) {
+                            return `${p}://${host}`;
+                          }
+                          return `${p}://${host}:${(useHttps && !isLoc) ? '3443' : remoteHostPort}`;
+                        })()}
                       </span>
                     </div>
+
+                    {remoteHostIp && !['localhost', '127.0.0.1'].includes(remoteHostIp) && !/^(\d{1,3}\.){3}\d{1,3}$/.test(remoteHostIp) && (
+                      <div className="p-2 rounded bg-purple-500/10 border border-purple-500/20 text-[10px] text-purple-300 flex items-center justify-between">
+                        <span>✨ Nginx Proxy Manager Mode (Standard Port 443)</span>
+                        <span className="font-mono text-[9px] text-purple-200">Forward Port: 3000</span>
+                      </div>
+                    )}
                   </div>
 
                   <div>

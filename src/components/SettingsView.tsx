@@ -621,22 +621,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
             )}
 
-            {/* Currently Assigned IP Display */}
-            <div className="p-3 rounded-lg bg-[#0E0F12] border border-[#1E1F24] flex items-center justify-between">
-              <div>
-                <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">Assigned Remote TTY URL</span>
-                <div className="text-xs font-mono font-bold text-emerald-400 mt-0.5 flex items-center gap-1.5">
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>https://{assignedIp || '127.0.0.1'}:3443/serial-bridge.html?...</span>
+            {/* Currently Assigned IP / Domain Display */}
+            {(() => {
+              const isDomain = assignedIp && !['localhost', '127.0.0.1'].includes(assignedIp) && !/^(\d{1,3}\.){3}\d{1,3}$/.test(assignedIp);
+              return (
+                <div className="p-3 rounded-lg bg-[#0E0F12] border border-[#1E1F24] flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">
+                      {isDomain ? 'Assigned Remote TTY Domain (NPM / Reverse Proxy)' : 'Assigned Remote TTY URL'}
+                    </span>
+                    <div className="text-xs font-mono font-bold text-emerald-400 mt-0.5 flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>
+                        {isDomain
+                          ? `https://${assignedIp}/serial-bridge.html?...`
+                          : `https://${assignedIp || '127.0.0.1'}:3443/serial-bridge.html?...`}
+                      </span>
+                    </div>
+                    <div className="text-[10px] font-mono text-gray-500 mt-0.5">
+                      {isDomain
+                        ? 'Clean HTTPS URL on Port 443 (NPM terminates SSL -> forwards to :3000)'
+                        : `HTTP: http://${assignedIp || '127.0.0.1'}:${assignedPort}/serial-bridge.html?...`}
+                    </div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded font-mono text-[10px] ${
+                    isDomain
+                      ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                      : 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
+                  }`}>
+                    {isDomain ? 'NPM Domain Active' : 'Active'}
+                  </span>
                 </div>
-                <div className="text-[10px] font-mono text-gray-500 mt-0.5">
-                  HTTP: http://{assignedIp || '127.0.0.1'}:{assignedPort}/serial-bridge.html?...
-                </div>
-              </div>
-              <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-mono text-[10px]">
-                Active
-              </span>
-            </div>
+              );
+            })()}
 
             {/* Detected PC Interfaces List */}
             {detectedIps.length > 0 && (
@@ -744,6 +761,42 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               >
                 Assign Custom
               </button>
+            </div>
+            {/* Nginx Proxy Manager Configuration Helper */}
+            <div className="p-3.5 rounded-lg bg-[#14151B] border border-purple-500/25 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-purple-400" />
+                  Nginx Proxy Manager (NPM) Guide — Custom Domain Setup
+                </span>
+                <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 font-mono text-[10px]">
+                  Port Not Auto-Assigned
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-300 leading-relaxed">
+                Nginx Proxy Manager <strong>cannot auto-assign or auto-detect ports</strong>. You must enter your PC's LAN IP and port in your NPM dashboard once:
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono">
+                <div className="p-2 rounded bg-[#0D0E12] border border-[#1E1F26]">
+                  <span className="text-gray-500 block text-[9px] uppercase tracking-wider">Scheme</span>
+                  <span className="text-sky-300 font-bold">http</span>
+                </div>
+                <div className="p-2 rounded bg-[#0D0E12] border border-[#1E1F26]">
+                  <span className="text-gray-500 block text-[9px] uppercase tracking-wider">Forward Host / IP</span>
+                  <span className="text-emerald-400 font-bold">{detectedIps.find(n => !n.iface.includes('WAN') && !n.iface.includes('Router'))?.address || '192.168.1.38'}</span>
+                </div>
+                <div className="p-2 rounded bg-[#0D0E12] border border-[#1E1F26]">
+                  <span className="text-gray-500 block text-[9px] uppercase tracking-wider">Forward Port</span>
+                  <span className="text-amber-400 font-bold">3000</span>
+                </div>
+                <div className="p-2 rounded bg-[#0D0E12] border border-[#1E1F26]">
+                  <span className="text-gray-500 block text-[9px] uppercase tracking-wider">Websockets Support</span>
+                  <span className="text-emerald-400 font-bold">ON (Required)</span>
+                </div>
+              </div>
+              <div className="text-[10.5px] text-gray-400 leading-relaxed border-t border-[#1E1F26] pt-2">
+                💡 <strong>SSL Tab:</strong> Request a free Let's Encrypt SSL certificate and turn ON <strong>"Force SSL"</strong>. NPM serves on standard port <strong>443</strong>, providing your clients a clean, secure URL (e.g. <span className="text-sky-300 font-mono">https://yourdomain.com/serial-bridge.html</span>).
+              </div>
             </div>
           </div>
         </div>

@@ -1,5 +1,6 @@
 {
   "name": "xterminal-desktop",
+  "desktopName": "xTerminal",
   "private": true,
   "version": "1.2.0",
   "description": "xTerminal - Multi-Protocol DevOps & SSH Desktop Workstation",
@@ -64,7 +65,7 @@
       "icon": "build/icons",
       "category": "Development",
       "maintainer": "Lyarinet <support@lyarinet.com>",
-      "desktopName": "xTerminal",
+      "syncDesktopName": true,
       "synopsis": "Enterprise SSH & Remote Access Workstation",
       "description": "xTerminal Pro — Enterprise Remote Access & Infrastructure Suite. SSH, SFTP, RDP, Serial TTY, Android ADB, TFTP and more.",
       "target": [

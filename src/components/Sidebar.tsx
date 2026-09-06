@@ -22,7 +22,6 @@ import {
   Layers,
   Puzzle,
   Monitor,
-  Cloud,
   Cpu,
   Smartphone,
   Sliders,
@@ -98,9 +97,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { id: 'snippets', label: 'Snippets & Automation', icon: Zap },
         { id: 'sshConfig', label: 'OpenSSH Sync (~/.ssh)', icon: FileCode },
-        { id: 'cloudSync', label: 'Cloud Sync & Teams', icon: Cloud },
         { id: 'plugins', label: 'Plugin Marketplace', icon: Puzzle },
-        { id: 'appCenter', label: 'App & Mobile Center', icon: Smartphone, badge: 'Android/Win/Mac', badgeColor: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
         { id: 'settings', label: 'Settings & Config', icon: Sliders },
       ],
     },

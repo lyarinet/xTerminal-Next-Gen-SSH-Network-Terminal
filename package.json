@@ -3,7 +3,11 @@
   "private": true,
   "version": "1.2.0",
   "description": "xTerminal - Multi-Protocol DevOps & SSH Desktop Workstation",
-  "author": "xTerminal Team",
+  "author": {
+    "name": "Lyarinet",
+    "email": "support@lyarinet.com",
+    "url": "https://github.com/lyarinet"
+  },
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
@@ -26,6 +30,7 @@
   "build": {
     "appId": "com.xterminal.desktop",
     "productName": "xTerminal",
+    "copyright": "Copyright © 2024 Lyarinet. All rights reserved.",
     "npmRebuild": false,
     "nodeGypRebuild": false,
     "compression": "normal",
@@ -50,12 +55,18 @@
     },
     "mac": {
       "icon": "build/icon.png",
+      "category": "public.app-category.developer-tools",
       "target": [
         "dmg"
       ]
     },
     "linux": {
       "icon": "build/icons",
+      "category": "Development",
+      "maintainer": "Lyarinet <support@lyarinet.com>",
+      "desktopName": "xTerminal",
+      "synopsis": "Enterprise SSH & Remote Access Workstation",
+      "description": "xTerminal Pro — Enterprise Remote Access & Infrastructure Suite. SSH, SFTP, RDP, Serial TTY, Android ADB, TFTP and more.",
       "target": [
         "AppImage",
         "deb"

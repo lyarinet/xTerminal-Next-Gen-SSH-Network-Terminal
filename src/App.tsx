@@ -673,6 +673,12 @@ export default function App() {
               setHosts((prev) => prev.filter((item) => item.id !== id));
               addAuditLog('HOST_DELETED', `Server ${h?.name || id} removed from inventory`);
             }}
+            onDeleteAllHosts={() => {
+              const count = hosts.length;
+              setHosts([]);
+              addAuditLog('ALL_HOSTS_DELETED', `All ${count} servers removed from inventory`);
+            }}
+            onOpenImport={() => setIsImportModalOpen(true)}
             onSaveGroup={(group) => {
               setGroups((prev) => {
                 const idx = prev.findIndex((g) => g.id === group.id);

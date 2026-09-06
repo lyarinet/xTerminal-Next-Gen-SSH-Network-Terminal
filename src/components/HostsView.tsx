@@ -23,7 +23,9 @@ import {
   Eye,
   EyeOff,
   Key,
-  FolderPlus
+  FolderPlus,
+  FolderInput,
+  AlertTriangle
 } from 'lucide-react';
 import { Host, HostGroup, Identity, EnvironmentType, EnvironmentDef } from '../types';
 
@@ -36,6 +38,8 @@ interface HostsViewProps {
   onOpenSftp: (host: Host) => void;
   onSaveHost: (host: Host) => void;
   onDeleteHost: (hostId: string) => void;
+  onDeleteAllHosts?: () => void;
+  onOpenImport?: () => void;
   onSaveGroup?: (group: HostGroup) => void;
   onDeleteGroup?: (groupId: string) => void;
   onSaveEnvironment?: (env: EnvironmentDef) => void;
@@ -51,6 +55,8 @@ export const HostsView: React.FC<HostsViewProps> = ({
   onOpenSftp,
   onSaveHost,
   onDeleteHost,
+  onDeleteAllHosts,
+  onOpenImport,
   onSaveGroup,
   onDeleteGroup,
   onSaveEnvironment,
@@ -61,6 +67,7 @@ export const HostsView: React.FC<HostsViewProps> = ({
   const [selectedEnv, setSelectedEnv] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingHost, setEditingHost] = useState<Host | null>(null);
+  const [isDeleteAllModalOpen, setIsDeleteAllModalOpen] = useState(false);
 
   // Group Modal State
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
@@ -467,7 +474,27 @@ export const HostsView: React.FC<HostsViewProps> = ({
             />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            {hosts.length > 0 && onDeleteAllHosts && (
+              <button
+                onClick={() => setIsDeleteAllModalOpen(true)}
+                className="px-3 py-2 rounded-md bg-red-950/30 hover:bg-red-900/50 text-red-400 hover:text-red-300 text-xs font-semibold border border-red-900/40 transition-colors flex items-center gap-1.5 shadow-sm"
+                title="Delete all servers from inventory"
+              >
+                <Trash2 className="w-4 h-4 text-red-400" />
+                <span>Delete All</span>
+              </button>
+            )}
+            {onOpenImport && (
+              <button
+                onClick={onOpenImport}
+                className="px-3 py-2 rounded-md bg-[#18181A] hover:bg-[#222225] text-emerald-400 hover:text-emerald-300 text-xs font-semibold border border-emerald-500/30 transition-colors flex items-center gap-1.5 shadow-sm"
+                title="Import sessions from SecureCRT, PuTTY, OpenSSH, CSV"
+              >
+                <FolderInput className="w-4 h-4 text-emerald-400" />
+                <span>Import</span>
+              </button>
+            )}
             <button
               onClick={openAddGroupModal}
               className="px-3 py-2 rounded-md bg-[#18181A] hover:bg-[#222225] text-gray-300 hover:text-white text-xs font-semibold border border-[#2A2A2D] transition-colors flex items-center gap-1.5 shadow-sm"
@@ -1224,6 +1251,53 @@ export const HostsView: React.FC<HostsViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete All Confirmation Modal */}
+      {isDeleteAllModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-[#141416] border border-red-500/30 rounded-2xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white tracking-tight">Delete All Servers?</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Permanent Inventory Wipe</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-300 leading-relaxed">
+              Are you sure you want to permanently delete all <strong className="text-white font-mono">{hosts.length}</strong> server(s) from your inventory? This action cannot be undone.
+            </p>
+
+            <div className="p-3 bg-red-950/20 border border-red-900/30 rounded-xl text-xs text-red-400 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>All host credentials, custom ports, and tags will be erased.</span>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsDeleteAllModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-300 hover:text-white bg-[#1C1C1E] hover:bg-[#252528] border border-[#2A2A2D] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDeleteAllHosts?.();
+                  setIsDeleteAllModalOpen(false);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-500 shadow-lg shadow-red-600/20 transition-colors flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Yes, Delete All ({hosts.length})</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

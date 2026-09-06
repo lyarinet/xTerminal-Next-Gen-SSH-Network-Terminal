@@ -75,22 +75,35 @@ Host staging-api-01
     } else if (format === 'securecrt') {
       setInputContent(
 `<?xml version="1.0" encoding="UTF-8"?>
-<VanDykeSecureCRT Version="9.4">
-  <Sessions>
-    <Session Name="DC1-Hypervisor-01">
-      <Hostname>172.16.20.10</Hostname>
-      <Port>22</Port>
-      <Username>root</Username>
-      <Protocol>SSH2</Protocol>
-    </Session>
-    <Session Name="DC1-SAN-Storage">
-      <Hostname>172.16.20.25</Hostname>
-      <Port>22</Port>
-      <Username>storage_admin</Username>
-      <Protocol>SSH2</Protocol>
-    </Session>
-  </Sessions>
-</VanDykeSecureCRT>`
+<VanDyke version="3.0">
+  <key name="Sessions">
+    <key name="Core Infrastructure">
+      <key name="192.168.242.234 - Hafeez OLT-1">
+        <string name="Hostname">192.168.242.234</string>
+        <string name="Protocol Name">Telnet</string>
+        <string name="Username">fida</string>
+        <string name="Emulation">Xterm</string>
+        <dword name="Port">23</dword>
+      </key>
+      <key name="192.168.242.233 - Hafeez core switch">
+        <string name="Hostname">192.168.242.233</string>
+        <string name="Protocol Name">Telnet</string>
+        <string name="Username">admin</string>
+        <string name="Emulation">Xterm</string>
+        <dword name="Port">23</dword>
+      </key>
+    </key>
+    <key name="Edge Gateway">
+      <key name="10.240.150.227 - Lyarinet Gateway">
+        <string name="Hostname">10.240.150.227</string>
+        <string name="Protocol Name">SSH2</string>
+        <string name="Username">fida</string>
+        <string name="Emulation">Xterm</string>
+        <dword name="Port">22</dword>
+      </key>
+    </key>
+  </key>
+</VanDyke>`
       );
     } else if (format === 'termius') {
       setInputContent(
@@ -246,6 +259,137 @@ Postgres-Replica,10.10.2.15,5432,dbadmin,database,"postgres,db"`
             );
           }
         });
+      } else if (
+        sourceFormat === 'securecrt' ||
+        inputContent.includes('<VanDyke') ||
+        inputContent.includes('<key name="Sessions">') ||
+        inputContent.includes('<Session')
+      ) {
+        // Robust SecureCRT VanDyke XML Parser (v3.0+ nested keys and legacy XML)
+        let xmlToParse = inputContent.trim();
+        if (!xmlToParse.startsWith('<?xml') && !xmlToParse.startsWith('<VanDyke') && !xmlToParse.startsWith('<Sessions')) {
+          xmlToParse = `<VanDyke version="3.0"><key name="Sessions">${xmlToParse}</key></VanDyke>`;
+        }
+
+        const parser = new DOMParser();
+        let xmlDoc = parser.parseFromString(xmlToParse, 'text/xml');
+        if (xmlDoc.querySelector('parsererror')) {
+          xmlDoc = parser.parseFromString(`<root>${inputContent.trim()}</root>`, 'text/xml');
+        }
+
+        const walkKey = (keyElem: Element, folderPath: string[]) => {
+          const keyName = keyElem.getAttribute('name') || '';
+          const childNodes = Array.from(keyElem.children);
+
+          const hostnameElem = childNodes.find(
+            (c) =>
+              c.tagName.toLowerCase() === 'string' &&
+              ['hostname', 'host name', 'host', 'ip'].includes((c.getAttribute('name') || '').toLowerCase())
+          );
+          const protocolElem = childNodes.find(
+            (c) =>
+              c.tagName.toLowerCase() === 'string' &&
+              (c.getAttribute('name') || '').toLowerCase() === 'protocol name'
+          );
+          const portElem = childNodes.find(
+            (c) =>
+              ['dword', 'string'].includes(c.tagName.toLowerCase()) &&
+              (c.getAttribute('name') || '').toLowerCase() === 'port'
+          );
+          const usernameElem = childNodes.find(
+            (c) =>
+              c.tagName.toLowerCase() === 'string' &&
+              ['username', 'user name', 'user'].includes((c.getAttribute('name') || '').toLowerCase())
+          );
+
+          const hasSessionData = !!(hostnameElem || protocolElem || portElem);
+
+          if (hasSessionData && keyName !== 'Sessions') {
+            let hostname = hostnameElem?.textContent?.trim() || '';
+            if (!hostname) {
+              const ipMatch = keyName.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
+              if (ipMatch) hostname = ipMatch[0];
+            }
+
+            if (hostname) {
+              const protoStr = (protocolElem?.textContent?.trim() || '').toLowerCase();
+              const isTelnet = protoStr.includes('telnet') || (!protoStr && portElem?.textContent?.trim() === '23');
+              const isSerial = protoStr.includes('serial');
+
+              let port = isTelnet ? 23 : 22;
+              if (portElem?.textContent?.trim()) {
+                const rawPort = portElem.textContent.trim();
+                port = rawPort.startsWith('0x') ? parseInt(rawPort, 16) : parseInt(rawPort, 10) || (isTelnet ? 23 : 22);
+              }
+
+              const username = usernameElem?.textContent?.trim() || '';
+              const groupTag = folderPath.length > 0 ? folderPath[folderPath.length - 1] : '';
+
+              const tags: string[] = ['securecrt-import'];
+              if (groupTag) tags.unshift(groupTag);
+              if (isTelnet) tags.push('telnet');
+
+              results.push(
+                finalizeHost({
+                  name: keyName || hostname,
+                  hostname,
+                  port,
+                  username: username || (isTelnet ? '' : 'admin'),
+                  connectionType: isTelnet ? 'telnet' : isSerial ? 'serial' : 'ssh',
+                  environment: 'network',
+                  tags,
+                  description: folderPath.length > 0 ? `Folder: ${folderPath.join(' / ')}` : 'SecureCRT Import',
+                })
+              );
+            }
+          }
+
+          const childKeys = childNodes.filter((c) => c.tagName.toLowerCase() === 'key');
+          const nextPath = keyName && keyName !== 'Sessions' ? [...folderPath, keyName] : folderPath;
+          for (const ck of childKeys) {
+            walkKey(ck, nextPath);
+          }
+        };
+
+        const sessionRoots = xmlDoc.querySelectorAll('key[name="Sessions"]');
+        if (sessionRoots.length > 0) {
+          sessionRoots.forEach((root) => {
+            Array.from(root.children)
+              .filter((c) => c.tagName.toLowerCase() === 'key')
+              .forEach((k) => walkKey(k, []));
+          });
+        } else {
+          const allKeys = Array.from(xmlDoc.querySelectorAll('key'));
+          const rootKeys = allKeys.filter((k) => !k.parentElement || k.parentElement.tagName.toLowerCase() !== 'key');
+          if (rootKeys.length > 0) {
+            rootKeys.forEach((k) => walkKey(k, []));
+          } else {
+            const legacySessions = xmlDoc.querySelectorAll('Session, session');
+            legacySessions.forEach((s) => {
+              const name = s.getAttribute('Name') || s.getAttribute('name') || s.querySelector('Name')?.textContent || 'SecureCRT Node';
+              const hostname = s.querySelector('Hostname, hostname, Host, host')?.textContent?.trim() || '';
+              const portText = s.querySelector('Port, port')?.textContent?.trim();
+              const proto = (s.querySelector('Protocol, protocol')?.textContent?.trim() || '').toLowerCase();
+              const isTelnet = proto.includes('telnet') || portText === '23';
+              const port = parseInt(portText || (isTelnet ? '23' : '22'), 10);
+              const username = s.querySelector('Username, username')?.textContent?.trim() || '';
+
+              if (hostname) {
+                results.push(
+                  finalizeHost({
+                    name,
+                    hostname,
+                    port,
+                    username: username || (isTelnet ? '' : 'admin'),
+                    connectionType: isTelnet ? 'telnet' : 'ssh',
+                    environment: 'network',
+                    tags: isTelnet ? ['securecrt-import', 'telnet'] : ['securecrt-import'],
+                  })
+                );
+              }
+            });
+          }
+        }
       } else {
         // Generic fallback regex parser
         const ipMatches = inputContent.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) || [];
@@ -277,21 +421,23 @@ Postgres-Replica,10.10.2.15,5432,dbadmin,database,"postgres,db"`
   };
 
   const finalizeHost = (partial: Partial<Host>): Host => {
+    const isTelnet = partial.connectionType === 'telnet' || partial.port === 23;
     return {
-      id: `host-imp-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      name: partial.name || 'Imported Server',
+      id: `host-imp-${Date.now()}-${Math.floor(Math.random() * 100000)}-${Math.random().toString(36).substring(2, 6)}`,
+      name: partial.name || partial.hostname || 'Imported Server',
       hostname: partial.hostname || 'localhost',
-      port: partial.port || 22,
-      username: partial.username || 'root',
+      port: partial.port || (isTelnet ? 23 : 22),
+      username: partial.username !== undefined ? partial.username : (isTelnet ? '' : 'root'),
       tags: partial.tags || ['imported'],
-      color: '#10B981',
-      environment: partial.environment || 'production',
-      connectionType: 'ssh',
+      color: isTelnet ? '#06B6D4' : '#10B981',
+      environment: partial.environment || (isTelnet ? 'network' : 'production'),
+      connectionType: (partial.connectionType as any) || (isTelnet ? 'telnet' : 'ssh'),
       fingerprint: 'SHA256:imported...',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       favorite: false,
       status: 'online',
+      description: partial.description,
     };
   };
 
@@ -416,15 +562,24 @@ Postgres-Replica,10.10.2.15,5432,dbadmin,database,"postgres,db"`
               <div className="max-h-48 overflow-y-auto divide-y divide-[#222224]">
                 {parsedHosts.map((h, i) => (
                   <div key={i} className="p-2.5 flex items-center justify-between text-xs font-sans">
-                    <div className="flex items-center gap-2">
-                      <Server className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="font-bold text-white">{h.name}</span>
-                      <span className="text-[11px] font-mono text-gray-400">
-                        {h.username}@{h.hostname}:{h.port}
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <Server className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span className="font-bold text-white truncate">{h.name}</span>
+                      <span className="text-[11px] font-mono text-gray-400 truncate">
+                        {h.username ? `${h.username}@` : ''}{h.hostname}:{h.port}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span
+                        className={`text-[9px] uppercase font-mono px-1.5 py-0.5 rounded font-bold ${
+                          h.connectionType === 'telnet' || h.port === 23
+                            ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30'
+                            : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                        }`}
+                      >
+                        {h.connectionType === 'telnet' || h.port === 23 ? 'TELNET' : 'SSH'}
+                      </span>
                       {h.tags.map((t, ti) => (
                         <span key={ti} className="text-[10px] px-1.5 py-0.5 rounded bg-[#1C1C1E] text-gray-400 font-mono">
                           {t}

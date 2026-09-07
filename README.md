@@ -2,8 +2,9 @@
 
 # ⚡ xTerminal
 ### Next-Generation Multi-Protocol SSH, Telnet, Serial, Android ADB & DevOps Workstation
+**Enterprise Remote Access, Cloud & Network Engineering Suite**
 
-[![Version](https://img.shields.io/badge/version-1.2.1-emerald.svg?style=for-the-badge)](package.json)
+[![Version](https://img.shields.io/badge/version-1.2.2-emerald.svg?style=for-the-badge)](package.json)
 [![Electron](https://img.shields.io/badge/Electron-44.2.0-47848F?style=for-the-badge&logo=electron&logoColor=white)](https://electronjs.org/)
 [![Android](https://img.shields.io/badge/Android-Capacitor-3DDC84?style=for-the-badge&logo=android&logoColor=white)](android/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
@@ -13,6 +14,90 @@
 <p align="center">
   A blazing-fast, modern, feature-packed terminal workstation designed for DevOps engineers, sysadmins, and network professionals. Built with Electron, Capacitor, React 19, Vite, xterm.js, and Node.js.
 </p>
+
+---
+
+### 🖥️ Multi-Protocol Workstation & Local PTY
+![xTerminal Terminal Workspace](img/img1.png)
+*Full-duplex terminal workspace featuring persistent sessions, split panes, theme switching, keepalive, and live status bar.*
+
+</div>
+
+---
+
+## 📸 Visual Showcase & Feature Tour
+
+<div align="center">
+
+### 📊 System Health & Performance Dashboard
+![Workstation Dashboard](img/img2.png)
+*Real-time CPU and RAM hardware telemetry, active sessions feed, and background SFTP transfer queues.*
+
+---
+
+### 🌐 Multi-Host Command Orchestrator & Broadcast Runner
+![Multi-Host Command Orchestrator](img/img8.png)
+*Execute shell commands in parallel across multiple target servers with safety risk pre-analysis and synchronized real-time comparison.*
+
+---
+
+### 👥 Real-Time Multiplayer Collaboration & Team Terminals
+| Session Sharing & Access Control | Live Collaboration & Presence Drawer |
+| :---: | :---: |
+| ![Share Multiplayer Session](img/img6.png) | ![Multiplayer Collab Sidebar](img/img7.png) |
+| *Share session via direct link with custom control policy* | *Live participant directory, typing markers & chat* |
+
+---
+
+### 🔄 Universal Bookmark & Connection Importer
+![Universal Connection Importer](img/img5.png)
+*One-click migration from PuTTY Registry, SecureCRT XML, Termius JSON, MobaXterm INI, OpenSSH Config, and CSV/Excel.*
+
+---
+
+### 🗂️ Advanced Host & Environment Management
+| Add New Server (SSH / Telnet) | Custom Host Groups & Color Badges |
+| :---: | :---: |
+| ![Add New Server](img/img3.png) | ![Create New Host Group](img/img4.png) |
+| *Encrypted password store, bastions & keystore* | *Organize infrastructure with custom environments* |
+
+---
+
+### 🔌 Zero-Install Remote Serial Bridge (WebSerial over IP)
+| Remote Serial URL Generator | Active Session Waiting Portal |
+| :---: | :---: |
+| ![Remote Serial URL Generator](img/img10.png) | ![Active Remote Serial Portal](img/img11.png) |
+| *Auto-detects host IP and generates secure remote link* | *Live status waiting for client to connect console cable* |
+
+### 🌐 Client-Side Browser Serial Connection (Zero Software Install)
+![Client-Side WebSerial Tunnel](img/img12.png)
+*Remote client opens the link in Chrome/Edge, selects their USB Serial adapter, and connects directly into your xTerminal console.*
+
+---
+
+### 📁 SFTP Dual-Pane File Manager (Real SSH2 Engine)
+![SFTP File Manager](img/img9.png)
+*Direct SSH Port 22 Subsystem file manager with quick folder jumps, dual-pane browsing, and drag-and-drop transfers.*
+
+---
+
+### 🤖 Android ADB Console & WebUSB Remote Bridge
+![Android ADB Console](img/img13.png)
+*Interactive shell, live logcat streaming, hardware telemetry, and zero-install WebUSB remote tunneling.*
+
+---
+
+### 📡 TFTP Server & Remote Transfer Client (RFC 1350 / 2348)
+![TFTP Server & Client](img/img14.png)
+*Native UDP TFTP daemon and client for switch firmware staging, backup, and restore with live transfer speed metrics.*
+
+---
+
+### 🛠️ Network Diagnostics, Scanner & System Settings
+| Network Diagnostics & Port Scanner | Workstation Settings & Interface Discovery |
+| :---: | :---: |
+| ![Network Diagnostics](img/img15.png) | ![Settings & Config](img/img16.png) |
+| *Multithreaded port scanner, ICMP ping, traceroute, WoL* | *Serial defaults, reverse proxy setup & LAN/WAN IP detection* |
 
 </div>
 
@@ -50,20 +135,27 @@ npm run setup
 ### 🌐 Multi-Protocol Terminal Engine
 - **Full-Duplex SSH Engine**: Powered by `ssh2` with support for password authentication, private keys (Ed25519, RSA, ECDSA), and interactive masked password prompts.
 - **Real-Time Telnet Engine**: Native raw TCP Telnet client (Port 23 or custom) with auto-login detection (`login:`, `password:`) and terminal stream piping.
-- **Local Station PTY**: Instant local terminal access (PowerShell on Windows, Bash/Zsh on Linux and macOS).
+- **Local Station PTY**: Instant local terminal access (PowerShell on Windows, Bash/Zsh on Linux and macOS) with automatic user home directory detection.
 - **Serial TTY & Microcontroller Console**: Local hardware serial communication via WebSerial API (COM / TTY ports, baud rates up to 921600, data bits, parity, stop bits, flow control, RTS/DTR pins, and 250ms Break signals).
-- **TFTP Engine**: Built-in TFTP client and server for router/switch firmware and configuration management.
+- **TFTP Engine (Server & Client)**: Full RFC 1350 & RFC 2348 implementation for firmware image transfers, Cisco/MikroTik backup & restore, with configurable block sizes and live transfer speed metrics.
 
 ---
 
-### 🔌 Remote Serial Console Bridge (WebSerial over IP / Reverse Console Tunnel)
-A groundbreaking feature for remote network engineering: Access and configure remote switches/routers (Cisco, MikroTik, Juniper, Huawei, Fortinet) even when they have **zero IP or network configuration**!
+### 🎥 Terminal Session Recording & Replay Player (Asciinema v2)
+- **1-Click Live Recording**: Top toolbar record button with live timer (`REC 0:14`) captures all user keystrokes and server outputs with millisecond precision.
+- **Interactive Player & Saved Library**: Dedicated modal with timeline scrubber, playback speeds (`1x`, `2x`, `4x`), restart, and terminal text search.
+- **Asciinema v2 Support**: Export and import standard `.cast` session files for team audits, documentation, and training walkthroughs.
+- **Demo Mode**: Instant preloaded interactive session demonstration without requiring an active remote server.
+
+---
+
+### 🔌 Remote Serial Console Bridge (WebSerial over IP / Reverse Tunnel)
+Access and configure remote switches/routers (Cisco, MikroTik, Juniper, Huawei, Fortinet) even when they have **zero IP or network configuration**!
 - **Shareable Client Portal**: Generate an instant, secure remote link from xTerminal and send it to your remote client via WhatsApp, Slack, or Email.
 - **Zero Client Installation**: The client simply opens the link in Google Chrome or Microsoft Edge, plugs their console cable into their laptop, and clicks **Connect**.
 - **Live Bi-Directional Tunnel**: The client's serial data is tunneled directly into your xTerminal console with synchronized bi-directional terminal I/O.
 - **Auto IP Detection & Host Assignment**: Built-in network scanner detects all local host IP addresses (Wi-Fi, Ethernet, LAN, WSL, Hyper-V) and automatically synchronizes with the remote link generator.
 - **Built-in HTTPS Server (:3443)**: Overcomes Chromium's strict `SecureContext` requirement for the Web Serial API on network IP addresses with automated in-memory TLS and WebSocket upgrade (`wss://`).
-- **Hardware Signals & Hex View**: Monitor real-time CTS, DSR, DCD, RI hardware pins, switch between ASCII and Hex views, and send hardware Break signals.
 
 ---
 
@@ -75,54 +167,46 @@ Complete Android management and debugging environment integrated right into xTer
 - **Android 11+ Wireless Debugging Pairing**: Built-in support for 6-digit Wi-Fi pairing codes and dynamic port allocation (`adb pair`).
 - **Live Logcat Streaming**: Real-time logcat viewer with tag/keyword filters, live pausing, and snapshot dumping.
 - **Hardware Specs & Battery Telemetry**: Real-time display of manufacturer, model, Android OS version, SDK level, CPU architecture, security patch level, battery percentage, charging state, and temperature.
-- **Reboot Controls**: 1-click reboot to System, Recovery, or Bootloader (Fastboot) mode.
-- **3rd-Party Package Inspector**: View all installed third-party APK packages with instant search and package name copy.
-- **Live Display Screen Capture**: Capture high-resolution PNG screenshots from the phone display directly in xTerminal.
-- **Remote Client ADB Tunnel (Zero-Install WebUSB)**: Send a secure link (`https://yourdomain/adb-bridge.html?session=...`) to remote clients. They open it in Chrome, plug in their phone via USB, and the ADB connection is tunneled across the internet into your xTerminal workstation with zero client-side driver or tool installation!
-- **Auto-Polling & Smart Authorization Alert**: Detects unauthorized devices and guides the user to tap "Always allow from this computer" on their phone screen, plus one-click ADB host server daemon reset (`kill-server` & `start-server`).
+- **Remote Client ADB Tunnel (Zero-Install WebUSB)**: Send a secure link (`https://yourdomain/adb-bridge.html?session=...`) to remote clients. They plug in their phone via USB and the ADB session is securely tunneled into xTerminal.
 
 ---
 
 ### 👥 xTerminal Multiplayer (Collaborative Remote Terminal)
-- **Real-Time Multi-User Collaboration**: Multiple authorized engineers join the same SSH, Telnet, or Local terminal session in real time with synchronized output and ordered keystroke processing.
+- **Real-Time Multi-User Collaboration**: Multiple engineers join the same SSH, Telnet, or Local terminal session in real time with synchronized output and ordered keystroke processing.
 - **Active Tab Participant Stack**: Circular participant avatar stack displayed right on the active terminal tab with latency indicators and active remote control keyboard badges.
 - **Floating Cursor Presence Marker**: Dynamic rounded avatar badge with a directional pointer triangle indicating exactly where a teammate is typing in real time.
 - **Terminal Control System**: Single-controller arbitration by default with "Request Control", host approval/denial prompts, and instant host "Take Control" override.
 - **Collaboration Drawer**: Built-in 3-tab drawer containing live participant directory, team text chat, and security audit log.
-- **Share & Join Modals**: Easy invite modal with Session ID (`XT-XXXXXX`), direct shareable join URL, and custom nickname & avatar selection.
-- **Interactive Demo Playground**: Built-in simulation of teammates (Stan and Sarah) for instant testing of presence, chat, control requests, and typing badges without needing a second machine.
+
+---
 
 ### 🔒 Persistent Session Architecture
 - **Zero Reconnect on Tab Switch**: Terminal sessions stay persistently mounted in background memory and the DOM. Switching between tabs or navigating across views (Hosts, SFTP, Vault, Settings) **never drops your active connection**.
 - **Multi-Tab & Split Panes**: Run multiple concurrent sessions side-by-side or stacked vertically/horizontally.
 - **PuTTY & MobaXterm Auto-Copy**: Selecting text automatically copies it to the clipboard; right-click pastes immediately.
 
-### 🖥️ Host & Inventory Management
-- **Host Groups**: Organize servers into custom groups with distinctive color badges and descriptions.
-- **Dynamic Environment Management**: Add, edit, and manage custom environments (Production, Staging, Database, Network, Lab, Edge, etc.) with custom color accents.
-- **Saved Credentials & Auto-Login**: Safely save passwords or assign keys for one-click auto-connect.
-- **Pre-Flight Reachability Probes**: Instant network latency diagnostics and DNS resolution checks before connecting.
-- **Proxy Jump / Bastion Support**: Multi-hop SSH proxy jump chains.
-
-### 📱 Android & Mobile Support
-- **Full Capacitor Android Integration**: Compile and run xTerminal on Android phones and tablets.
-- **Mobile Soft Keyboard & Accessory Bar**: Touch-friendly virtual accessory keys (Ctrl, Alt, Esc, Tab, Arrows) designed specifically for mobile terminal sessions without duplicate keystrokes.
-- **Standalone Android APK**: Pre-built Android package ready in `release/xTerminal-1.0.0.apk`.
+---
 
 ### 🖥️ In-Built VNC Remote Desktop (noVNC)
 - **Zero-External-Server noVNC Engine**: Built-in HTML5 Canvas RFB client powered by `@novnc/novnc` and an embedded Node.js TCP-to-WebSocket bridge (`/ws/vnc`). Connect directly to any Linux, macOS, or Windows VNC server (Port 5900) with zero external servers, Docker containers, websockify, or Guacamole daemons!
 - **Interactive & View-Only Controls**: Full mouse and keyboard event mapping with instant view-only toggle for non-intrusive monitoring.
-- **Ctrl+Alt+Del & Clipboard Sync**: One-click key sequence injection (Ctrl+Alt+Del, Super/WinKey, Esc, Tab) and bidirectional clipboard synchronization between local and remote workstations.
+- **Ctrl+Alt+Del & Clipboard Sync**: One-click key sequence injection (Ctrl+Alt+Del, Super/WinKey, Esc, Tab) and bidirectional clipboard synchronization.
+
+---
 
 ### 📁 Advanced SFTP Explorer & File Manager
 - **Dual-Pane File Browser**: Browse remote server directories side-by-side with local files.
 - **Background Transfer Queue**: Live upload/download queue with progress bars, pause/resume, and speed metrics.
 - **Quick Actions**: Edit, rename, delete, chmod, and inspect remote files directly with breadcrumb navigation and search.
 
+---
+
 ### 🛡️ Safety Engine & Security Vault
 - **Command Risk Analyzer**: Pre-evaluates terminal commands and highlights risk levels (`SAFE`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`).
 - **Encrypted Local Vault**: AES-256 encrypted credential vault with auto-lock timer and clipboard timeout.
 - **Audit Logging**: Comprehensive security audit trail of all sessions, connections, and executed commands.
+
+---
 
 ### 🤖 Gemini AI Copilot
 - Integrated terminal diagnosis powered by Google Gemini.
@@ -130,54 +214,17 @@ Complete Android management and debugging environment integrated right into xTer
 
 ---
 
-## 🚀 Quick Start
-
-### Prerequisites
-- **Node.js**: v18.0.0 or higher
-- **npm**: v9.0.0 or higher
-
-### Installation
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal.git
-   cd xTerminal-Next-Gen-SSH-Network-Terminal
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Configure environment variables (optional for AI features):**
-   ```bash
-   cp .env.example .env
-   # Add your GEMINI_API_KEY if using AI terminal copilot
-   ```
-
-4. **Run in development mode:**
-   ```bash
-   npm run dev
-   ```
-
-5. **Launch Electron Desktop App:**
-   ```bash
-   npm run electron:start
-   ```
-
----
-
 ## 📦 Building Binaries
 
-### Automated Multi-Platform Cross-Build Engine (Windows, Android, Linux, macOS)
-xTerminal includes an interactive PowerShell packaging utility that automates versioning across all targets:
+### Automated Multi-Platform Cross-Build Engine
+xTerminal includes an interactive PowerShell packaging utility that automates building across all targets:
 ```powershell
 # Interactive menu: choose Windows, Android, Linux, macOS, or All
 .\build.ps1
 
 # Direct target build with custom version
-.\build.ps1 -Target win -Version 1.2.0
-.\build.ps1 -Target android -Version 1.2.0
+.\build.ps1 -Target win -Version 1.2.2
+.\build.ps1 -Target android -Version 1.2.2
 ```
 
 ### Desktop (Electron)
@@ -202,7 +249,6 @@ npm run build:electron:linux
 > xattr -cr /Applications/xTerminal.app
 > ```
 
-
 ### Android APK (Capacitor)
 ```bash
 # Build frontend web assets & sync with Android
@@ -212,7 +258,7 @@ npx cap sync android
 # Compile Debug APK using Gradle
 cd android && ./gradlew assembleDebug
 ```
-*Output location: `release/xTerminal-1.2.0.apk`*
+*Output location: `release/xTerminal-1.2.2.apk`*
 
 ---
 
@@ -232,51 +278,15 @@ cd android && ./gradlew assembleDebug
 ## 🛠️ Tech Stack
 
 - **Frontend**: React 19, TypeScript, Tailwind CSS, Lucide Icons, xterm.js, xterm-addon-fit, xterm-addon-search
-- **Backend / Desktop**: Electron, Node.js, Express, `ws` (WebSockets), `ssh2` (SSH & SFTP engine), Node `net` (Telnet TCP bridge), `selfsigned` (TLS engine)
+- **Backend / Desktop**: Electron 44, Node.js, Express, `ws` (WebSockets), `ssh2` (SSH & SFTP engine), Node `net` (Telnet TCP bridge), `selfsigned` (TLS engine)
 - **Mobile**: Capacitor 6, Android SDK, Gradle
 - **Bundler & Build**: Vite 6, esbuild, electron-builder
 - **AI Integration**: `@google/genai` (Google Gemini API)
 
 ---
 
-## 📂 Project Structure
-
-```
-xterminal/
-├── android/                # Capacitor Android native project & Gradle build
-├── electron/               # Electron main and preload scripts
-│   ├── main.cjs            # Electron window management & lifecycle
-│   └── preload.cjs         # Context bridge
-├── build.ps1               # Multi-platform interactive cross-build & packaging engine
-├── public/                 # Static assets & client portals
-│   ├── serial-bridge.html  # Zero-install WebSerial client portal (COM Ports)
-│   └── adb-bridge.html     # Zero-install WebUSB client portal (Android ADB)
-├── release/                # Compiled desktop installers and Android APK
-├── src/
-│   ├── components/         # React UI views & components
-│   │   ├── HostsView.tsx           # Host, Group & Environment Manager
-│   │   ├── TerminalWorkspace.tsx   # Persistent multi-tab container
-│   │   ├── XTermPane.tsx           # xterm.js terminal pane with WebSocket bridge
-│   │   ├── SerialConsoleView.tsx   # Serial TTY & Remote Bridge Manager
-│   │   ├── AdbManagerView.tsx      # Android ADB Console (Shell, Logcat, Specs, WebUSB)
-│   │   ├── SerialSettingsModal.tsx # Serial & Remote IP Tunnel configuration
-│   │   ├── SftpView.tsx            # Dual-pane SFTP file browser
-│   │   ├── VaultView.tsx           # Encrypted credential keystore
-│   │   ├── SettingsView.tsx        # System settings & IP Detection
-│   │   └── QuickConnectModal.tsx   # Fast connection dialog
-│   ├── lib/
-│   │   ├── storage.ts      # Local persistent storage & defaults
-│   │   ├── safetyEngine.ts # Command risk evaluation engine
-│   │   └── vault.ts        # Encryption and security helpers
-│   ├── types.ts            # TypeScript interfaces and types
-│   └── App.tsx             # Main application layout and state
-├── server.ts               # Express, WebSocket, HTTPS & ADB bridge server
-├── package.json            # Scripts and dependencies
-└── vite.config.ts          # Vite build configuration
-```
-
----
-
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).
+<br>
+<sub>Powered by <a href="https://github.com/lyarinet">Lyarinet</a></sub>

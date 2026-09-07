@@ -4,12 +4,14 @@ on:
   push:
     tags:
       - 'v*.*.*'
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g. v1.2.0)'
+        description: 'Release version (e.g. v1.2.2)'
         required: true
-        default: 'v1.2.0'
+        default: 'v1.2.2'
 
 # Needed to create GitHub releases and upload artifacts
 permissions:
@@ -209,8 +211,11 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "TAG=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            VERSION=$(node -p "require('./package.json').version")
+            echo "TAG=v${VERSION}" >> $GITHUB_OUTPUT
           fi
 
       - name: Download all platform artifacts

@@ -61,6 +61,8 @@ jobs:
   build-linux:
     name: 🐧 Linux Desktop (.deb + AppImage + Snap)
     runs-on: ubuntu-latest
+    env:
+      SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -100,7 +102,7 @@ jobs:
           retention-days: 5
 
       - name: Publish Snap to Canonical Snap Store
-        if: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS != '' }}
+        if: ${{ env.SNAPCRAFT_STORE_CREDENTIALS != '' }}
         uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}

@@ -11,26 +11,20 @@
     Optional version string (e.g. 1.2.4). Automatically updates all project configuration files.
 #>
 
-param(
-    [string]$Target = "",
-    [string]$Version = ""
-)
+# Interactive Menu
+# .\build.ps1
 
-$ErrorActionPreference = "Stop"
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location $ScriptDir
+# Direct Google Play Store AAB
+# .\build.ps1 -Target aab
 
-# --- Version Management Functions ---
-function Get-AppVersion {
-    $pkgJsonPath = Join-Path $ScriptDir "package.json"
-    if (Test-Path $pkgJsonPath) {
-        try {
-            $json = Get-Content $pkgJsonPath -Raw | ConvertFrom-Json
-            if ($json.version) { return $json.version }
-        } catch {}
-    }
-    return "1.0.0"
-}
+# Direct Android APK
+# .\build.ps1 -Target apk
+
+# View Keystore SHA-256 Fingerprints
+# .\build.ps1 -Target keystore
+
+# Version update across all platforms
+# .\build.ps1 -Version 1.2.5
 
 function Set-AppVersion([string]$newVer) {
     if (-not $newVer) { return }

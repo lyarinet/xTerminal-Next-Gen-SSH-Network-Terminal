@@ -8,8 +8,9 @@
 ### Next-Generation Multi-Protocol SSH, Telnet, Serial, Android ADB & DevOps Workstation
 **Enterprise Remote Access, Cloud Infrastructure & Network Engineering Suite**
 
-[![Version](https://img.shields.io/badge/version-1.2.5-emerald.svg?style=for-the-badge&logo=semver&logoColor=white)](package.json)
+[![Version](https://img.shields.io/badge/version-1.2.6-emerald.svg?style=for-the-badge&logo=semver&logoColor=white)](package.json)
 [![Snapcraft](https://img.shields.io/badge/Snapcraft-xterminal-82BEA0.svg?style=for-the-badge&logo=snapcraft&logoColor=white)](https://snapcraft.io/xterminal)
+[![Fedora Copr](https://img.shields.io/badge/Fedora_Copr-xterminal-2F406A.svg?style=for-the-badge&logo=fedora&logoColor=white)](https://copr.fedorainfracloud.org/coprs/asifagaria/xterminal/)
 [![Electron](https://img.shields.io/badge/Electron-44.2-47848F?style=for-the-badge&logo=electron&logoColor=white)](https://electronjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -149,9 +150,10 @@ Download official pre-built packages from the [**Releases Page**](https://github
 | Platform | Format | How to Install |
 | :--- | :--- | :--- |
 | 🐧 **Linux (Snap)** | Canonical Snap | `sudo snap install xterminal` |
-| 🐧 **Linux (Portable)**| AppImage | `chmod +x xTerminal-*.AppImage && ./xTerminal-*.AppImage` |
+| 🐧 **Linux (Fedora Copr)** | Fedora Repository | `sudo dnf copr enable asifagaria/xterminal && sudo dnf install xterminal` |
+| 🐧 **Linux (RPM Package)** | `.rpm` (Fedora/RHEL/openSUSE) | `sudo dnf install ./xTerminal-*.rpm` |
 | 🐧 **Linux (Debian/Ubuntu)** | `.deb` package | `sudo dpkg -i xTerminal_*_amd64.deb` |
-| 🐧 **Linux (Fedora/RHEL)** | `.rpm` package | `sudo dnf install ./xTerminal-*.rpm` |
+| 🐧 **Linux (Portable)**| AppImage | `chmod +x xTerminal-*.AppImage && ./xTerminal-*.AppImage` |
 | 🪟 **Windows** | Setup `.exe` / Portable | Run `xTerminal Setup 1.2.6.exe` or portable standalone `.exe` |
 | 🍎 **macOS** | `.dmg` (Apple Silicon & Intel) | Drag `xTerminal.app` to `/Applications` |
 | 🤖 **Android** | `.apk` / Play Store `.aab` | Download `xTerminal-1.2.6.apk` or install via Google Play |

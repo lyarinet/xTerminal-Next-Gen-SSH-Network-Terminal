@@ -18,6 +18,9 @@
   <a href="https://copr.fedorainfracloud.org/coprs/asifagaria/xterminal/">
     <img src="https://img.shields.io/badge/Fedora_Copr-xterminal-2F406A.svg?style=for-the-badge&logo=fedora&logoColor=white" alt="Fedora Copr" />
   </a>
+  <a href="https://play.google.com/store/apps/details?id=com.lyarinet.xterminal">
+    <img src="https://img.shields.io/badge/Google_Play-xTerminal-414141.svg?style=for-the-badge&logo=google-play&logoColor=white" alt="Google Play" />
+  </a>
   <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/stargazers">
     <img src="https://img.shields.io/github/stars/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal?style=for-the-badge&logo=github&color=gold" alt="GitHub Stars" />
   </a>
@@ -61,8 +64,11 @@
   <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.6/xTerminal-1.2.6.AppImage">
     <img src="https://img.shields.io/badge/Linux-AppImage-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Linux AppImage" />
   </a>
+  <a href="https://play.google.com/store/apps/details?id=com.lyarinet.xterminal">
+    <img src="https://img.shields.io/badge/Google_Play-Get_it_on_Play_Store-414141?style=for-the-badge&logo=googleplay&logoColor=white" alt="Google Play Store" />
+  </a>
   <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.6/app-release-signed.apk">
-    <img src="https://img.shields.io/badge/Android-Download_.apk-3DDC84?style=for-the-badge&logo=android&logoColor=black" alt="Android APK" />
+    <img src="https://img.shields.io/badge/Android-Direct_.apk-3DDC84?style=for-the-badge&logo=android&logoColor=black" alt="Android APK" />
   </a>
 </p>
 
@@ -237,7 +243,8 @@ Download pre-compiled release artifacts from the official [**GitHub Releases Pag
 | 🐧 **Linux (Portable)** | `.AppImage` | `chmod +x xTerminal-*.AppImage && ./xTerminal-*.AppImage` |
 | 🪟 **Windows** | Setup `.exe` / Portable | Run `xTerminal.Setup.1.2.6.exe` or standalone portable binary |
 | 🍎 **macOS** | `.dmg` (Apple Silicon & Intel) | Open `xTerminal-1.2.6.dmg` and drag `xTerminal.app` to `/Applications` |
-| 🤖 **Android** | `.apk` / Play Store | Download `app-release-signed.apk` or install from Google Play |
+| 🤖 **Android (Google Play)** | Official Play Store | [**Install from Google Play**](https://play.google.com/store/apps/details?id=com.lyarinet.xterminal) |
+| 🤖 **Android (Direct APK)** | `.apk` standalone | [**Download APK (v1.2.6)**](https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.6/app-release-signed.apk) |
 
 > [!NOTE]
 > **Hardware & Serial Permissions for Linux Snap:**  

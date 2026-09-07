@@ -64,6 +64,7 @@ dependencies {
     implementation project(':capacitor-cordova-android-plugins')
     implementation 'org.java-websocket:Java-WebSocket:1.5.7'
     implementation 'com.github.mwiede:jsch:0.2.23'
+    implementation 'com.google.android.play:app-update:2.1.0'
 }
 
 apply from: 'capacitor.build.gradle'

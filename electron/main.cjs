@@ -129,7 +129,9 @@ function createWindow() {
       ? path.join(__dirname, '../build/icon.ico')
       : path.join(__dirname, '../build/icon.png'),
     frame: true,
+    movable: true,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    trafficLightPosition: { x: 16, y: 10 },
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,

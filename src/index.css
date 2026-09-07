@@ -24,4 +24,21 @@
     opacity: 0 !important;
     pointer-events: none !important;
   }
+
+  /* Electron desktop window draggable regions for macOS & Windows */
+  .app-drag-region {
+    -webkit-app-region: drag;
+    user-select: none;
+  }
+
+  .app-no-drag,
+  button,
+  input,
+  select,
+  textarea,
+  a,
+  [role="button"] {
+    -webkit-app-region: no-drag;
+  }
 }
+

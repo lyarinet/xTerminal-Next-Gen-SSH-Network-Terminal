@@ -558,29 +558,48 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#0A0A0B] font-sans antialiased text-[#E0E0E0] select-none">
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0A0A0B] font-sans antialiased text-[#E0E0E0] select-none">
       {/* Startup Animated Splash Screen */}
       {showSplashScreen && (
         <SplashScreen onFinish={() => setShowSplashScreen(false)} />
       )}
 
-      {/* Primary Left Navigation Bar (Desktop Persistent + Mobile Drawer) */}
-      <Sidebar
-        currentView={activeView}
-        onSelectView={setActiveView}
-        activeTabsCount={tabs.length}
-        activeTunnelsCount={portForwards.filter((p) => p.status === 'active').length}
-        vaultSettings={vaultSettings}
-        onToggleVaultLock={handleToggleVaultLock}
-        onOpenQuickConnect={() => setIsQuickConnectOpen(true)}
-        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-        onOpenAiAssistant={() => setIsAiAssistantOpen(true)}
-        isMobileOpen={isMobileSidebarOpen}
-        onCloseMobile={() => setIsMobileSidebarOpen(false)}
-      />
+      {/* Desktop & macOS Draggable Titlebar */}
+      <div className="hidden md:flex h-8 bg-[#0E0E10] border-b border-[#222224] items-center justify-between px-3 shrink-0 select-none app-drag-region z-40">
+        <div className="flex items-center gap-3 app-no-drag">
+          {/* Spacer for macOS traffic light buttons (Close, Minimize, Zoom) */}
+          <div className="w-[72px] shrink-0" />
+          <div className="flex items-center gap-2 text-xs font-semibold text-gray-300">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent font-bold">
+              xTerminal
+            </span>
+            <span className="text-[10px] text-gray-500 font-mono">Pro Workstation</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 app-drag-region text-[11px] text-gray-500 font-mono">
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1C1C1E] text-gray-400 border border-[#222224]">v1.2.1</span>
+        </div>
+      </div>
 
-      {/* Main Viewport Container */}
-      <main className="flex-1 flex flex-col overflow-hidden relative">
+      <div className="flex flex-1 overflow-hidden">
+        {/* Primary Left Navigation Bar (Desktop Persistent + Mobile Drawer) */}
+        <Sidebar
+          currentView={activeView}
+          onSelectView={setActiveView}
+          activeTabsCount={tabs.length}
+          activeTunnelsCount={portForwards.filter((p) => p.status === 'active').length}
+          vaultSettings={vaultSettings}
+          onToggleVaultLock={handleToggleVaultLock}
+          onOpenQuickConnect={() => setIsQuickConnectOpen(true)}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+          onOpenAiAssistant={() => setIsAiAssistantOpen(true)}
+          isMobileOpen={isMobileSidebarOpen}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        />
+
+        {/* Main Viewport Container */}
+        <main className="flex-1 flex flex-col overflow-hidden relative">
         {/* Mobile Header Bar */}
         <header className="md:hidden h-12 bg-[#111112] border-b border-[#222224] px-3 flex items-center justify-between shrink-0 select-none z-20">
           <div className="flex items-center gap-2.5">
@@ -893,6 +912,7 @@ export default function App() {
           </div>
         </footer>
       </main>
+      </div>
 
       {/* Universal Connection Importer */}
       <UniversalImportModal

@@ -4689,6 +4689,7 @@ async function startServer() {
     sshWss.on("connection", (ws: WebSocket) => {
       let sshClient: SSHClient | null = null;
       let localProcess: any = null;
+      let hasPty = false;
       let stream: any = null;
 
       let hostParams: any = null;
@@ -4752,12 +4753,8 @@ async function startServer() {
               });
 
               stream.on("close", () => {
-                ws.send(`\r\n\x1b[90m[xTerminal] Remote session closed.\x1b[0m\r\n`);
+                ws.send("\r\n\x1b[90m[xTerminal] Remote SSH shell session ended.\x1b[0m\r\n");
                 ws.close();
-                if (sshClient) {
-                  try { sshClient.end(); } catch {}
-                  sshClient = null;
-                }
               });
 
               stream.stderr.on("data", (chunk: Buffer) => {
@@ -4769,55 +4766,33 @@ async function startServer() {
           );
         });
 
-        sshClient.on("error", (err: any) => {
-          const errMsg = err.message || "Unknown SSH error";
-          if (
-            errMsg.includes("All configured authentication methods failed") ||
-            errMsg.includes("authentication") ||
-            errMsg.includes("denied")
-          ) {
-            ws.send(`\r\n\x1b[31m[xTerminal] Authentication failed. Please enter password.\x1b[0m\r\n`);
-            isEnteringPassword = true;
-            passwordBuffer = "";
-            ws.send(`\x1b[33m${params.username || "root"}@${params.host}'s password: \x1b[0m`);
-          } else {
-            ws.send(`\r\n\x1b[31m[xTerminal] SSH Connection Failed: ${errMsg}\x1b[0m\r\n`);
-            ws.close();
-          }
+        sshClient.on("error", (err) => {
+          ws.send(`\r\n\x1b[31m[xTerminal] SSH Connection Error: ${err.message}\x1b[0m\r\n`);
+          ws.close();
         });
 
         sshClient.on("close", () => {
-          sshClient = null;
+          ws.send("\r\n\x1b[90m[xTerminal] SSH connection closed.\x1b[0m\r\n");
+          ws.close();
         });
 
-        const connConfig: any = {
-          host: params.host,
-          port: Number(params.port) || 22,
-          username: params.username || "root",
-          readyTimeout: 25000,
-          keepaliveInterval: 15000,
-          keepaliveCountMax: 3,
-        };
-
-        if (effectivePassword) {
-          connConfig.password = effectivePassword;
-          connConfig.tryKeyboard = true;
-          sshClient.on("keyboard-interactive", (_name, _instructions, _lang, prompts, finish) => {
-            if (prompts.length > 0) {
-              finish(prompts.map(() => effectivePassword));
-            } else {
-              finish([]);
-            }
-          });
-        }
-
-        if (params.privateKey) {
-          connConfig.privateKey = params.privateKey;
-          if (params.passphrase) connConfig.passphrase = params.passphrase;
-        }
-
         try {
-          sshClient.connect(connConfig);
+          const connectConfig: any = {
+            host: params.host,
+            port: Number(params.port) || 22,
+            username: params.username || "root",
+            readyTimeout: 20000,
+            keepaliveInterval: 10000,
+          };
+
+          if (params.privateKey) {
+            connectConfig.privateKey = params.privateKey;
+            if (params.passphrase) connectConfig.passphrase = params.passphrase;
+          } else {
+            connectConfig.password = effectivePassword;
+          }
+
+          sshClient.connect(connectConfig);
         } catch (err: any) {
           ws.send(`\r\n\x1b[31m[xTerminal] SSH Config Error: ${err.message}\x1b[0m\r\n`);
           ws.close();
@@ -4825,18 +4800,10 @@ async function startServer() {
       };
 
       const startTelnetConnection = (params: any) => {
-        if (sshClient) {
-          try { sshClient.end(); } catch {}
-          sshClient = null;
-        }
-
         const port = Number(params.port) || 23;
-        ws.send(`\r\n\x1b[36m[xTerminal] Connecting to Telnet host ${params.host}:${port}...\x1b[0m\r\n`);
+        ws.send(`\r\n\x1b[36m[xTerminal] Connecting to raw Telnet stream at ${params.host}:${port}...\x1b[0m\r\n`);
 
-        const socket = new net.Socket();
-        socket.setTimeout(25000); // 25s connection handshake timeout
-
-        socket.connect(port, params.host, () => {
+        const socket = net.createConnection({ host: params.host, port }, () => {
           socket.setTimeout(0); // Disable idle timeout once connected
           socket.setKeepAlive(true, 15000); // Keep TCP connection alive
           ws.send(`\x1b[32m[xTerminal] ✔ Telnet Connection Established to ${params.host}:${port}\x1b[0m\r\n\r\n`);
@@ -4939,25 +4906,52 @@ async function startServer() {
               const { cols = 80, rows = 24 } = data;
               const isWin = process.platform === "win32";
               const userHome = os.homedir() || process.env.USERPROFILE || process.env.HOME || process.cwd();
-              const shellCmd = isWin ? "powershell.exe" : (process.env.SHELL || "bash");
-              const shellArgs = isWin
-                ? ["-NoLogo", "-NoExit", "-ExecutionPolicy", "Bypass"]
-                : ["-i"];
 
-              ws.send(`\r\n\x1b[32m[xTerminal] Local Station Initialized (${isWin ? "PowerShell" : "Bash"})\x1b[0m\r\n\r\n`);
+              if (!isWin) {
+                try {
+                  const pyBin = fs.existsSync("/usr/bin/python3") ? "/usr/bin/python3" : "python3";
+                  const pyScript = "import pty, os, sys; shell = os.environ.get('SHELL', '/bin/zsh' if sys.platform == 'darwin' else '/bin/bash'); pty.spawn([shell, '-l'])";
+                  localProcess = spawn(pyBin, ["-c", pyScript], {
+                    cwd: userHome,
+                    env: {
+                      ...process.env,
+                      TERM: "xterm-256color",
+                      COLUMNS: String(cols),
+                      LINES: String(rows),
+                      HOME: userHome,
+                      USERPROFILE: userHome,
+                    },
+                    shell: false,
+                  });
+                  hasPty = true;
+                  const shellName = process.platform === "darwin" ? "Zsh" : "Bash";
+                  ws.send(`\r\n\x1b[32m[xTerminal] Local Station Initialized (${shellName})\x1b[0m\r\n\r\n`);
+                } catch {
+                  hasPty = false;
+                }
+              }
 
-              localProcess = spawn(shellCmd, shellArgs, {
-                cwd: userHome,
-                env: {
-                  ...process.env,
-                  TERM: "xterm-256color",
-                  COLUMNS: String(cols),
-                  LINES: String(rows),
-                  HOME: userHome,
-                  USERPROFILE: userHome,
-                },
-                shell: false,
-              });
+              if (!localProcess) {
+                const shellCmd = isWin ? "powershell.exe" : (process.env.SHELL || "bash");
+                const shellArgs = isWin
+                  ? ["-NoLogo", "-NoExit", "-ExecutionPolicy", "Bypass"]
+                  : ["-i"];
+
+                ws.send(`\r\n\x1b[32m[xTerminal] Local Station Initialized (${isWin ? "PowerShell" : "Bash"})\x1b[0m\r\n\r\n`);
+
+                localProcess = spawn(shellCmd, shellArgs, {
+                  cwd: userHome,
+                  env: {
+                    ...process.env,
+                    TERM: "xterm-256color",
+                    COLUMNS: String(cols),
+                    LINES: String(rows),
+                    HOME: userHome,
+                    USERPROFILE: userHome,
+                  },
+                  shell: false,
+                });
+              }
 
               localProcess.stdout.on("data", (chunk: Buffer) => {
                 if (ws.readyState === WebSocket.OPEN) {
@@ -4995,10 +4989,13 @@ async function startServer() {
             stream.write(rawMessage);
           } else if (localProcess && localProcess.stdin) {
             try {
-              const inputStr = rawMessage.toString();
-              if (process.platform === "win32") {
+              if (hasPty) {
+                localProcess.stdin.write(rawMessage);
+              } else if (process.platform === "win32") {
+                const inputStr = rawMessage.toString();
                 localProcess.stdin.write(inputStr.replace(/\r(?!\n)/g, "\r\n"));
               } else {
+                const inputStr = rawMessage.toString();
                 localProcess.stdin.write(inputStr.replace(/\r/g, "\n"));
               }
             } catch (err) {

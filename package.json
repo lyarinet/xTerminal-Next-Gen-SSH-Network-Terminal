@@ -1,8 +1,8 @@
 {
-  "name": "xterminal-desktop",
+  "name": "xterminal",
   "desktopName": "xTerminal",
   "private": true,
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "xTerminal - Multi-Protocol DevOps & SSH Desktop Workstation",
   "author": {
     "name": "Lyarinet",
@@ -24,7 +24,8 @@
     "build:electron:win": "npm run build && electron-builder --win nsis",
     "build:electron:portable": "npm run build && electron-builder --win portable",
     "build:electron:mac": "npm run build && electron-builder --mac dmg zip",
-    "build:electron:linux": "npm run build && electron-builder --linux AppImage deb",
+    "build:electron:linux": "npm run build && electron-builder --linux AppImage deb snap",
+    "build:electron:snap": "npm run build && electron-builder --linux snap",
     "build:android": "vite build && cap sync android && cap build android",
     "build:tauri": "tauri build"
   },
@@ -86,9 +87,26 @@
       "syncDesktopName": true,
       "synopsis": "Enterprise SSH & Remote Access Workstation",
       "description": "xTerminal Pro — Enterprise Remote Access & Infrastructure Suite. SSH, SFTP, RDP, Serial TTY, Android ADB, TFTP and more.",
+      "executableName": "xterminal",
       "target": [
         "AppImage",
-        "deb"
+        "deb",
+        "snap"
+      ]
+    },
+    "snap": {
+      "grade": "stable",
+      "confinement": "strict",
+      "summary": "Next-Gen SSH, Telnet, Serial & DevOps Terminal Workstation",
+      "useDestructiveMode": true,
+      "plugs": [
+        "default",
+        "network",
+        "network-bind",
+        "home",
+        "removable-media",
+        "serial-port",
+        "raw-usb"
       ]
     },
     "nsis": {

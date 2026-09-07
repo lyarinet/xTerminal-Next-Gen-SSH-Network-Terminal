@@ -4,7 +4,8 @@
 ### Next-Generation Multi-Protocol SSH, Telnet, Serial, Android ADB & DevOps Workstation
 **Enterprise Remote Access, Cloud & Network Engineering Suite**
 
-[![Version](https://img.shields.io/badge/version-1.2.2-emerald.svg?style=for-the-badge)](package.json)
+[![Version](https://img.shields.io/badge/version-1.2.3-emerald.svg?style=for-the-badge)](package.json)
+[![Snapcraft](https://img.shields.io/badge/Snapcraft-xterminal-82BEA0.svg?style=for-the-badge&logo=snapcraft&logoColor=white)](https://snapcraft.io/xterminal)
 [![Electron](https://img.shields.io/badge/Electron-44.2.0-47848F?style=for-the-badge&logo=electron&logoColor=white)](https://electronjs.org/)
 [![Android](https://img.shields.io/badge/Android-Capacitor-3DDC84?style=for-the-badge&logo=android&logoColor=white)](android/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
@@ -282,6 +283,50 @@ cd android && ./gradlew assembleDebug
 - **Mobile**: Capacitor 6, Android SDK, Gradle
 - **Bundler & Build**: Vite 6, esbuild, electron-builder
 - **AI Integration**: `@google/genai` (Google Gemini API)
+
+---
+
+## 📥 Downloads & Installation
+
+Download pre-built binary packages for your platform from the [**Releases Page**](https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases).
+
+### 🐧 Linux (Snap Store)
+Install **xTerminal** directly via Snap:
+```bash
+sudo snap install xterminal
+```
+
+> **🔌 Hardware & Network Permissions for Snap:**
+> To grant xTerminal permission to access serial cables (Cisco console / USB-UART) and Android ADB:
+> ```bash
+> sudo snap connect xterminal:serial-port
+> sudo snap connect xterminal:raw-usb
+> sudo snap connect xterminal:removable-media
+> ```
+
+### 🐧 Linux (AppImage & Debian .deb)
+```bash
+# AppImage (portable)
+chmod +x xTerminal-*.AppImage
+./xTerminal-*.AppImage
+
+# Debian / Ubuntu / Linux Mint (.deb)
+sudo dpkg -i xTerminal_*_amd64.deb
+```
+
+### 🪟 Windows (.exe)
+Download and run the 64-bit installer `xTerminal Setup 1.2.3.exe`.
+
+### 🍎 macOS (.dmg)
+Download `xTerminal-1.2.3-arm64.dmg` (Apple Silicon) or `xTerminal-1.2.3-x64.dmg` (Intel).
+Drag **xTerminal.app** to `/Applications`.
+> If Apple Gatekeeper flags the application as untrusted:
+> ```bash
+> xattr -cr /Applications/xTerminal.app
+> ```
+
+### 🤖 Android (.apk)
+Download `xTerminal-1.2.3.apk`, enable *"Install Unknown Apps"* in Android Settings, and install.
 
 ---
 

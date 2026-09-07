@@ -263,17 +263,17 @@ function Build-Linux {
 
     Build-FrontendAndServer
 
-    Write-Host "`n[2/2] Packaging Linux AppImage & .deb..." -ForegroundColor Cyan
+    Write-Host "`n[2/2] Packaging Linux AppImage, .deb & Canonical .snap..." -ForegroundColor Cyan
     $start = Get-Date
-    cmd.exe /c "npx electron-builder --linux AppImage deb --publish never"
+    cmd.exe /c "npx electron-builder --linux AppImage deb snap --publish never"
     $elapsed = (Get-Date) - $start
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "`n=====================================================================" -ForegroundColor Green
-        Write-Host " [SUCCESS] Linux packages generated successfully in $([math]::Round($elapsed.TotalSeconds, 1))s!" -ForegroundColor Green
+        Write-Host " [SUCCESS] Linux packages (.AppImage, .deb, .snap) generated successfully in $([math]::Round($elapsed.TotalSeconds, 1))s!" -ForegroundColor Green
         Write-Host " Output: $ScriptDir\release" -ForegroundColor White
     } else {
-        Write-Host "`n[NOTE] Linux packaging on native Windows often requires WSL or Docker for .AppImage/.deb signing." -ForegroundColor Yellow
+        Write-Host "`n[NOTE] Linux packaging on native Windows often requires WSL or Docker for Linux snap/AppImage/deb bundling." -ForegroundColor Yellow
     }
 }
 
@@ -460,7 +460,7 @@ do {
     Write-Host ""
     Write-Host "  [1]  Windows Desktop       (.exe Installer & Portable win-unpacked)" -ForegroundColor Cyan
     Write-Host "  [2]  Android App           (Capacitor / Android Native APK)" -ForegroundColor Green
-    Write-Host "  [3]  Linux Desktop         (.AppImage & Debian .deb)" -ForegroundColor Yellow
+    Write-Host "  [3]  Linux Desktop         (.AppImage, Debian .deb & Canonical .snap)" -ForegroundColor Yellow
     Write-Host "  [4]  macOS Desktop         (.dmg Installer)" -ForegroundColor Magenta
     Write-Host "  [5]  Build All Targets     (Complete Multi-Platform Packaging Suite)" -ForegroundColor White
     Write-Host "  -------------------------------------------------------------------" -ForegroundColor DarkGray

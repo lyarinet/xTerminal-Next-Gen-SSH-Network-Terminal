@@ -56,10 +56,10 @@ jobs:
           retention-days: 5
 
   # ─────────────────────────────────────────────────────
-  # STAGE 2: Build Linux .deb + .AppImage
+  # STAGE 2: Build Linux .deb + .AppImage + Canonical .snap
   # ─────────────────────────────────────────────────────
   build-linux:
-    name: 🐧 Linux Desktop (.deb + AppImage)
+    name: 🐧 Linux Desktop (.deb + AppImage + Snap)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
@@ -71,10 +71,12 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: Install system dependencies
+      - name: Install system dependencies & Snapcraft
         run: |
           sudo apt-get update -y
           sudo apt-get install -y fuse libfuse2 rpm
+          sudo snap install snapcraft --classic
+          echo "/snap/bin" >> $GITHUB_PATH
 
       - name: Install Node dependencies
         run: npm ci --legacy-peer-deps
@@ -82,8 +84,8 @@ jobs:
       - name: Build Vite frontend + server bundle
         run: npm run build
 
-      - name: Package Linux AppImage + .deb
-        run: npx electron-builder --linux AppImage deb --publish never
+      - name: Package Linux AppImage + .deb + .snap
+        run: npx electron-builder --linux AppImage deb snap --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -94,7 +96,17 @@ jobs:
           path: |
             release/*.AppImage
             release/*.deb
+            release/*.snap
           retention-days: 5
+
+      - name: Publish Snap to Canonical Snap Store
+        if: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS != '' }}
+        uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        with:
+          snap: release/*.snap
+          release: stable
 
   # ─────────────────────────────────────────────────────
   # STAGE 3: Build macOS .dmg + .zip (Apple Silicon & Intel)
@@ -247,8 +259,9 @@ jobs:
             | Platform | File | Description |
             |----------|------|-------------|
             | 🪟 **Windows** | `xTerminal Setup *.exe` | NSIS Installer (64-bit) |
-            | 🐧 **Linux** | `*.AppImage` | Portable AppImage (no install needed) |
-            | 🐧 **Linux** | `*.deb` | Debian/Ubuntu Package |
+            | 🐧 **Linux (Snap)** | `*.snap` | Canonical Snap Store package (`sudo snap install --dangerous *.snap`) |
+            | 🐧 **Linux (AppImage)** | `*.AppImage` | Portable AppImage (no install needed) |
+            | 🐧 **Linux (.deb)** | `*.deb` | Debian/Ubuntu Package |
             | 🍎 **macOS (Apple Silicon)** | `*arm64.dmg` / `*arm64-mac.zip` | Apple Silicon (M1/M2/M3/M4) |
             | 🍎 **macOS (Intel)** | `*x64.dmg` / `*x64-mac.zip` | Intel 64-bit Mac |
             | 🤖 **Android** | `xTerminal-*.apk` | Android APK (sideload) |
@@ -270,6 +283,7 @@ jobs:
             
             ### ⚙️ Installation Notes
             - **Windows**: Run the `.exe` installer as Administrator
+            - **Linux Snap**: `sudo snap install --dangerous *.snap` (or `sudo snap install xterminal` from store)
             - **Linux AppImage**: `chmod +x *.AppImage && ./*.AppImage`
             - **Linux .deb**: `sudo dpkg -i *.deb`
             - **macOS**: Drag `xTerminal.app` to `/Applications`.

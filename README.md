@@ -285,6 +285,75 @@ cd android && ./gradlew assembleDebug
 
 ---
 
+## 🤝 Contributing
+
+We welcome contributions from developers, sysadmins, DevOps, and network engineers around the world! Whether you want to fix a bug, add a new protocol, improve performance, or enhance documentation, your help is warmly appreciated.
+
+### 🌟 Ways to Contribute
+- **Bug Reports & Feedback**: Found an issue? [Open an Issue](https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/issues) with reproduction steps and logs.
+- **Feature Requests**: Have an idea for a protocol or automation tool? Share your thoughts in Issues.
+- **Code & Enhancements**: Add new features, optimize PTY/WebSocket latency, or expand mobile UI capabilities.
+- **Documentation & Guides**: Help improve tutorials, configuration examples, and device compatibility lists.
+
+### 🛠️ Development & Pull Request Workflow
+
+1. **Fork the Repository**:
+   Click the **Fork** button at the top right of this repository.
+
+2. **Clone your fork**:
+   ```bash
+   git clone https://github.com/<your-username>/xTerminal-Next-Gen-SSH-Network-Terminal.git
+   cd xTerminal-Next-Gen-SSH-Network-Terminal
+   ```
+
+3. **Install Dependencies & Start Dev Server**:
+   ```bash
+   npm install
+   npm run dev
+   ```
+
+4. **Create a Feature Branch**:
+   ```bash
+   git checkout -b feature/your-feature-name
+   # or for bugfixes:
+   git checkout -b fix/issue-description
+   ```
+
+5. **Make your changes & Verify**:
+   - Ensure clean code formatting and type safety.
+   - Test locally with `npm run build` or Electron desktop (`npm run electron:start`).
+   - Run type checks: `npm run lint`.
+
+6. **Commit & Push**:
+   ```bash
+   git add .
+   git commit -m "feat(module): add descriptive commit message"
+   git push origin feature/your-feature-name
+   ```
+
+7. **Submit a Pull Request (PR)**:
+   - Go to your fork on GitHub and click **Compare & pull request**.
+   - Describe what changed, why, and provide screenshots if UI was updated.
+
+### 📜 Code Guidelines
+- Use idiomatic TypeScript with strict typings wherever possible.
+- Keep UI components responsive and compliant with dark mode styling (`#0A0A0B`, `#111112`, `#1C1C1E`).
+- Ensure high-performance, non-blocking I/O for terminal streams, WebSockets, and PTY bridges.
+
+---
+
+### 💖 Contributors & Community
+
+A huge thank you to everyone who has contributed to making **xTerminal** the premier open-source DevOps and network terminal workstation!
+
+<a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal" alt="xTerminal Contributors" />
+</a>
+
+*Made with ❤️ by [Lyarinet](https://github.com/lyarinet) and our amazing open-source community.*
+
+---
+
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).

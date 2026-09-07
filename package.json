@@ -94,20 +94,22 @@
         "snap"
       ]
     },
-    "snap": {
-      "grade": "stable",
-      "confinement": "strict",
-      "summary": "Next-Gen SSH, Telnet, Serial & DevOps Terminal Workstation",
-      "useDestructiveMode": true,
-      "plugs": [
-        "default",
-        "network",
-        "network-bind",
-        "home",
-        "removable-media",
-        "serial-port",
-        "raw-usb"
-      ]
+    "snapcraft": {
+      "base": "core22",
+      "core22": {
+        "grade": "stable",
+        "confinement": "strict",
+        "summary": "Next-Gen SSH, Telnet, Serial & DevOps Terminal Workstation",
+        "plugs": [
+          "default",
+          "network",
+          "network-bind",
+          "home",
+          "removable-media",
+          "serial-port",
+          "raw-usb"
+        ]
+      }
     },
     "nsis": {
       "oneClick": false,

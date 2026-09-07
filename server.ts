@@ -1349,8 +1349,7 @@ app.post("/api/network/wol", async (req, res) => {
 });
 
 // Network diagnostic probe (real DNS resolution, TCP port handshake, and banner capture)
-const handleDiagnosticProbe = async (req: express.Request, res: express.Response) => {
-  const { host = "localhost", port = 22 } = req.body;
+export async function executeDiagnosticProbe(host: string = "localhost", port: number = 22) {
   const startTime = Date.now();
   const steps: { name: string; latencyMs: number; status: "success" | "failure"; details?: string }[] = [];
   let capturedBanner: string | null = null;
@@ -1386,7 +1385,7 @@ const handleDiagnosticProbe = async (req: express.Request, res: express.Response
       status: "failure",
       details: err.message || "Could not resolve hostname",
     });
-    return res.json({
+    return {
       host,
       port,
       target: `${host}:${port}`,
@@ -1402,7 +1401,7 @@ const handleDiagnosticProbe = async (req: express.Request, res: express.Response
         status: s.status,
         details: s.details,
       })),
-    });
+    };
   }
 
   // Step 2: TCP Socket connection & Banner capture
@@ -1475,7 +1474,7 @@ const handleDiagnosticProbe = async (req: express.Request, res: express.Response
     });
   });
 
-  return res.json({
+  return {
     host,
     port,
     target: `${host}:${port}`,
@@ -1491,7 +1490,13 @@ const handleDiagnosticProbe = async (req: express.Request, res: express.Response
       status: s.status,
       details: s.details,
     })),
-  });
+  };
+}
+
+const handleDiagnosticProbe = async (req: express.Request, res: express.Response) => {
+  const { host = "localhost", port = 22 } = req.body;
+  const result = await executeDiagnosticProbe(host, Number(port));
+  return res.json(result);
 };
 
 app.post("/api/diagnostics/probe", handleDiagnosticProbe);
@@ -4889,6 +4894,23 @@ async function startServer() {
           const text = rawMessage.toString();
           if (text.startsWith("{") && text.endsWith("}")) {
             const data = JSON.parse(text);
+
+            if (data.type === "probe") {
+              const probeHost = String(data.host || "127.0.0.1");
+              const probePort = Number(data.port || 22);
+              executeDiagnosticProbe(probeHost, probePort)
+                .then((resData) => {
+                  if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: "probe-result", ...resData }));
+                  }
+                })
+                .catch((err) => {
+                  if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: "probe-result", accessible: false, error: err?.message || String(err) }));
+                  }
+                });
+              return;
+            }
 
             if (data.type === "init") {
               isHandshake = true;

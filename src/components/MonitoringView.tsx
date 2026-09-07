@@ -20,6 +20,7 @@ import {
   Play
 } from 'lucide-react';
 import { Host } from '../types';
+import { runDiagnosticProbe } from '../lib/diagnostics';
 
 interface MonitoringViewProps {
   hosts: Host[];
@@ -84,27 +85,10 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({ hosts }) => {
     setProbeReport(null);
 
     try {
-      // Primary endpoint /api/diagnostics/probe, fallback /api/network/probe
-      let res = await fetch('/api/diagnostics/probe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ host: h, port: p }),
-      });
-
-      if (!res.ok) {
-        res = await fetch('/api/network/probe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ host: h, port: p }),
-        });
-      }
-
-      if (res.ok) {
-        const data = await res.json();
-        setProbeReport(data);
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        setProbeError(errData.error || `Probe failed with HTTP ${res.status}`);
+      const data = await runDiagnosticProbe(h, p);
+      setProbeReport(data);
+      if (!data.accessible && data.error) {
+        setProbeError(data.error);
       }
     } catch (err: any) {
       console.error('Failed to run socket probe:', err);
@@ -128,28 +112,16 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({ hosts }) => {
     await Promise.all(
       hosts.map(async (host) => {
         try {
-          const res = await fetch('/api/diagnostics/probe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ host: host.hostname, port: host.port || 22 }),
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            setFleetChecks((prev) => ({
-              ...prev,
-              [host.id]: {
-                status: data.accessible ? 'online' : 'offline',
-                latencyMs: data.totalDurationMs || 0,
-                banner: data.banner || null,
-              },
-            }));
-          } else {
-            setFleetChecks((prev) => ({
-              ...prev,
-              [host.id]: { status: 'offline', error: 'HTTP error' },
-            }));
-          }
+          const data = await runDiagnosticProbe(host.hostname, host.port || 22);
+          setFleetChecks((prev) => ({
+            ...prev,
+            [host.id]: {
+              status: data.accessible ? 'online' : 'offline',
+              latencyMs: data.totalDurationMs || 0,
+              banner: data.banner || null,
+              error: data.accessible ? undefined : (data.error || 'Unreachable'),
+            },
+          }));
         } catch (err: any) {
           setFleetChecks((prev) => ({
             ...prev,

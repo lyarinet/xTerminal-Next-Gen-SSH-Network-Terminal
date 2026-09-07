@@ -1534,21 +1534,23 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
             )}
           </button>
 
-          {/* Mobile Server Bridge Config Button */}
-          <button
-            onClick={() => setMobileConfigOpen(true)}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-md font-sans text-xs border transition-colors ${
-              getStoredBackendUrl()
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                : 'bg-[#1C1C1E] hover:bg-[#252528] text-gray-300 border-[#222224]'
-            }`}
-            title="Configure PC / Server IP Address for Android phone on Wi-Fi"
-          >
-            <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden xl:inline">
-              {getStoredBackendUrl() ? 'Bridge Set' : 'Mobile Bridge'}
-            </span>
-          </button>
+          {/* Mobile Server Bridge Config Button (Hidden on Windows, macOS, Linux desktop apps) */}
+          {isMobileApp() && (
+            <button
+              onClick={() => setMobileConfigOpen(true)}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-md font-sans text-xs border transition-colors ${
+                getStoredBackendUrl()
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                  : 'bg-[#1C1C1E] hover:bg-[#252528] text-gray-300 border-[#222224]'
+              }`}
+              title="Configure PC / Server IP Address for Android phone on Wi-Fi"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden xl:inline">
+                {getStoredBackendUrl() ? 'Bridge Set' : 'Mobile Bridge'}
+              </span>
+            </button>
+          )}
 
           {/* Terminal Session Recording & Replay Controls */}
           <div className="flex items-center gap-1">

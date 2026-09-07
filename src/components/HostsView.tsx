@@ -28,6 +28,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { Host, HostGroup, Identity, EnvironmentType, EnvironmentDef } from '../types';
+import { runDiagnosticProbe } from '../lib/diagnostics';
 
 interface HostsViewProps {
   hosts: Host[];
@@ -229,19 +230,14 @@ export const HostsView: React.FC<HostsViewProps> = ({
     setProbeResult(null);
 
     try {
-      const res = await fetch('/api/diagnostics/probe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ host: formHostname, port: formPort }),
-      });
-      const data = await res.json();
+      const data = await runDiagnosticProbe(formHostname, Number(formPort) || 22);
       if (data.accessible) {
         setProbeResult({
           success: true,
-          message: `Connection successful (${data.totalDurationMs}ms). Resolved to ${data.resolvedIp}`,
+          message: `Connection successful (${data.totalDurationMs || 0}ms). Resolved to ${data.resolvedIp || formHostname}${data.banner ? ` (${data.banner})` : ''}`,
         });
       } else {
-        const lastError = data.steps?.find((s: any) => s.status === 'failure')?.details || 'Unreachable target';
+        const lastError = data.steps?.find((s: any) => s.status === 'failure')?.details || data.error || 'Unreachable target';
         setProbeResult({
           success: false,
           message: `Check failed: ${lastError}`,

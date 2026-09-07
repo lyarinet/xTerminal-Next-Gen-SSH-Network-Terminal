@@ -10,11 +10,13 @@ import com.jcraft.jsch.Session;
 import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
@@ -45,6 +47,7 @@ public class AndroidLocalBridge {
     private boolean mIsRunning = false;
 
     private final Map<WebSocket, ClientSession> mSessions = new ConcurrentHashMap<>();
+    private final ExecutorService mThreadPool = Executors.newCachedThreadPool();
 
     public static AndroidLocalBridge getInstance() {
         if (sInstance == null) {
@@ -203,6 +206,11 @@ public class AndroidLocalBridge {
                         session.handleResize(cols, rows);
                         return;
                     }
+
+                    if ("probe".equals(type)) {
+                        handleProbeRequest(session, data);
+                        return;
+                    }
                 } catch (Exception ignored) {
                     // Not JSON control, fall through to raw stream data
                 }
@@ -221,6 +229,128 @@ public class AndroidLocalBridge {
             bytes.get(b);
             session.writeInput(b);
         }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Pre-flight Reachability Probe (TCP & DNS)
+    // ---------------------------------------------------------------------------------------------
+
+    private void handleProbeRequest(ClientSession session, JSONObject data) {
+        String host = data.optString("host", "").trim();
+        int port = data.optInt("port", 22);
+
+        mThreadPool.execute(() -> {
+            long startTime = System.currentTimeMillis();
+            JSONObject result = new JSONObject();
+            JSONArray steps = new JSONArray();
+            String resolvedIp = "";
+            String banner = "";
+
+            try {
+                result.put("type", "probe-result");
+                result.put("host", host);
+                result.put("port", port);
+
+                if (host.isEmpty()) {
+                    result.put("accessible", false);
+                    result.put("error", "Host is required");
+                    result.put("steps", steps);
+                    result.put("totalDurationMs", 0);
+                    send(session.ws, result.toString());
+                    return;
+                }
+
+                // Step 1: DNS Resolution
+                long dnsStart = System.currentTimeMillis();
+                JSONObject dnsStep = new JSONObject();
+                dnsStep.put("step", "DNS Resolution");
+                dnsStep.put("name", "DNS Resolution");
+
+                try {
+                    InetAddress address = InetAddress.getByName(host);
+                    resolvedIp = address.getHostAddress();
+                    long dnsDuration = Math.max(1, System.currentTimeMillis() - dnsStart);
+                    dnsStep.put("status", "success");
+                    dnsStep.put("durationMs", dnsDuration);
+                    dnsStep.put("details", "Resolved to " + resolvedIp);
+                } catch (Exception e) {
+                    long dnsDuration = Math.max(1, System.currentTimeMillis() - dnsStart);
+                    dnsStep.put("status", "failure");
+                    dnsStep.put("durationMs", dnsDuration);
+                    dnsStep.put("details", "DNS resolution failed: " + e.getMessage());
+                    steps.put(dnsStep);
+                    result.put("accessible", false);
+                    result.put("steps", steps);
+                    result.put("totalDurationMs", System.currentTimeMillis() - startTime);
+                    result.put("error", "DNS resolution failed: " + e.getMessage());
+                    send(session.ws, result.toString());
+                    return;
+                }
+                steps.put(dnsStep);
+
+                // Step 2: TCP Handshake
+                long tcpStart = System.currentTimeMillis();
+                JSONObject tcpStep = new JSONObject();
+                tcpStep.put("step", "TCP Handshake (Port " + port + ")");
+                tcpStep.put("name", "TCP Handshake (Port " + port + ")");
+
+                try (Socket socket = new Socket()) {
+                    socket.connect(new InetSocketAddress(resolvedIp, port), 4000);
+                    socket.setSoTimeout(1500);
+
+                    // Try reading banner (especially useful for SSH/Telnet)
+                    try {
+                        byte[] buffer = new byte[256];
+                        InputStream in = socket.getInputStream();
+                        int read = in.read(buffer);
+                        if (read > 0) {
+                            banner = new String(buffer, 0, read, StandardCharsets.UTF_8).trim();
+                        }
+                    } catch (Exception ignored) {
+                        // Banner read timeout is fine (some protocols wait for client)
+                    }
+
+                    long tcpDuration = Math.max(1, System.currentTimeMillis() - tcpStart);
+                    tcpStep.put("status", "success");
+                    tcpStep.put("durationMs", tcpDuration);
+                    String details = "TCP Handshake successful (" + tcpDuration + "ms)";
+                    if (!banner.isEmpty()) {
+                        details += " [Banner: " + banner + "]";
+                    }
+                    tcpStep.put("details", details);
+                } catch (Exception e) {
+                    long tcpDuration = Math.max(1, System.currentTimeMillis() - tcpStart);
+                    tcpStep.put("status", "failure");
+                    tcpStep.put("durationMs", tcpDuration);
+                    tcpStep.put("details", "TCP Handshake failed: " + e.getMessage());
+                    steps.put(tcpStep);
+                    result.put("accessible", false);
+                    result.put("steps", steps);
+                    result.put("totalDurationMs", System.currentTimeMillis() - startTime);
+                    result.put("error", "TCP Handshake failed: " + e.getMessage());
+                    send(session.ws, result.toString());
+                    return;
+                }
+                steps.put(tcpStep);
+
+                result.put("accessible", true);
+                result.put("resolvedIp", resolvedIp);
+                result.put("banner", banner);
+                result.put("steps", steps);
+                result.put("totalDurationMs", Math.max(1, System.currentTimeMillis() - startTime));
+
+                send(session.ws, result.toString());
+            } catch (Exception ex) {
+                Log.e(TAG, "Probe error: " + ex.getMessage());
+                try {
+                    result.put("accessible", false);
+                    result.put("error", ex.getMessage());
+                    result.put("steps", steps);
+                    result.put("totalDurationMs", Math.max(1, System.currentTimeMillis() - startTime));
+                    send(session.ws, result.toString());
+                } catch (Exception ignored) {}
+            }
+        });
     }
 
     // ---------------------------------------------------------------------------------------------

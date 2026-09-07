@@ -1,15 +1,47 @@
-# After registering a name on snapcraft.io, commit an uncommented line:
-# name: xterminal
-version: '1.2.5' # just for humans, typically '1.2+git' or '1.3.2'
-summary: Single-line elevator pitch for your amazing snap # 79 char long summary
+name: xterminal
+base: core22
+adopt-info: xterminal
+summary: Next-Gen SSH, Telnet, Serial & DevOps Terminal Workstation
 description: |
-  This is my-snap's description. You have a paragraph or two to tell the
-  most important story about your snap. Keep it under 100 words though,
-  your description wants to look good in the snap
-  store.
-grade: devel # must be 'stable' to release into candidate/stable channels
-confinement: devmode # use 'strict' once you have the right plugs and slots
+  xTerminal is a modern, high-performance terminal workstation engineered for
+  DevOps professionals, cloud architects, sysadmins, and network engineers.
+  Features full-duplex SSH, Telnet, Serial console, parallel multi-host command
+  runner, real-time server telemetry, and built-in SFTP file transfers.
+
+grade: stable
+confinement: strict
+
+apps:
+  xterminal:
+    command: xterminal --no-sandbox
+    extensions: [gnome]
+    plugs:
+      - network
+      - network-bind
+      - home
+      - removable-media
+
 parts:
-  my-part:
-    # See 'snapcraft plugins'
+  xterminal:
     plugin: nil
+    source: .
+    override-pull: |
+      craftctl default
+      # Auto-detect version directly from package.json or git tag on GitHub
+      VERSION=$(node -p "require('./package.json').version" 2>/dev/null || git describe --tags --always | sed 's/^v//')
+      craftctl set version="$VERSION"
+    override-build: |
+      npm ci
+      npm run build
+      npx electron-builder --linux --dir
+      cp -r release/linux-unpacked/* $CRAFT_PART_INSTALL/
+    build-packages:
+      - nodejs
+      - npm
+      - git
+    stage-packages:
+      - libnss3
+      - libatk1.0-0
+      - libasound2
+      - libdrm2
+      - libgbm1

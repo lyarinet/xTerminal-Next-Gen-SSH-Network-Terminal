@@ -3,7 +3,7 @@
  * Handles dynamic routing for Desktop (Electron), Web, and Mobile (Android / Capacitor).
  */
 
-export const DEFAULT_LAN_BRIDGE_URL = 'http://192.168.1.38:3000';
+export const DEFAULT_LAN_BRIDGE_URL = 'http://127.0.0.1:3000';
 export const DEFAULT_LOCAL_BRIDGE_PORT = 3000;
 
 export function isMobileApp(): boolean {

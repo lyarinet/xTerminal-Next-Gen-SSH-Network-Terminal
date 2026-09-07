@@ -27,7 +27,7 @@ export const MobileServerConfigModal: React.FC<MobileServerConfigModalProps> = (
   onClose,
   onConnected,
 }) => {
-  const [serverUrl, setServerUrl] = useState(getStoredBackendUrl() || 'http://192.168.1.38:3000');
+  const [serverUrl, setServerUrl] = useState(getStoredBackendUrl() || 'http://127.0.0.1:3000');
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -134,12 +134,12 @@ export const MobileServerConfigModal: React.FC<MobileServerConfigModalProps> = (
                 required
                 value={serverUrl}
                 onChange={(e) => setServerUrl(e.target.value)}
-                placeholder="http://192.168.1.38:3000"
+                placeholder="http://127.0.0.1:3000"
                 className="flex-1 bg-transparent text-white font-mono text-xs focus:outline-none"
               />
             </div>
             <span className="text-[10px] text-gray-500 font-mono mt-1 block">
-              Default: http://192.168.1.38:3000 (Port 3000)
+              Default: http://127.0.0.1:3000 (Internal Standalone Engine)
             </span>
           </div>
 
@@ -151,10 +151,10 @@ export const MobileServerConfigModal: React.FC<MobileServerConfigModalProps> = (
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
-                onClick={() => setServerUrl('http://192.168.1.38:3000')}
-                className="px-2.5 py-1 rounded-lg bg-[#222226] hover:bg-[#2A2A2E] text-gray-300 text-[11px] font-mono transition-colors"
+                onClick={() => setServerUrl('http://127.0.0.1:3000')}
+                className="px-2.5 py-1 rounded-lg bg-[#222226] hover:bg-[#2A2A2E] text-emerald-400 text-[11px] font-mono transition-colors"
               >
-                192.168.1.38:3000 (Your PC Wi-Fi)
+                127.0.0.1:3000 (Standalone Engine)
               </button>
               <button
                 type="button"

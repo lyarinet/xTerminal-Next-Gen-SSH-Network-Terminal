@@ -510,9 +510,9 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
         if (isMobileApp()) {
           const stored = getStoredBackendUrl();
           if (!stored) {
-            term.writeln('\x1b[33m[Mobile Bridge] Computer IP not configured. Tap the Mobile Bridge icon in the top bar to set your PC IP (e.g. http://192.168.1.38:3000).\x1b[0m\r\n');
+            term.writeln('\x1b[33m[Mobile Bridge] Standalone bridge initializing or unreachable. If bridging to an external PC, configure the IP in Mobile Bridge settings.\x1b[0m\r\n');
           } else {
-            term.writeln(`\x1b[90m[Mobile Bridge] Reaching ${stored}... Ensure xTerminal is running on your PC and on the same Wi-Fi.\x1b[0m\r\n`);
+            term.writeln(`\x1b[90m[Mobile Bridge] Reaching external bridge at ${stored}... Ensure your PC is running xTerminal on the same Wi-Fi.\x1b[0m\r\n`);
           }
         }
       };

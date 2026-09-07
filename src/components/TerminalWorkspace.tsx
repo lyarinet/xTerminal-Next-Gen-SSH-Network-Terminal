@@ -266,10 +266,6 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
         setJoinModalOpen(true);
       }
     } catch {}
-
-    if (isMobileApp() && !getStoredBackendUrl()) {
-      setMobileConfigOpen(true);
-    }
   }, []);
 
   // Auto-discover active multiplayer sessions across LAN/server

@@ -151,9 +151,10 @@ Download official pre-built packages from the [**Releases Page**](https://github
 | 🐧 **Linux (Snap)** | Canonical Snap | `sudo snap install xterminal` |
 | 🐧 **Linux (Portable)**| AppImage | `chmod +x xTerminal-*.AppImage && ./xTerminal-*.AppImage` |
 | 🐧 **Linux (Debian/Ubuntu)** | `.deb` package | `sudo dpkg -i xTerminal_*_amd64.deb` |
-| 🪟 **Windows** | Setup `.exe` / Portable | Run `xTerminal Setup 1.2.5.exe` or portable standalone `.exe` |
+| 🐧 **Linux (Fedora/RHEL)** | `.rpm` package | `sudo dnf install ./xTerminal-*.rpm` |
+| 🪟 **Windows** | Setup `.exe` / Portable | Run `xTerminal Setup 1.2.6.exe` or portable standalone `.exe` |
 | 🍎 **macOS** | `.dmg` (Apple Silicon & Intel) | Drag `xTerminal.app` to `/Applications` |
-| 🤖 **Android** | `.apk` / Play Store `.aab` | Download `xTerminal-1.2.5.apk` or install via Google Play |
+| 🤖 **Android** | `.apk` / Play Store `.aab` | Download `xTerminal-1.2.6.apk` or install via Google Play |
 
 > [!NOTE]
 > **Hardware & Serial Permissions for Linux Snap:**  

@@ -86,8 +86,8 @@ jobs:
       - name: Build Vite frontend + server bundle
         run: npm run build
 
-      - name: Package Linux AppImage + .deb
-        run: npx electron-builder --linux AppImage deb --publish never
+      - name: Package Linux AppImage + .deb + .rpm
+        run: npx electron-builder --linux AppImage deb rpm --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -103,6 +103,7 @@ jobs:
           path: |
             release/*.AppImage
             release/*.deb
+            release/*.rpm
             release/*.snap
           retention-days: 5
 
@@ -271,6 +272,7 @@ jobs:
             | 🐧 **Linux (Snap)** | `*.snap` | Canonical Snap Store package (`sudo snap install --dangerous *.snap`) |
             | 🐧 **Linux (AppImage)** | `*.AppImage` | Portable AppImage (no install needed) |
             | 🐧 **Linux (.deb)** | `*.deb` | Debian/Ubuntu Package |
+            | 🐧 **Linux (.rpm)** | `*.rpm` | Fedora / RHEL / openSUSE Package (`sudo dnf install *.rpm`) |
             | 🍎 **macOS (Apple Silicon)** | `*arm64.dmg` / `*arm64-mac.zip` | Apple Silicon (M1/M2/M3/M4) |
             | 🍎 **macOS (Intel)** | `*x64.dmg` / `*x64-mac.zip` | Intel 64-bit Mac |
             | 🤖 **Android (Direct APK)** | `xTerminal-*.apk` | Android APK (sideload) |
@@ -295,6 +297,7 @@ jobs:
             - **Linux Snap**: `sudo snap install --dangerous *.snap` (or `sudo snap install xterminal` from store)
             - **Linux AppImage**: `chmod +x *.AppImage && ./*.AppImage`
             - **Linux .deb**: `sudo dpkg -i *.deb`
+            - **Linux .rpm**: `sudo dnf install *.rpm` (Fedora / RHEL / CentOS)
             - **macOS**: Drag `xTerminal.app` to `/Applications`.
               > ⚠️ **macOS "App is damaged and can't be opened" Fix:**
               > If Gatekeeper displays *"xTerminal is damaged and can't be opened"*, open your **Terminal** and run:

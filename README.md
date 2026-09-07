@@ -3,7 +3,7 @@
 # ⚡ xTerminal
 ### Next-Generation Multi-Protocol SSH, Telnet, Serial, Android ADB & DevOps Workstation
 
-[![Version](https://img.shields.io/badge/version-1.2.0-emerald.svg?style=for-the-badge)](package.json)
+[![Version](https://img.shields.io/badge/version-1.2.1-emerald.svg?style=for-the-badge)](package.json)
 [![Electron](https://img.shields.io/badge/Electron-44.2.0-47848F?style=for-the-badge&logo=electron&logoColor=white)](https://electronjs.org/)
 [![Android](https://img.shields.io/badge/Android-Capacitor-3DDC84?style=for-the-badge&logo=android&logoColor=white)](android/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)

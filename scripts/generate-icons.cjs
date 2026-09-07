@@ -5,9 +5,12 @@ const path = require('path');
 app.disableHardwareAcceleration();
 
 app.whenReady().then(async () => {
-  const imgPath = path.join(__dirname, '../public/logo.jpg');
+  let imgPath = path.join(__dirname, '../public/logo.png');
   if (!fs.existsSync(imgPath)) {
-    console.error('Missing logo.jpg at', imgPath);
+    imgPath = path.join(__dirname, '../public/logo.jpg');
+  }
+  if (!fs.existsSync(imgPath)) {
+    console.error('Missing logo.png/logo.jpg at', imgPath);
     app.exit(1);
     return;
   }

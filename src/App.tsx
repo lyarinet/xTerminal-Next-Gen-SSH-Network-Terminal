@@ -45,7 +45,8 @@ import {
   TerminalPane,
   TransferQueueItem,
   RiskLevel,
-  EnvironmentDef
+  EnvironmentDef,
+  SessionRecording
 } from './types';
 
 import {
@@ -97,6 +98,7 @@ export default function App() {
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isRecorderModalOpen, setIsRecorderModalOpen] = useState(false);
+  const [activeRecording, setActiveRecording] = useState<SessionRecording | undefined>(undefined);
   const [sftpSelectedHostId, setSftpSelectedHostId] = useState<string | undefined>(hosts[0]?.id);
   const [aiTerminalContext, setAiTerminalContext] = useState<string>('');
 
@@ -189,6 +191,18 @@ export default function App() {
     };
     window.addEventListener('xterminal:settings-changed' as any, handleSettingsChanged);
     return () => window.removeEventListener('xterminal:settings-changed' as any, handleSettingsChanged);
+  }, []);
+
+  // Listen for session recorder open requests with loaded recording
+  useEffect(() => {
+    const handleOpenRecorder = (e: any) => {
+      if (e?.detail?.recording) {
+        setActiveRecording(e.detail.recording);
+      }
+      setIsRecorderModalOpen(true);
+    };
+    window.addEventListener('xterminal:open-recorder' as any, handleOpenRecorder);
+    return () => window.removeEventListener('xterminal:open-recorder' as any, handleOpenRecorder);
   }, []);
 
   // Global Keyboard Shortcuts
@@ -927,7 +941,11 @@ export default function App() {
       {/* Session Recorder & Asciinema Player */}
       <SessionRecorderModal
         isOpen={isRecorderModalOpen}
-        onClose={() => setIsRecorderModalOpen(false)}
+        onClose={() => {
+          setIsRecorderModalOpen(false);
+          setActiveRecording(undefined);
+        }}
+        recording={activeRecording}
       />
 
       {/* Global Command Palette (Cmd+K) */}

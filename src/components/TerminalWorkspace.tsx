@@ -27,7 +27,10 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Radio
+  Radio,
+  Circle,
+  Square,
+  Film
 } from 'lucide-react';
 import {
   TerminalTab,
@@ -37,7 +40,9 @@ import {
   MultiplayerParticipant,
   MultiplayerControlMode,
   MultiplayerAccessMode,
-  TerminalSettings
+  TerminalSettings,
+  SessionRecording,
+  RecordingEvent
 } from '../types';
 import { analyzeCommandRisk } from '../lib/safetyEngine';
 import { XTermPane, TERMINAL_THEMES } from './XTermPane';
@@ -176,6 +181,80 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
     multiplayerSessions[activeTabId] ||
     Object.values(multiplayerSessions).find((s) => s.status === 'active') ||
     Object.values(multiplayerSessions)[0];
+
+  // Session Recording State
+  const [activeRecording, setActiveRecording] = useState<{
+    tabId: string;
+    startTime: number;
+    title: string;
+    hostName: string;
+    username: string;
+    events: RecordingEvent[];
+    commandCount: number;
+  } | null>(null);
+  const activeRecordingRef = useRef<typeof activeRecording>(null);
+  activeRecordingRef.current = activeRecording;
+  const [recordingSeconds, setRecordingSeconds] = useState<number>(0);
+
+  useEffect(() => {
+    if (!activeRecording) {
+      setRecordingSeconds(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      setRecordingSeconds((s) => s + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [activeRecording]);
+
+  const handleStartRecording = () => {
+    if (activeRecording) return;
+    const tabHost = activeTab?.host || hosts.find((h) => h.id === activeTab?.hostId);
+    const rec = {
+      tabId: activeTabId,
+      startTime: Date.now(),
+      title: tabHost?.name || activeTab?.title || 'Terminal Session',
+      hostName: tabHost?.hostname || 'localhost',
+      username: tabHost?.username || 'user',
+      events: [] as RecordingEvent[],
+      commandCount: 0,
+    };
+    setActiveRecording(rec);
+  };
+
+  const handleStopRecording = () => {
+    const rec = activeRecordingRef.current;
+    if (!rec) return;
+
+    const durationSeconds = Math.max(1, Math.ceil((Date.now() - rec.startTime) / 1000));
+    const newRecording: SessionRecording = {
+      id: `rec-${Date.now()}`,
+      title: rec.title,
+      hostName: rec.hostName,
+      username: rec.username,
+      createdAt: new Date().toISOString(),
+      durationSeconds,
+      commandCount: rec.commandCount,
+      events: rec.events,
+    };
+
+    try {
+      const existingStr = localStorage.getItem('xterminal_session_recordings');
+      const existing: SessionRecording[] = existingStr ? JSON.parse(existingStr) : [];
+      const updated = [newRecording, ...existing];
+      localStorage.setItem('xterminal_session_recordings', JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Failed to save session recording:', e);
+    }
+
+    setActiveRecording(null);
+
+    window.dispatchEvent(
+      new CustomEvent('xterminal:open-recorder', {
+        detail: { recording: newRecording },
+      })
+    );
+  };
 
   // Auto-detect invite link param on load (?session=XT-XXXXXX) or mobile app initial server setup
   useEffect(() => {
@@ -707,8 +786,19 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
     setSidebarOpen(false); // Do NOT auto-open chat so terminal stays full screen
   };
 
-  // Forward keystrokes from participant terminal to multiplayer WebSocket
+  // Forward keystrokes from participant terminal to multiplayer WebSocket & record session input
   const handleParticipantInput = (tabId: string, chunk: string) => {
+    const rec = activeRecordingRef.current;
+    if (rec && rec.tabId === tabId) {
+      rec.events.push({
+        timeMs: Date.now() - rec.startTime,
+        type: 'in',
+        data: chunk,
+      });
+      if (chunk.includes('\r') || chunk.includes('\n')) {
+        rec.commandCount++;
+      }
+    }
     const socket = wsSocketsRef.current[tabId];
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'terminal:input', data: chunk }));
@@ -1062,9 +1152,17 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
     }
   };
 
-  // Broadcast terminal output when host terminal outputs data
+  // Broadcast terminal output when host terminal outputs data & record session output
   const handleTerminalOutput = (tabId: string, chunk: string) => {
     if (!chunk) return;
+    const rec = activeRecordingRef.current;
+    if (rec && rec.tabId === tabId) {
+      rec.events.push({
+        timeMs: Date.now() - rec.startTime,
+        type: 'out',
+        data: chunk,
+      });
+    }
     const sessions = multiplayerSessionsRef.current;
     // CRITICAL: Only broadcast if THIS tab has an active multiplayer session!
     // Prevents Windows PowerShell (tab-local) from leaking output to remote mobile client
@@ -1455,6 +1553,41 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
               {getStoredBackendUrl() ? 'Bridge Set' : 'Mobile Bridge'}
             </span>
           </button>
+
+          {/* Terminal Session Recording & Replay Controls */}
+          <div className="flex items-center gap-1">
+            {activeRecording?.tabId === activeTabId ? (
+              <button
+                onClick={handleStopRecording}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/50 font-sans text-xs transition-all animate-pulse"
+                title="Stop Recording Session and View Replay"
+              >
+                <span className="w-2 h-2 rounded-full bg-red-500 inline-block animate-ping" />
+                <span className="font-mono font-bold">
+                  REC {Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, '0')}
+                </span>
+                <Square className="w-3 h-3 fill-red-400 ml-0.5" />
+              </button>
+            ) : (
+              <button
+                onClick={handleStartRecording}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#1C1C1E] hover:bg-[#252528] text-gray-300 font-sans text-xs border border-[#222224] transition-colors group"
+                title="Start Recording Terminal Session"
+              >
+                <Circle className="w-3.5 h-3.5 text-red-500 fill-red-500/30 group-hover:fill-red-500 transition-colors" />
+                <span className="hidden xl:inline">Record</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('xterminal:open-recorder', { detail: {} }))}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#1C1C1E] hover:bg-[#252528] text-gray-300 font-sans text-xs border border-[#222224] transition-colors"
+              title="Open Saved Recordings & Replay Player"
+            >
+              <Film className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="hidden xl:inline">Replays</span>
+            </button>
+          </div>
 
           {/* Custom Theme Selector */}
           <div className="relative">

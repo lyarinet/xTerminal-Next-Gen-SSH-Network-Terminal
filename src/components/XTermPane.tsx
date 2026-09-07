@@ -538,9 +538,8 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
         showToast('Terminal control is held by another user. Request control to type.', 'copy');
         return;
       }
-      if (isMultiplayerParticipantRef.current) {
-        onTerminalInputRef.current?.(data);
-      } else if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      onTerminalInputRef.current?.(data);
+      if (!isMultiplayerParticipantRef.current && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(data);
       }
       const cursorX = term.buffer?.active?.cursorX || 0;

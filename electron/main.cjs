@@ -1,5 +1,6 @@
-const { app, BrowserWindow, ipcMain, shell, Menu, session, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu, session, dialog, Tray, nativeImage } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const http = require('http');
 const net = require('net');
 
@@ -17,6 +18,8 @@ if (!gotTheLock) {
 }
 
 let mainWindow = null;
+let tray = null;
+let isQuitting = false;
 let activePort = Number(process.env.PORT) || 3000;
 let serverOnline = false;
 
@@ -224,6 +227,12 @@ function createWindow() {
     }
   });
 
+  // Minimize to tray
+  mainWindow.on('minimize', (event) => {
+    event.preventDefault();
+    mainWindow.hide();
+  });
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if ((url.startsWith('https:') || url.startsWith('http:')) && !url.includes('127.0.0.1') && !url.includes('localhost')) {
       shell.openExternal(url);
@@ -236,16 +245,116 @@ function createWindow() {
   });
 }
 
-// Window control IPC handlers
-ipcMain.on('window-minimize', () => mainWindow?.minimize());
-ipcMain.on('window-maximize', () => {
-  if (mainWindow?.isMaximized()) {
-    mainWindow.unmaximize();
+function showAndFocusWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    return;
+  }
+  if (!mainWindow.isVisible()) {
+    mainWindow.show();
+  }
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+  mainWindow.focus();
+}
+
+function toggleWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    return;
+  }
+  if (mainWindow.isVisible() && !mainWindow.isMinimized()) {
+    mainWindow.hide();
   } else {
-    mainWindow?.maximize();
+    showAndFocusWindow();
+  }
+}
+
+// System Tray Manager for Windows, macOS, and Linux
+function createTray() {
+  if (tray) return;
+
+  try {
+    let trayIconPath = path.join(__dirname, '../build/icons/32x32.png');
+    if (process.platform === 'win32') {
+      const icoPath = path.join(__dirname, '../build/icon.ico');
+      if (fs.existsSync(icoPath)) {
+        trayIconPath = icoPath;
+      }
+    } else if (!fs.existsSync(trayIconPath)) {
+      trayIconPath = path.join(__dirname, '../build/icon.png');
+    }
+
+    let trayImage = nativeImage.createFromPath(trayIconPath);
+    if (process.platform === 'darwin') {
+      trayImage = trayImage.resize({ width: 18, height: 18 });
+    } else if (process.platform === 'win32') {
+      trayImage = trayImage.resize({ width: 16, height: 16 });
+    } else {
+      trayImage = trayImage.resize({ width: 22, height: 22 });
+    }
+
+    tray = new Tray(trayImage);
+    tray.setToolTip('xTerminal Pro — Multi-Protocol Workstation');
+
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: 'Open xTerminal',
+        click: () => showAndFocusWindow(),
+      },
+      {
+        label: 'Hide to Tray',
+        click: () => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.hide();
+          }
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Quit xTerminal',
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]);
+
+    tray.setContextMenu(contextMenu);
+
+    tray.on('click', () => {
+      toggleWindow();
+    });
+
+    tray.on('double-click', () => {
+      showAndFocusWindow();
+    });
+  } catch (err) {
+    console.error('Failed to initialize System Tray:', err);
+  }
+}
+
+// Window control IPC handlers
+ipcMain.on('window-minimize', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.hide();
   }
 });
-ipcMain.on('window-close', () => mainWindow?.close());
+ipcMain.on('window-maximize', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+  }
+});
+ipcMain.on('window-close', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.close();
+  }
+});
 ipcMain.on('open-external', (_event, url) => {
   if (url && (url.startsWith('https:') || (url.startsWith('http:') && !url.includes('127.0.0.1')))) {
     shell.openExternal(url);
@@ -257,7 +366,7 @@ ipcMain.on('open-path', (_event, dirPath) => {
   }
 });
 ipcMain.handle('select-directory', async (_event, defaultPath) => {
-  if (!mainWindow) return null;
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Select TFTP Root Directory',
     defaultPath: defaultPath || undefined,
@@ -271,10 +380,11 @@ ipcMain.handle('select-directory', async (_event, defaultPath) => {
 
 // Second instance focus
 app.on('second-instance', () => {
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
-  }
+  showAndFocusWindow();
+});
+
+app.on('before-quit', () => {
+  isQuitting = true;
 });
 
 app.whenReady().then(async () => {
@@ -282,6 +392,8 @@ app.whenReady().then(async () => {
     await session.defaultSession.clearCache();
     await session.defaultSession.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] });
   } catch (e) {}
+
+  createTray();
 
   if (!process.env.ELECTRON_START_URL) {
     activePort = await getAvailablePort(Number(process.env.PORT) || 3000);
@@ -295,14 +407,12 @@ app.whenReady().then(async () => {
   }
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+    showAndFocusWindow();
   });
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  if (isQuitting || (process.platform !== 'darwin' && !tray)) {
     app.quit();
   }
 });

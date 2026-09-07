@@ -105,9 +105,7 @@
           "network",
           "network-bind",
           "home",
-          "removable-media",
-          "serial-port",
-          "raw-usb"
+          "removable-media"
         ]
       }
     },

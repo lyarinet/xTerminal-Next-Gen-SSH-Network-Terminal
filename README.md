@@ -18,6 +18,9 @@
   <a href="https://copr.fedorainfracloud.org/coprs/asifagaria/xterminal/">
     <img src="https://img.shields.io/badge/Fedora_Copr-xterminal-2F406A.svg?style=for-the-badge&logo=fedora&logoColor=white" alt="Fedora Copr" />
   </a>
+  <a href="https://apps.microsoft.com/">
+    <img src="https://img.shields.io/badge/Microsoft_Store-xTerminal-0078D7.svg?style=for-the-badge&logo=windows&logoColor=white" alt="Microsoft Store" />
+  </a>
   <a href="https://play.google.com/store/apps/details?id=com.lyarinet.xterminal">
     <img src="https://img.shields.io/badge/Google_Play-xTerminal-414141.svg?style=for-the-badge&logo=google-play&logoColor=white" alt="Google Play" />
   </a>
@@ -241,7 +244,8 @@ Download pre-compiled release artifacts from the official [**GitHub Releases Pag
 | 🐧 **Linux (RPM Package)** | `.rpm` standalone | `sudo dnf install ./xTerminal-*.rpm` *(or `sudo rpm -i`)* |
 | 🐧 **Linux (Ubuntu / Debian)** | `.deb` standalone | `sudo dpkg -i xTerminal_*_amd64.deb` |
 | 🐧 **Linux (Portable)** | `.AppImage` | `chmod +x xTerminal-*.AppImage && ./xTerminal-*.AppImage` |
-| 🪟 **Windows** | Setup `.exe` / Portable | Run `xTerminal.Setup.1.2.6.exe` or standalone portable binary |
+| 🪟 **Windows (Store)** | Microsoft Store | Available via Microsoft Store |
+| 🪟 **Windows (Installer)** | Setup `.exe` / Portable | Run `xTerminal.Setup.1.2.6.exe` or standalone portable binary |
 | 🍎 **macOS** | `.dmg` (Apple Silicon & Intel) | Open `xTerminal-1.2.6.dmg` and drag `xTerminal.app` to `/Applications` |
 | 🤖 **Android (Google Play)** | Official Play Store | [**Install from Google Play**](https://play.google.com/store/apps/details?id=com.lyarinet.xterminal) |
 | 🤖 **Android (Direct APK)** | `.apk` standalone | [**Download APK (v1.2.6)**](https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.6/app-release-signed.apk) |

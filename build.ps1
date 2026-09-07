@@ -40,8 +40,8 @@ function Set-AppVersion([string]$newVer) {
     # 1. Update package.json
     $pkgJsonPath = Join-Path $ScriptDir "package.json"
     if (Test-Path $pkgJsonPath) {
-        $content = Get-Content $pkgJsonPath -Raw
-        $content = $content -replace '("version"\s*:\s*)"[^"]+"', "$1`"$cleanVer`""
+        $content = [System.IO.File]::ReadAllText($pkgJsonPath, [System.Text.Encoding]::UTF8)
+        $content = $content -replace '("version"\s*:\s*)"[^"]+"', "`$1`"$cleanVer`""
         [System.IO.File]::WriteAllText($pkgJsonPath, $content, $utf8NoBom)
         Write-Host "  [+] Updated package.json version -> $cleanVer" -ForegroundColor Green
     }
@@ -49,9 +49,9 @@ function Set-AppVersion([string]$newVer) {
     # 2. Update package-lock.json
     $lockJsonPath = Join-Path $ScriptDir "package-lock.json"
     if (Test-Path $lockJsonPath) {
-        $lockContent = Get-Content $lockJsonPath -Raw
-        $lockContent = $lockContent -replace '("name"\s*:\s*"xterminal",\s*"version"\s*:\s*)"[^"]+"', "$1`"$cleanVer`""
-        $lockContent = $lockContent -replace '("packages"\s*:\s*\{\s*""\s*:\s*\{\s*"name"\s*:\s*"xterminal",\s*"version"\s*:\s*)"[^"]+"', "$1`"$cleanVer`""
+        $lockContent = [System.IO.File]::ReadAllText($lockJsonPath, [System.Text.Encoding]::UTF8)
+        $lockContent = $lockContent -replace '("name"\s*:\s*"xterminal",\s*"version"\s*:\s*)"[^"]+"', "`$1`"$cleanVer`""
+        $lockContent = $lockContent -replace '("packages"\s*:\s*\{\s*""\s*:\s*\{\s*"name"\s*:\s*"xterminal",\s*"version"\s*:\s*)"[^"]+"', "`$1`"$cleanVer`""
         [System.IO.File]::WriteAllText($lockJsonPath, $lockContent, $utf8NoBom)
         Write-Host "  [+] Updated package-lock.json version -> $cleanVer" -ForegroundColor Green
     }
@@ -59,10 +59,10 @@ function Set-AppVersion([string]$newVer) {
     # 3. Update Android build.gradle
     $gradlePath = Join-Path $ScriptDir "android\app\build.gradle"
     if (Test-Path $gradlePath) {
-        $gradleContent = Get-Content $gradlePath -Raw
+        $gradleContent = [System.IO.File]::ReadAllText($gradlePath, [System.Text.Encoding]::UTF8)
         $gradleContent = $gradleContent -replace 'versionName\s+"[^"]+"', "versionName `"$cleanVer`""
         
-        # Calculate numeric versionCode (e.g. 1.2.4 -> 10204)
+        # Calculate numeric versionCode (e.g. 1.2.5 -> 10205)
         $parts = $cleanVer.Split('.')
         if ($parts.Count -ge 2) {
             try {
@@ -80,7 +80,7 @@ function Set-AppVersion([string]$newVer) {
     # 4. Update snap/snapcraft.yaml
     $snapPath = Join-Path $ScriptDir "snap\snapcraft.yaml"
     if (Test-Path $snapPath) {
-        $snapContent = Get-Content $snapPath -Raw
+        $snapContent = [System.IO.File]::ReadAllText($snapPath, [System.Text.Encoding]::UTF8)
         $snapContent = $snapContent -replace "version:\s*['`"][^'`"]+['`"]", "version: '$cleanVer'"
         [System.IO.File]::WriteAllText($snapPath, $snapContent, $utf8NoBom)
         Write-Host "  [+] Updated snap/snapcraft.yaml version -> $cleanVer" -ForegroundColor Green
@@ -89,8 +89,8 @@ function Set-AppVersion([string]$newVer) {
     # 5. Update src-tauri/tauri.conf.json
     $tauriPath = Join-Path $ScriptDir "src-tauri\tauri.conf.json"
     if (Test-Path $tauriPath) {
-        $tauriContent = Get-Content $tauriPath -Raw
-        $tauriContent = $tauriContent -replace '("version"\s*:\s*)"[^"]+"', "$1`"$cleanVer`""
+        $tauriContent = [System.IO.File]::ReadAllText($tauriPath, [System.Text.Encoding]::UTF8)
+        $tauriContent = $tauriContent -replace '("version"\s*:\s*)"[^"]+"', "`$1`"$cleanVer`""
         [System.IO.File]::WriteAllText($tauriPath, $tauriContent, $utf8NoBom)
         Write-Host "  [+] Updated src-tauri/tauri.conf.json version -> $cleanVer" -ForegroundColor Green
     }

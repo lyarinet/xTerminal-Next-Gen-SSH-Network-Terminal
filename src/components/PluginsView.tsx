@@ -107,7 +107,7 @@ export const PluginsView: React.FC = () => {
     {
       id: 'plugin-zstd-sftp',
       name: 'Zstandard SFTP Accelerator',
-      version: '1.2.4',
+      version: '1.2.5',
       author: 'xTerminalx HighPerf',
       description: 'Real-time LZ4/Zstandard compression streaming for 4x faster file transfers on slow network links.',
       category: 'tool',

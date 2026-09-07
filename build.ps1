@@ -2,12 +2,13 @@
 .SYNOPSIS
     xTerminal - Multi-Platform Interactive Build & Packaging Utility
 .DESCRIPTION
-    Builds Windows (.exe), Android Debug APK (.apk), Google Play Store Bundle (.aab), Linux (.AppImage / .deb / .snap), and macOS (.dmg).
-    Supports dynamic versioning across package.json, Android gradle, and release filenames.
+    Builds Windows (.exe), Android APK / Play Store (.aab), Linux (.AppImage / .deb / .snap), and macOS (.dmg).
+    Supports comprehensive version synchronization across package.json, package-lock.json,
+    Android build.gradle (versionName & versionCode), snapcraft.yaml, and tauri.conf.json.
 .PARAMETER Target
-    Target platform: win, windows, android, apk, aab, playstore, linux, mac, macos, all, release.
+    Target platform: win, windows, android, apk, aab, playstore, bundle, linux, mac, macos, all, release, keystore, icons.
 .PARAMETER Version
-    Optional version string (e.g. 1.0.0, 1.2.3). Updates package.json and Android build.gradle if specified.
+    Optional version string (e.g. 1.2.4). Automatically updates all project configuration files.
 #>
 
 param(
@@ -34,24 +35,34 @@ function Get-AppVersion {
 function Set-AppVersion([string]$newVer) {
     if (-not $newVer) { return }
     $cleanVer = $newVer.Trim().TrimStart('v').TrimStart('V')
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
     
     # 1. Update package.json
     $pkgJsonPath = Join-Path $ScriptDir "package.json"
     if (Test-Path $pkgJsonPath) {
         $content = Get-Content $pkgJsonPath -Raw
-        $content = $content -replace '("version"\s*:\s*)"[^"]+"', "`$1`"$cleanVer`""
-        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        $content = $content -replace '("version"\s*:\s*)"[^"]+"', "$1`"$cleanVer`""
         [System.IO.File]::WriteAllText($pkgJsonPath, $content, $utf8NoBom)
         Write-Host "  [+] Updated package.json version -> $cleanVer" -ForegroundColor Green
     }
+
+    # 2. Update package-lock.json
+    $lockJsonPath = Join-Path $ScriptDir "package-lock.json"
+    if (Test-Path $lockJsonPath) {
+        $lockContent = Get-Content $lockJsonPath -Raw
+        $lockContent = $lockContent -replace '("name"\s*:\s*"xterminal",\s*"version"\s*:\s*)"[^"]+"', "$1`"$cleanVer`""
+        $lockContent = $lockContent -replace '("packages"\s*:\s*\{\s*""\s*:\s*\{\s*"name"\s*:\s*"xterminal",\s*"version"\s*:\s*)"[^"]+"', "$1`"$cleanVer`""
+        [System.IO.File]::WriteAllText($lockJsonPath, $lockContent, $utf8NoBom)
+        Write-Host "  [+] Updated package-lock.json version -> $cleanVer" -ForegroundColor Green
+    }
     
-    # 2. Update Android build.gradle
+    # 3. Update Android build.gradle
     $gradlePath = Join-Path $ScriptDir "android\app\build.gradle"
     if (Test-Path $gradlePath) {
         $gradleContent = Get-Content $gradlePath -Raw
         $gradleContent = $gradleContent -replace 'versionName\s+"[^"]+"', "versionName `"$cleanVer`""
         
-        # Calculate numeric versionCode (e.g. 1.0.0 -> 10000, 1.2.3 -> 10203)
+        # Calculate numeric versionCode (e.g. 1.2.4 -> 10204)
         $parts = $cleanVer.Split('.')
         if ($parts.Count -ge 2) {
             try {
@@ -62,9 +73,26 @@ function Set-AppVersion([string]$newVer) {
                 $gradleContent = $gradleContent -replace 'versionCode\s+\d+', "versionCode $newCode"
             } catch {}
         }
-        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
         [System.IO.File]::WriteAllText($gradlePath, $gradleContent, $utf8NoBom)
-        Write-Host "  [+] Updated Android build.gradle versionName -> $cleanVer" -ForegroundColor Green
+        Write-Host "  [+] Updated Android build.gradle versionName -> $cleanVer (versionCode: $newCode)" -ForegroundColor Green
+    }
+
+    # 4. Update snap/snapcraft.yaml
+    $snapPath = Join-Path $ScriptDir "snap\snapcraft.yaml"
+    if (Test-Path $snapPath) {
+        $snapContent = Get-Content $snapPath -Raw
+        $snapContent = $snapContent -replace "version:\s*['`"][^'`"]+['`"]", "version: '$cleanVer'"
+        [System.IO.File]::WriteAllText($snapPath, $snapContent, $utf8NoBom)
+        Write-Host "  [+] Updated snap/snapcraft.yaml version -> $cleanVer" -ForegroundColor Green
+    }
+
+    # 5. Update src-tauri/tauri.conf.json
+    $tauriPath = Join-Path $ScriptDir "src-tauri\tauri.conf.json"
+    if (Test-Path $tauriPath) {
+        $tauriContent = Get-Content $tauriPath -Raw
+        $tauriContent = $tauriContent -replace '("version"\s*:\s*)"[^"]+"', "$1`"$cleanVer`""
+        [System.IO.File]::WriteAllText($tauriPath, $tauriContent, $utf8NoBom)
+        Write-Host "  [+] Updated src-tauri/tauri.conf.json version -> $cleanVer" -ForegroundColor Green
     }
 
     $script:AppVersion = $cleanVer
@@ -88,6 +116,28 @@ function Show-Banner {
     Write-Host "   Multi-Platform Cross-Build Engine (Windows, Android, Linux, macOS)" -ForegroundColor DarkGray
     Write-Host "   Version: v$script:AppVersion | Target: $(if ($Target) { $Target } else { 'Interactive' })" -ForegroundColor Yellow
     Write-Host "=====================================================================`n" -ForegroundColor DarkGray
+}
+
+function Get-KeytoolPath {
+    $cmd = Get-Command "keytool" -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    if ($env:JAVA_HOME -and (Test-Path "$env:JAVA_HOME\bin\keytool.exe")) {
+        return "$env:JAVA_HOME\bin\keytool.exe"
+    }
+    $candidates = @(
+        "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe",
+        "C:\Program Files\Android\Android Studio\jre\bin\keytool.exe",
+        "C:\Program Files\Eclipse Adoptium\*\bin\keytool.exe",
+        "C:\Program Files\Java\*\bin\keytool.exe",
+        "C:\Program Files (x86)\Java\*\bin\keytool.exe"
+    )
+    foreach ($cand in $candidates) {
+        $found = Resolve-Path $cand -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($found -and (Test-Path $found.Path)) {
+            return $found.Path
+        }
+    }
+    return "keytool"
 }
 
 function Test-Prerequisites {
@@ -156,12 +206,12 @@ function Build-Windows {
         Remove-Item "$ScriptDir\release\win-unpacked" -Recurse -Force -ErrorAction SilentlyContinue
     }
 
-    # Backup any Android APKs if present so electron-builder doesn't wipe them
-    $apkBackupDir = "$env:TEMP\xterminal-apk-backup"
+    # Backup any Android APKs and AABs if present so electron-builder doesn't wipe them
+    $backupDir = "$env:TEMP\xterminal-mobile-backup"
     if (Test-Path "$ScriptDir\release") {
-        New-Item -ItemType Directory -Path $apkBackupDir -Force | Out-Null
-        Get-ChildItem -Path "$ScriptDir\release" -Filter "*.apk" | ForEach-Object {
-            Copy-Item $_.FullName "$apkBackupDir\$($_.Name)" -Force
+        New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+        Get-ChildItem -Path "$ScriptDir\release" -Include "*.apk", "*.aab" -Recurse | ForEach-Object {
+            Copy-Item $_.FullName "$backupDir\$($_.Name)" -Force
         }
     }
 
@@ -173,12 +223,12 @@ function Build-Windows {
     $buildSuccess = ($LASTEXITCODE -eq 0)
     $elapsed = (Get-Date) - $start
 
-    # Restore Android APKs if they were backed up
-    if (Test-Path $apkBackupDir) {
-        Get-ChildItem -Path $apkBackupDir -Filter "*.apk" | ForEach-Object {
+    # Restore Android packages if they were backed up
+    if (Test-Path $backupDir) {
+        Get-ChildItem -Path $backupDir | ForEach-Object {
             Copy-Item $_.FullName "$ScriptDir\release\$($_.Name)" -Force
         }
-        Remove-Item $apkBackupDir -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item $backupDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     if ($buildSuccess) {
@@ -200,10 +250,7 @@ function Build-Windows {
     }
 }
 
-function Build-Android {
-    Show-Banner
-    Write-Host ">>> TARGET: Android Mobile Application (v$script:AppVersion)`n" -ForegroundColor Yellow
-
+function Ensure-AndroidSdk {
     if (-not $env:ANDROID_HOME -and (Test-Path "$env:LOCALAPPDATA\Android\Sdk")) {
         $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
     }
@@ -215,27 +262,58 @@ function Build-Android {
     if (-not (Test-Path $localProp) -or (Get-Content $localProp -Raw) -notmatch "sdk.dir") {
         Set-Content -Path $localProp -Value "sdk.dir=$escapedSdk"
     }
+}
+
+function Build-Android {
+    Show-Banner
+    Write-Host ">>> TARGET: Android Mobile Application (APK) (v$script:AppVersion)`n" -ForegroundColor Yellow
+
+    Ensure-AndroidSdk
 
     Write-Host "[1/3] Building Web Distribution for Android WebView..." -ForegroundColor Cyan
     npm run build
     if ($LASTEXITCODE -ne 0) { return }
 
-    Write-Host "`n[2/3] Syncing Capacitor Android Project..." -ForegroundColor Cyan
+    Write-Host "`n[2/3] Syncing Capacitor Android Project (Native Standalone Bridge Included)..." -ForegroundColor Cyan
     npx cap sync android
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Capacitor sync failed." -ForegroundColor Red
         return
     }
 
-    Write-Host "`n[3/3] Compiling Native Android APK with Gradle..." -ForegroundColor Cyan
+    # Ask user: Debug APK or Signed Release APK?
+    $hasKeystore = (Test-Path "$ScriptDir\android\keystore.properties") -or (Test-Path "$ScriptDir\android\xterminal-release-key.jks")
+    $buildTask = "assembleDebug"
+    $apkSubdir = "debug"
+    $apkFilename = "app-debug.apk"
+
+    if ($hasKeystore) {
+        Write-Host "`nRelease signing keystore detected. Select build mode:" -ForegroundColor Cyan
+        Write-Host "  [1] Debug APK (fast, instant install on any device/emulator)" -ForegroundColor Green
+        Write-Host "  [2] Release APK (signed with keystore, optimized for production sideloading)" -ForegroundColor Yellow
+        $apkChoice = Read-Host "`nChoose an option [1-2] (Default: 1)"
+        if ($apkChoice -eq "2") {
+            $buildTask = "assembleRelease"
+            $apkSubdir = "release"
+            $apkFilename = "app-release.apk"
+        }
+    }
+
+    Write-Host "`n[3/3] Compiling Native Android APK with Gradle ($buildTask)..." -ForegroundColor Cyan
     if (Test-Path "$ScriptDir\android\gradlew.bat") {
         $start = Get-Date
         Push-Location "$ScriptDir\android"
-        cmd.exe /c "gradlew.bat assembleDebug"
+        cmd.exe /c "gradlew.bat $buildTask"
         Pop-Location
         $elapsed = (Get-Date) - $start
 
-        $apkPath = "$ScriptDir\android\app\build\outputs\apk\debug\app-debug.apk"
+        $apkPath = "$ScriptDir\android\app\build\outputs\apk\$apkSubdir\$apkFilename"
+        if (-not (Test-Path $apkPath)) {
+            # Fallback search for any generated apk in outputs
+            $apkFind = Get-ChildItem -Path "$ScriptDir\android\app\build\outputs\apk" -Filter "*.apk" -Recurse | Select-Object -First 1
+            if ($apkFind) { $apkPath = $apkFind.FullName }
+        }
+
         if (Test-Path $apkPath) {
             if (-not (Test-Path "$ScriptDir\release")) {
                 New-Item -ItemType Directory -Path "$ScriptDir\release" -Force | Out-Null
@@ -247,7 +325,13 @@ function Build-Android {
             Write-Host " [SUCCESS] Android APK built successfully in $([math]::Round($elapsed.TotalSeconds, 1))s!" -ForegroundColor Green
             Write-Host "=====================================================================" -ForegroundColor Green
             Write-Host "  Release Package : release\xTerminal-$script:AppVersion.apk" -ForegroundColor Green
+            Write-Host "  Package ID      : com.lyarinet.xterminal" -ForegroundColor White
+            Write-Host "  Mode            : $(if ($buildTask -eq 'assembleRelease') { 'Signed Release' } else { 'Debug' })" -ForegroundColor White
+            Write-Host "  Engine          : Standalone Embedded Bridge (127.0.0.1:3000)" -ForegroundColor Cyan
             Write-Host "  Size            : $([math]::Round((Get-Item $targetApk).Length / 1MB, 2)) MB" -ForegroundColor White
+            Write-Host ""
+            Write-Host "  To install directly via ADB:" -ForegroundColor DarkGray
+            Write-Host "    adb install -r `"$targetApk`"" -ForegroundColor Yellow
             Write-Host ""
         } else {
             Write-Host "`n[!] Failed to generate APK. Check Android build logs above." -ForegroundColor Red
@@ -271,9 +355,10 @@ function New-AndroidKeystore {
 
     $keystorePath = "$ScriptDir\android\xterminal-release-key.jks"
     $dname = "CN=Lyarinet, OU=Mobile, O=Lyarinet, L=Karachi, ST=Sindh, C=PK"
+    $kt = Get-KeytoolPath
 
-    Write-Host "`nGenerating keystore with Java keytool..." -ForegroundColor Cyan
-    & keytool -genkeypair -v -keystore $keystorePath -alias $alias -keyalg RSA -keysize 2048 -validity 10000 -storepass $rawPass -keypass $rawPass -dname $dname
+    Write-Host "`nGenerating keystore with keytool ($kt)..." -ForegroundColor Cyan
+    & $kt -genkeypair -v -keystore $keystorePath -alias $alias -keyalg RSA -keysize 2048 -validity 10000 -storepass $rawPass -keypass $rawPass -dname $dname
 
     if (Test-Path $keystorePath) {
         $props = "storeFile=../xterminal-release-key.jks`r`nstorePassword=$rawPass`r`nkeyAlias=$alias`r`nkeyPassword=$rawPass`r`n"
@@ -281,12 +366,60 @@ function New-AndroidKeystore {
         [System.IO.File]::WriteAllText($propFile, $props, (New-Object System.Text.UTF8Encoding($false)))
         Write-Host "`n[SUCCESS] Keystore created: android\xterminal-release-key.jks" -ForegroundColor Green
         Write-Host "[SUCCESS] Keystore properties written: android\keystore.properties" -ForegroundColor Green
-        Write-Host "[!]  IMPORTANT: Keep xterminal-release-key.jks safe! It is already added to .gitignore." -ForegroundColor Yellow
+        Write-Host "[!]  IMPORTANT: Keep xterminal-release-key.jks safe! It is already protected by .gitignore." -ForegroundColor Yellow
         return $true
     } else {
-        Write-Host "[!] Failed to generate keystore. Ensure Java JDK 'keytool' is available in your PATH." -ForegroundColor Red
+        Write-Host "[!] Failed to generate keystore. Ensure Java JDK 'keytool' is available." -ForegroundColor Red
         return $false
     }
+}
+
+function Show-KeystoreInfo {
+    Show-Banner
+    Write-Host ">>> Android Keystore Status & Fingerprints (Google Play Console)`n" -ForegroundColor Yellow
+    $keystoreProp = "$ScriptDir\android\keystore.properties"
+    $keystoreJks = "$ScriptDir\android\xterminal-release-key.jks"
+    
+    if (-not (Test-Path $keystoreProp) -and -not (Test-Path $keystoreJks)) {
+        Write-Host "  [!] No release keystore found." -ForegroundColor Yellow
+        Write-Host "      Run Option [3] (Android Play Store .aab) to generate one." -ForegroundColor DarkGray
+        Write-Host ""
+        return
+    }
+
+    Write-Host "  [+] Keystore File : $keystoreJks" -ForegroundColor Green
+    if (Test-Path $keystoreProp) {
+        Write-Host "  [+] Config File   : $keystoreProp" -ForegroundColor Green
+        Get-Content $keystoreProp | ForEach-Object {
+            if ($_ -match "password") {
+                Write-Host "      $($_ -replace '=.+', '=********')" -ForegroundColor DarkGray
+            } else {
+                Write-Host "      $_" -ForegroundColor Cyan
+            }
+        }
+    }
+
+    $kt = Get-KeytoolPath
+    if (Test-Path $keystoreJks) {
+        Write-Host "`n  Certificate Details (SHA-1 & SHA-256):" -ForegroundColor White
+        try {
+            $pass = ""
+            if (Test-Path $keystoreProp) {
+                $propText = Get-Content $keystoreProp -Raw
+                if ($propText -match 'storePassword=(.+)') { $pass = $matches[1].Trim() }
+            }
+            if ($pass) {
+                & $kt -list -v -keystore $keystoreJks -storepass $pass | Select-String -Pattern "SHA1:|SHA256:|Owner:|Valid from:" | ForEach-Object {
+                    Write-Host "      $_" -ForegroundColor Yellow
+                }
+            } else {
+                & $kt -list -v -keystore $keystoreJks
+            }
+        } catch {
+            Write-Host "      Could not extract certificate details." -ForegroundColor DarkGray
+        }
+    }
+    Write-Host ""
 }
 
 function Build-AndroidPlayStore {
@@ -300,17 +433,7 @@ function Build-AndroidPlayStore {
         Set-AppVersion $vPrompt.Trim()
     }
 
-    if (-not $env:ANDROID_HOME -and (Test-Path "$env:LOCALAPPDATA\Android\Sdk")) {
-        $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
-    }
-
-    # Ensure local.properties exists for Gradle
-    $localProp = "$ScriptDir\android\local.properties"
-    $sdkDir = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { "$env:LOCALAPPDATA\Android\Sdk" }
-    $escapedSdk = $sdkDir -replace '\\', '\\'
-    if (-not (Test-Path $localProp) -or (Get-Content $localProp -Raw) -notmatch "sdk.dir") {
-        Set-Content -Path $localProp -Value "sdk.dir=$escapedSdk"
-    }
+    Ensure-AndroidSdk
 
     # Check for Keystore signing
     $keystoreProp = "$ScriptDir\android\keystore.properties"
@@ -369,11 +492,8 @@ function Build-AndroidPlayStore {
             $targetAab = "$ScriptDir\release\xTerminal-$script:AppVersion-playstore.aab"
             Copy-Item $aabFile.FullName $targetAab -Force
 
-            Write-Host "`n=====================================================================" -ForegroundColor Green
-            Write-Host " [SUCCESS] Google Play Store Bundle (.aab) generated successfully in $([math]::Round($elapsed.TotalSeconds, 1))s!" -ForegroundColor Green
-            Write-Host "=====================================================================" -ForegroundColor Green
-            Write-Host "  Release Bundle : release\xTerminal-$script:AppVersion-playstore.aab" -ForegroundColor Green
-            $curVCode = "10203"
+            # Dynamic versionCode retrieval from build.gradle
+            $curVCode = "10204"
             $gFile = "$ScriptDir\android\app\build.gradle"
             if (Test-Path $gFile) {
                 $gMatch = Select-String -Path $gFile -Pattern 'versionCode\s+(\d+)'
@@ -381,13 +501,19 @@ function Build-AndroidPlayStore {
                     $curVCode = $gMatch.Matches.Groups[1].Value
                 }
             }
+
+            Write-Host "`n=====================================================================" -ForegroundColor Green
+            Write-Host " [SUCCESS] Google Play Store Bundle (.aab) generated successfully in $([math]::Round($elapsed.TotalSeconds, 1))s!" -ForegroundColor Green
+            Write-Host "=====================================================================" -ForegroundColor Green
+            Write-Host "  Release Bundle : release\xTerminal-$script:AppVersion-playstore.aab" -ForegroundColor Green
             Write-Host "  Package ID     : com.lyarinet.xterminal" -ForegroundColor White
             Write-Host "  Version Code   : $curVCode (v$script:AppVersion)" -ForegroundColor White
+            Write-Host "  Engine         : Standalone Native Bridge Embedded" -ForegroundColor Cyan
             Write-Host "  Size           : $([math]::Round((Get-Item $targetAab).Length / 1MB, 2)) MB" -ForegroundColor White
             Write-Host ""
             Write-Host "  [*] HOW TO UPLOAD TO GOOGLE PLAY CONSOLE:" -ForegroundColor Yellow
             Write-Host "  1. Open Google Play Console: https://play.google.com/console" -ForegroundColor Cyan
-            Write-Host "  2. Select/Create your app with package: com.lyarinet.xterminal" -ForegroundColor White
+            Write-Host "  2. Select your app: com.lyarinet.xterminal" -ForegroundColor White
             Write-Host "  3. Go to: Production (or Internal testing) -> Create new release" -ForegroundColor White
             Write-Host "  4. Drag and drop: release\xTerminal-$script:AppVersion-playstore.aab" -ForegroundColor White
             Write-Host "  5. Review and roll out release!" -ForegroundColor Green
@@ -417,6 +543,8 @@ function Build-Linux {
         Write-Host " Output: $ScriptDir\release" -ForegroundColor White
     } else {
         Write-Host "`n[NOTE] Linux packaging on native Windows often requires WSL or Docker for Linux snap/AppImage/deb bundling." -ForegroundColor Yellow
+        Write-Host "       To build/publish snaps on Canonical Snap Store directly:" -ForegroundColor DarkGray
+        Write-Host "       wsl -> snapcraft pack -> snapcraft upload --release=stable <snap-file>" -ForegroundColor DarkGray
     }
 }
 
@@ -482,19 +610,62 @@ function Run-DevDesktop {
 
 function Refresh-Icons {
     Show-Banner
-    Write-Host ">>> Regenerating all multi-platform icons from public/logo.png...`n" -ForegroundColor Cyan
-    node_modules\.bin\electron.cmd scripts\generate-icons.cjs
-    Write-Host "`n[+] Multi-platform icons regenerated successfully." -ForegroundColor Green
+    Write-Host ">>> Regenerating all multi-platform icons from store_assets/1_app_icon/logo.png...`n" -ForegroundColor Cyan
+    if (Test-Path "$ScriptDir\store_assets\1_app_icon\logo.png") {
+        python -c "
+import os, sys
+from PIL import Image
+
+root = r'$ScriptDir'
+src_logo = os.path.join(root, 'store_assets', '1_app_icon', 'logo.png')
+img = Image.open(src_logo).convert('RGBA')
+
+# Windows .ico
+build_dir = os.path.join(root, 'build')
+os.makedirs(build_dir, exist_ok=True)
+img.save(os.path.join(build_dir, 'icon.ico'), sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])
+img.resize((512, 512), Image.LANCZOS).save(os.path.join(build_dir, 'icon.png'))
+print('  [+] Updated Windows & macOS build icons')
+
+# Public web icons
+pub = os.path.join(root, 'public')
+img.resize((512, 512), Image.LANCZOS).save(os.path.join(pub, 'logo.png'))
+img.resize((192, 192), Image.LANCZOS).save(os.path.join(pub, 'icon-192.png'))
+img.resize((512, 512), Image.LANCZOS).save(os.path.join(pub, 'icon-512.png'))
+img.resize((32, 32), Image.LANCZOS).save(os.path.join(pub, 'favicon.ico'))
+print('  [+] Updated Public Web icons')
+
+# Android mipmaps
+res = os.path.join(root, 'android', 'app', 'src', 'main', 'res')
+densities = {
+    'mipmap-mdpi': 48,
+    'mipmap-hdpi': 72,
+    'mipmap-xhdpi': 96,
+    'mipmap-xxhdpi': 144,
+    'mipmap-xxxhdpi': 192
+}
+for folder, size in densities.items():
+    fpath = os.path.join(res, folder)
+    if os.path.exists(fpath):
+        resized = img.resize((size, size), Image.LANCZOS)
+        resized.save(os.path.join(fpath, 'ic_launcher.png'))
+        resized.save(os.path.join(fpath, 'ic_launcher_round.png'))
+print('  [+] Updated Android Launcher mipmaps')
+"
+        Write-Host "`n[+] Multi-platform icons regenerated successfully." -ForegroundColor Green
+    } else {
+        Write-Host "  [!] logo.png not found in store_assets/1_app_icon/." -ForegroundColor Yellow
+    }
 }
 
 function Prompt-ChangeVersion {
     Show-Banner
     Write-Host "Current App Version: v$script:AppVersion" -ForegroundColor Yellow
     Write-Host ""
-    $newV = Read-Host "Enter new version number (e.g. 1.0.1, 1.1.0)"
+    $newV = Read-Host "Enter new version number (e.g. 1.2.5, 1.3.0)"
     if ($newV -and $newV.Trim() -ne "") {
         Set-AppVersion $newV
-        Write-Host "`nVersion successfully updated to v$script:AppVersion!" -ForegroundColor Green
+        Write-Host "`nVersion successfully synchronized across all platform configs to v$script:AppVersion!" -ForegroundColor Green
         Start-Sleep -Seconds 1
     }
 }
@@ -504,15 +675,16 @@ function Publish-GitHubRelease {
     Write-Host ">>> GitHub Multi-Platform Auto-Release (v$script:AppVersion)`n" -ForegroundColor Magenta
 
     Write-Host "This will:" -ForegroundColor White
-    Write-Host "  1. Commit any pending changes to git" -ForegroundColor DarkGray
-    Write-Host "  2. Create git tag: v$script:AppVersion" -ForegroundColor DarkGray
-    Write-Host "  3. Push tag to GitHub (triggers GitHub Actions)" -ForegroundColor DarkGray
-    Write-Host "  4. GitHub Actions will build:" -ForegroundColor DarkGray
+    Write-Host "  1. Synchronize version across all configuration files" -ForegroundColor DarkGray
+    Write-Host "  2. Commit any pending changes to git" -ForegroundColor DarkGray
+    Write-Host "  3. Create git tag: v$script:AppVersion" -ForegroundColor DarkGray
+    Write-Host "  4. Push tag to GitHub (triggers GitHub Actions)" -ForegroundColor DarkGray
+    Write-Host "  5. GitHub Actions will build:" -ForegroundColor DarkGray
     Write-Host "       Windows .exe  (windows-latest runner)" -ForegroundColor Cyan
     Write-Host "       Linux .deb + .AppImage  (ubuntu-latest runner)" -ForegroundColor Yellow
     Write-Host "       macOS .dmg   (macos-latest runner)" -ForegroundColor Magenta
     Write-Host "       Android .apk  (ubuntu-latest + Android SDK)" -ForegroundColor Green
-    Write-Host "  5. Auto-create GitHub Release with all artifacts" -ForegroundColor DarkGray
+    Write-Host "  6. Auto-create GitHub Release with all artifacts" -ForegroundColor DarkGray
     Write-Host ""
 
     $confirm = Read-Host "Continue? Tag and push v$script:AppVersion to GitHub? [y/N]"
@@ -520,6 +692,9 @@ function Publish-GitHubRelease {
         Write-Host "Cancelled." -ForegroundColor DarkGray
         return
     }
+
+    # Ensure all version files match
+    Set-AppVersion $script:AppVersion
 
     # Check git status
     Write-Host "`n[1/4] Checking git status..." -ForegroundColor Cyan
@@ -550,7 +725,7 @@ function Publish-GitHubRelease {
         Write-Host "  [+] Commits pushed." -ForegroundColor Green
     }
 
-    # Push tag (delete remote if exists first)
+    # Push tag (force if exists)
     Write-Host "`n[4/4] Pushing tag v$script:AppVersion to GitHub (triggers auto-release)..." -ForegroundColor Cyan
     git push origin "v$script:AppVersion" --force
     if ($LASTEXITCODE -eq 0) {
@@ -596,6 +771,8 @@ if ($Target -ne "") {
         "macos"     { Build-MacOS; exit }
         "all"       { Build-All; exit }
         "release"   { Publish-GitHubRelease; exit }
+        "keystore"  { Show-KeystoreInfo; exit }
+        "icons"     { Refresh-Icons; exit }
         default     { Write-Host "Unknown target: $Target" -ForegroundColor Red; exit 1 }
     }
 }
@@ -605,21 +782,22 @@ do {
     Show-Banner
     Write-Host "Select a target platform or utility to build:" -ForegroundColor White
     Write-Host ""
-    Write-Host "  [1]   Windows Desktop              (.exe Installer & Portable win-unpacked)" -ForegroundColor Cyan
-    Write-Host "  [2]   Android APK (Debug)          (Local testing APK on emulator / phone)" -ForegroundColor Green
+    Write-Host "  [1]   Windows Desktop              (.exe Installer & win-unpacked portable)" -ForegroundColor Cyan
+    Write-Host "  [2]   Android Mobile (APK)         (Direct .apk for phone installation / testing)" -ForegroundColor Green
     Write-Host "  [3]   Android Google Play (.aab)   (Production App Bundle for Google Play Store)" -ForegroundColor Green
     Write-Host "  [4]   Linux Desktop                (.AppImage, Debian .deb & Canonical .snap)" -ForegroundColor Yellow
     Write-Host "  [5]   macOS Desktop                (.dmg Installer)" -ForegroundColor Magenta
     Write-Host "  [6]   Build All Targets            (Complete Multi-Platform Packaging Suite)" -ForegroundColor White
     Write-Host "  -------------------------------------------------------------------" -ForegroundColor DarkGray
-    Write-Host "  [7]   Launch Desktop App           (Run locally via Electron)" -ForegroundColor DarkCyan
-    Write-Host "  [8]   Regenerate Icons             (Refresh .ico, .png, Android, Web icons)" -ForegroundColor DarkGray
-    Write-Host "  [9]   Change Version               (Current: v$script:AppVersion)" -ForegroundColor Yellow
-    Write-Host "  [10]  GitHub Auto-Release          (Tag + Push -> GitHub Actions builds all platforms)" -ForegroundColor Magenta
+    Write-Host "  [7]   Android Keystore Info        (View fingerprints SHA-1/SHA-256 for Play Console)" -ForegroundColor Green
+    Write-Host "  [8]   Launch Desktop App           (Run live locally via Electron)" -ForegroundColor DarkCyan
+    Write-Host "  [9]   Regenerate Icons             (Refresh all platform icons from logo.png)" -ForegroundColor DarkGray
+    Write-Host "  [10]  Change Version               (Current: v$script:AppVersion - Syncs all files)" -ForegroundColor Yellow
+    Write-Host "  [11]  GitHub Auto-Release          (Tag + Push -> Triggers GitHub Actions)" -ForegroundColor Magenta
     Write-Host "  [0]   Exit" -ForegroundColor Red
     Write-Host ""
     
-    $choice = Read-Host "Enter option number [0-10]"
+    $choice = Read-Host "Enter option number [0-11]"
     
     switch ($choice) {
         "1"  { Build-Windows; Pause }
@@ -628,12 +806,12 @@ do {
         "4"  { Build-Linux; Pause }
         "5"  { Build-MacOS; Pause }
         "6"  { Build-All; Pause }
-        "7"  { Run-DevDesktop; Pause }
-        "8"  { Refresh-Icons; Pause }
-        "9"  { Prompt-ChangeVersion }
-        "10" { Publish-GitHubRelease; Pause }
+        "7"  { Show-KeystoreInfo; Pause }
+        "8"  { Run-DevDesktop; Pause }
+        "9"  { Refresh-Icons; Pause }
+        "10" { Prompt-ChangeVersion }
+        "11" { Publish-GitHubRelease; Pause }
         "0"  { Write-Host "`nExiting builder. Good bye!" -ForegroundColor DarkGray; break }
-        default { Write-Host "Invalid option. Please choose between 0 and 10." -ForegroundColor Red; Start-Sleep -Seconds 1 }
+        default { Write-Host "Invalid option. Please choose between 0 and 11." -ForegroundColor Red; Start-Sleep -Seconds 1 }
     }
 } while ($choice -ne "0")
-

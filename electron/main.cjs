@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell, Menu, session, dialog } = require('electron');
 const path = require('path');
 const http = require('http');
+const net = require('net');
 
 // Set Windows Application User Model ID so taskbar, dock, and notifications display the custom xTerminal icon
 if (process.platform === 'win32') {
@@ -16,14 +17,37 @@ if (!gotTheLock) {
 }
 
 let mainWindow = null;
-const PORT = process.env.PORT || 3000;
+let activePort = Number(process.env.PORT) || 3000;
 let serverOnline = false;
+
+// Check if a specific port is available
+function checkPortAvailable(port) {
+  return new Promise((resolve) => {
+    const tester = net.createServer();
+    tester.once('error', (err) => {
+      resolve(false);
+    });
+    tester.once('listening', () => {
+      tester.close(() => resolve(true));
+    });
+    tester.listen(port, '127.0.0.1');
+  });
+}
+
+// Find first available port starting from startPort (3000, 3001, ...)
+async function getAvailablePort(startPort = 3000) {
+  for (let p = startPort; p < startPort + 20; p++) {
+    const isAvail = await checkPortAvailable(p);
+    if (isAvail) return p;
+  }
+  return startPort;
+}
 
 // Sequential, race-condition free server readiness check
 function waitForServer(port, callback) {
   let finished = false;
   let attempts = 0;
-  const maxAttempts = 15;
+  const maxAttempts = 20;
 
   const finish = (isOnline) => {
     if (finished) return;
@@ -44,7 +68,7 @@ function waitForServer(port, callback) {
       if (isSuccess) {
         finish(true);
       } else if (attempts < maxAttempts) {
-        setTimeout(check, 200);
+        setTimeout(check, 250);
       } else {
         finish(false);
       }
@@ -72,15 +96,16 @@ function waitForServer(port, callback) {
   check();
 }
 
-function startBackendServer() {
+function startBackendServer(port) {
   process.env.NODE_ENV = 'production';
-  process.env.PORT = String(PORT);
+  process.env.PORT = String(port);
   process.env.DIST_PATH = path.join(__dirname, '../dist');
   try {
     require('../dist/server.cjs');
-    console.log(`xTerminal embedded backend listening on port ${PORT}`);
+    console.log(`xTerminal embedded backend listening on port ${port}`);
   } catch (err) {
     console.error('Failed to start embedded backend server:', err);
+    dialog.showErrorBox('xTerminal Backend Error', 'Failed to initialize terminal backend:\n' + (err && (err.stack || err.message)));
   }
 }
 
@@ -166,7 +191,7 @@ function createWindow() {
   });
 
   const localHtml = path.join(__dirname, '../dist/index.html');
-  const startUrl = process.env.ELECTRON_START_URL || `http://127.0.0.1:${PORT}`;
+  const startUrl = process.env.ELECTRON_START_URL || `http://127.0.0.1:${activePort}`;
 
   let fallbackLoaded = false;
   const loadFallback = () => {
@@ -257,8 +282,10 @@ app.whenReady().then(async () => {
   } catch (e) {}
 
   if (!process.env.ELECTRON_START_URL) {
-    startBackendServer();
-    waitForServer(PORT, () => {
+    activePort = await getAvailablePort(Number(process.env.PORT) || 3000);
+    process.env.PORT = String(activePort);
+    startBackendServer(activePort);
+    waitForServer(activePort, () => {
       createWindow();
     });
   } else {

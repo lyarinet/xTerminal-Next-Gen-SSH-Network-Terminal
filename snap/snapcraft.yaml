@@ -25,19 +25,22 @@ parts:
   xterminal:
     plugin: nil
     source: .
+    build-snaps:
+      - node/22/stable
     override-pull: |
       craftctl default
-      # Auto-detect version directly from package.json or git tag on GitHub
-      VERSION=$(node -p "require('./package.json').version" 2>/dev/null || git describe --tags --always | sed 's/^v//')
-      craftctl set version="$VERSION"
+      # Auto-detect version directly from package.json or git tag
+      VERSION=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -n 1)
+      craftctl set version="${VERSION:-1.2.6}"
     override-build: |
+      export PATH="/snap/bin:$PATH"
+      echo "Using Node version: $(node -v)"
+      echo "Using NPM version: $(npm -v)"
       npm ci
       npm run build
       npx electron-builder --linux --dir
       cp -r release/linux-unpacked/* $CRAFT_PART_INSTALL/
     build-packages:
-      - nodejs
-      - npm
       - git
     stage-packages:
       - libnss3

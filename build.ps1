@@ -273,7 +273,7 @@ function New-AndroidKeystore {
     $dname = "CN=Lyarinet, OU=Mobile, O=Lyarinet, L=Karachi, ST=Sindh, C=PK"
 
     Write-Host "`nGenerating keystore with Java keytool..." -ForegroundColor Cyan
-    cmd.exe /c "keytool -genkeypair -v -keystore `"$keystorePath`" -alias `"$alias`" -keyalg RSA -keysize 2048 -validity 10000 -storepass `"$rawPass`" -keypass `"$rawPass`" -dname `"$dname`""
+    & keytool -genkeypair -v -keystore $keystorePath -alias $alias -keyalg RSA -keysize 2048 -validity 10000 -storepass $rawPass -keypass $rawPass -dname $dname
 
     if (Test-Path $keystorePath) {
         $props = "storeFile=../xterminal-release-key.jks`r`nstorePassword=$rawPass`r`nkeyAlias=$alias`r`nkeyPassword=$rawPass`r`n"
@@ -281,7 +281,7 @@ function New-AndroidKeystore {
         [System.IO.File]::WriteAllText($propFile, $props, (New-Object System.Text.UTF8Encoding($false)))
         Write-Host "`n[SUCCESS] Keystore created: android\xterminal-release-key.jks" -ForegroundColor Green
         Write-Host "[SUCCESS] Keystore properties written: android\keystore.properties" -ForegroundColor Green
-        Write-Host "⚠️  IMPORTANT: Keep xterminal-release-key.jks safe! It is already added to .gitignore." -ForegroundColor Yellow
+        Write-Host "[!]  IMPORTANT: Keep xterminal-release-key.jks safe! It is already added to .gitignore." -ForegroundColor Yellow
         return $true
     } else {
         Write-Host "[!] Failed to generate keystore. Ensure Java JDK 'keytool' is available in your PATH." -ForegroundColor Red
@@ -292,6 +292,13 @@ function New-AndroidKeystore {
 function Build-AndroidPlayStore {
     Show-Banner
     Write-Host ">>> TARGET: Android Google Play Store App Bundle (.aab) (v$script:AppVersion)`n" -ForegroundColor Yellow
+
+    # Interactive Version Confirmation / Update
+    Write-Host "Current App Version: v$script:AppVersion" -ForegroundColor Cyan
+    $vPrompt = Read-Host "Enter version to build for Play Store (or press Enter to keep v$script:AppVersion)"
+    if ($vPrompt -and $vPrompt.Trim() -ne "") {
+        Set-AppVersion $vPrompt.Trim()
+    }
 
     if (-not $env:ANDROID_HOME -and (Test-Path "$env:LOCALAPPDATA\Android\Sdk")) {
         $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
@@ -309,7 +316,7 @@ function Build-AndroidPlayStore {
     $keystoreProp = "$ScriptDir\android\keystore.properties"
     $keystoreJks = "$ScriptDir\android\xterminal-release-key.jks"
     if (-not (Test-Path $keystoreProp) -and -not (Test-Path $keystoreJks)) {
-        Write-Host "No release signing keystore detected. What would you like to do?" -ForegroundColor Yellow
+        Write-Host "`nNo release signing keystore detected. What would you like to do?" -ForegroundColor Yellow
         Write-Host "  [1] Generate a new Play Store release keystore (.jks) now" -ForegroundColor Cyan
         Write-Host "  [2] Continue with unsigned App Bundle (for Google Play App Signing)" -ForegroundColor White
         Write-Host "  [3] Cancel" -ForegroundColor DarkGray
@@ -322,6 +329,12 @@ function Build-AndroidPlayStore {
         } elseif ($kChoice -eq "3") {
             Write-Host "Build cancelled." -ForegroundColor Yellow
             return
+        }
+    } else {
+        Write-Host "`n  [+] Release signing keystore detected." -ForegroundColor Green
+        $reKey = Read-Host "Use existing keystore? [Y/n] (Enter 'n' to generate a new keystore)"
+        if ($reKey -eq "n" -or $reKey -eq "N") {
+            New-AndroidKeystore
         }
     }
 
@@ -360,11 +373,19 @@ function Build-AndroidPlayStore {
             Write-Host " [SUCCESS] Google Play Store Bundle (.aab) generated successfully in $([math]::Round($elapsed.TotalSeconds, 1))s!" -ForegroundColor Green
             Write-Host "=====================================================================" -ForegroundColor Green
             Write-Host "  Release Bundle : release\xTerminal-$script:AppVersion-playstore.aab" -ForegroundColor Green
+            $curVCode = "10203"
+            $gFile = "$ScriptDir\android\app\build.gradle"
+            if (Test-Path $gFile) {
+                $gMatch = Select-String -Path $gFile -Pattern 'versionCode\s+(\d+)'
+                if ($gMatch -and $gMatch.Matches.Groups.Count -gt 1) {
+                    $curVCode = $gMatch.Matches.Groups[1].Value
+                }
+            }
             Write-Host "  Package ID     : com.lyarinet.xterminal" -ForegroundColor White
-            Write-Host "  Version Code   : 10203 (v$script:AppVersion)" -ForegroundColor White
+            Write-Host "  Version Code   : $curVCode (v$script:AppVersion)" -ForegroundColor White
             Write-Host "  Size           : $([math]::Round((Get-Item $targetAab).Length / 1MB, 2)) MB" -ForegroundColor White
             Write-Host ""
-            Write-Host "  📌 HOW TO UPLOAD TO GOOGLE PLAY CONSOLE:" -ForegroundColor Yellow
+            Write-Host "  [*] HOW TO UPLOAD TO GOOGLE PLAY CONSOLE:" -ForegroundColor Yellow
             Write-Host "  1. Open Google Play Console: https://play.google.com/console" -ForegroundColor Cyan
             Write-Host "  2. Select/Create your app with package: com.lyarinet.xterminal" -ForegroundColor White
             Write-Host "  3. Go to: Production (or Internal testing) -> Create new release" -ForegroundColor White
@@ -385,7 +406,7 @@ function Build-Linux {
 
     Build-FrontendAndServer
 
-    Write-Host "`n[2/2] Packaging Linux AppImage, .deb & Canonical .snap..." -ForegroundColor Cyan
+    Write-Host "`n[2/2] Packaging Linux AppImage, .deb and Canonical .snap..." -ForegroundColor Cyan
     $start = Get-Date
     cmd.exe /c "npx electron-builder --linux AppImage deb snap --publish never"
     $elapsed = (Get-Date) - $start
@@ -519,7 +540,7 @@ function Publish-GitHubRelease {
         Write-Host "  [!] Tag v$script:AppVersion already exists locally. Deleting and recreating..." -ForegroundColor Yellow
         git tag -d "v$script:AppVersion" | Out-Null
     }
-    git tag -a "v$script:AppVersion" -m "xTerminal Pro v$script:AppVersion — Multi-Platform Release"
+    git tag -a "v$script:AppVersion" -m "xTerminal Pro v$script:AppVersion - Multi-Platform Release"
     Write-Host "  [+] Tag v$script:AppVersion created." -ForegroundColor Green
 
     # Push commits

@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Terminal as XTerm } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
 import {
   Play,
   Pause,
@@ -42,6 +44,14 @@ export const SessionRecorderModal: React.FC<SessionRecorderModalProps> = ({
   const [searchFilter, setSearchFilter] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // xterm.js terminal instance & fit addon
+  const terminalContainerRef = useRef<HTMLDivElement>(null);
+  const termRef = useRef<XTerm | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
+  const lastPlayedMsRef = useRef<number>(0);
+  const currentRecordingRef = useRef<SessionRecording | null>(null);
+  currentRecordingRef.current = currentRecording;
+
   // Load recordings from localStorage whenever modal opens or initialRecording changes
   useEffect(() => {
     if (!isOpen) {
@@ -69,22 +79,151 @@ export const SessionRecorderModal: React.FC<SessionRecorderModalProps> = ({
 
   const totalDurationMs = (currentRecording?.durationSeconds ?? 0) * 1000;
 
+  // Initialize xterm.js terminal instance inside modal
+  useEffect(() => {
+    if (!isOpen || !terminalContainerRef.current) return;
+
+    if (!termRef.current) {
+      const term = new XTerm({
+        theme: {
+          background: '#0A0A0B',
+          foreground: '#E0E0E0',
+          cursor: '#10B981',
+          cursorAccent: '#0A0A0B',
+          selectionBackground: '#10B98133',
+          black: '#111112',
+          red: '#EF4444',
+          green: '#10B981',
+          yellow: '#F59E0B',
+          blue: '#3B82F6',
+          magenta: '#A855F7',
+          cyan: '#06B6D4',
+          white: '#E5E7EB',
+          brightBlack: '#4B5563',
+          brightRed: '#F87171',
+          brightGreen: '#34D399',
+          brightYellow: '#FBBF24',
+          brightBlue: '#60A5FA',
+          brightMagenta: '#C084FC',
+          brightCyan: '#22D3EE',
+          brightWhite: '#F9FAFB',
+        },
+        fontSize: 13,
+        fontFamily: 'Consolas, "Liberation Mono", Menlo, Courier, monospace',
+        cursorBlink: true,
+        disableStdin: true,
+        convertEol: true,
+        scrollback: 10000,
+      });
+
+      const fitAddon = new FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(terminalContainerRef.current);
+      termRef.current = term;
+      fitAddonRef.current = fitAddon;
+
+      setTimeout(() => {
+        try {
+          fitAddon.fit();
+        } catch {}
+      }, 50);
+    } else {
+      setTimeout(() => {
+        try {
+          fitAddonRef.current?.fit();
+        } catch {}
+      }, 50);
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      try {
+        fitAddonRef.current?.fit();
+      } catch {}
+    });
+
+    if (terminalContainerRef.current) {
+      resizeObserver.observe(terminalContainerRef.current);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [isOpen, isHistoryOpen]);
+
+  // Clean up xterm instance when modal is closed
+  useEffect(() => {
+    if (!isOpen) {
+      termRef.current?.dispose();
+      termRef.current = null;
+      fitAddonRef.current = null;
+      lastPlayedMsRef.current = 0;
+    }
+  }, [isOpen]);
+
+  // Replay Synchronizer: feeds terminal stream chunks into xterm.js
+  const syncTerminalToTime = useCallback((targetMs: number, forceReset = false) => {
+    const term = termRef.current;
+    const rec = currentRecordingRef.current;
+    if (!term || !rec) return;
+
+    const events = rec.events || [];
+    const hasOut = events.some((e) => e.type === 'out');
+
+    if (forceReset || targetMs < lastPlayedMsRef.current) {
+      term.reset();
+      lastPlayedMsRef.current = 0;
+      for (const evt of events) {
+        if (evt.timeMs > targetMs) break;
+        if (hasOut ? evt.type === 'out' : true) {
+          term.write(evt.data);
+        }
+      }
+      lastPlayedMsRef.current = targetMs;
+      return;
+    }
+
+    // Incremental write between last played timestamp and targetMs
+    for (const evt of events) {
+      if (evt.timeMs > lastPlayedMsRef.current && evt.timeMs <= targetMs) {
+        if (hasOut ? evt.type === 'out' : true) {
+          term.write(evt.data);
+        }
+      }
+    }
+    lastPlayedMsRef.current = targetMs;
+  }, []);
+
+  // When recording changes, reset terminal and sync to 0
+  useEffect(() => {
+    if (currentRecording && termRef.current) {
+      termRef.current.reset();
+      lastPlayedMsRef.current = 0;
+      setPlaybackTimeMs(0);
+      setIsPlaying(false);
+      syncTerminalToTime(0, true);
+    }
+  }, [currentRecording, syncTerminalToTime]);
+
+  // Real-time playback timer (50ms tick interval)
   useEffect(() => {
     let timer: any;
     if (isPlaying && totalDurationMs > 0) {
+      const intervalMs = 50;
       timer = setInterval(() => {
         setPlaybackTimeMs((prev) => {
-          const next = prev + 100 * playbackSpeed;
+          const next = prev + intervalMs * playbackSpeed;
           if (next >= totalDurationMs) {
             setIsPlaying(false);
+            syncTerminalToTime(totalDurationMs);
             return totalDurationMs;
           }
+          syncTerminalToTime(next);
           return next;
         });
-      }, 100);
+      }, intervalMs);
     }
     return () => clearInterval(timer);
-  }, [isPlaying, playbackSpeed, totalDurationMs]);
+  }, [isPlaying, playbackSpeed, totalDurationMs, syncTerminalToTime]);
 
   if (!isOpen) return null;
 
@@ -92,6 +231,8 @@ export const SessionRecorderModal: React.FC<SessionRecorderModalProps> = ({
     setCurrentRecording(rec);
     setPlaybackTimeMs(0);
     setIsPlaying(false);
+    lastPlayedMsRef.current = 0;
+    termRef.current?.reset();
     setIsHistoryOpen(false);
   };
 
@@ -106,29 +247,52 @@ export const SessionRecorderModal: React.FC<SessionRecorderModalProps> = ({
       setCurrentRecording(updated[0] || null);
       setPlaybackTimeMs(0);
       setIsPlaying(false);
+      lastPlayedMsRef.current = 0;
+      termRef.current?.reset();
     }
+  };
+
+  const handleRestart = () => {
+    setPlaybackTimeMs(0);
+    lastPlayedMsRef.current = 0;
+    termRef.current?.reset();
+    syncTerminalToTime(0, true);
+    setIsPlaying(true);
   };
 
   const handleLoadDemoRecording = () => {
     const demo: SessionRecording = {
       id: `demo-${Date.now()}`,
-      title: 'Demo Ubuntu Server Diagnostics',
+      title: 'Ubuntu Gateway Server Diagnostics',
       hostName: 'prod-gateway.corp.internal',
       username: 'admin',
       createdAt: new Date().toISOString(),
-      durationSeconds: 12,
+      durationSeconds: 10,
       commandCount: 3,
       events: [
-        { timeMs: 400, type: 'in', data: 'uname -a\r\n' },
-        { timeMs: 900, type: 'out', data: 'Linux prod-gateway 6.8.0-45-generic #45-Ubuntu SMP PREEMPT_DYNAMIC x86_64 GNU/Linux\r\n' },
-        { timeMs: 2500, type: 'in', data: 'uptime\r\n' },
-        { timeMs: 3100, type: 'out', data: ' 14:22:05 up 42 days,  3:18,  2 users,  load average: 0.14, 0.08, 0.05\r\n' },
-        { timeMs: 5000, type: 'in', data: 'netstat -tuln | grep LISTEN\r\n' },
-        { timeMs: 5800, type: 'out', data: 'tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN\r\n' },
-        { timeMs: 6000, type: 'out', data: 'tcp        0      0 127.0.0.1:3000          0.0.0.0:*               LISTEN\r\n' },
-        { timeMs: 6200, type: 'out', data: 'tcp6       0      0 :::22                   :::*                    LISTEN\r\n' },
-        { timeMs: 9000, type: 'in', data: 'echo "[xTerminal] System status: OPTIMAL"\r\n' },
-        { timeMs: 9800, type: 'out', data: '[xTerminal] System status: OPTIMAL\r\n' },
+        { timeMs: 100, type: 'out', data: '\x1b[32;1madmin@prod-gateway\x1b[0m:\x1b[34;1m~\x1b[0m$ ' },
+        { timeMs: 500, type: 'out', data: 'u' },
+        { timeMs: 650, type: 'out', data: 'n' },
+        { timeMs: 750, type: 'out', data: 'a' },
+        { timeMs: 850, type: 'out', data: 'm' },
+        { timeMs: 950, type: 'out', data: 'e' },
+        { timeMs: 1050, type: 'out', data: ' -a\r\n' },
+        { timeMs: 1400, type: 'out', data: 'Linux prod-gateway 6.8.0-45-generic #45-Ubuntu SMP PREEMPT_DYNAMIC x86_64 GNU/Linux\r\n\r\n' },
+        { timeMs: 2000, type: 'out', data: '\x1b[32;1madmin@prod-gateway\x1b[0m:\x1b[34;1m~\x1b[0m$ ' },
+        { timeMs: 2500, type: 'out', data: 'u' },
+        { timeMs: 2600, type: 'out', data: 'p' },
+        { timeMs: 2700, type: 'out', data: 't' },
+        { timeMs: 2800, type: 'out', data: 'i' },
+        { timeMs: 2900, type: 'out', data: 'm' },
+        { timeMs: 3000, type: 'out', data: 'e\r\n' },
+        { timeMs: 3300, type: 'out', data: ' 14:22:05 up 42 days,  3:18,  2 users,  load average: 0.14, 0.08, 0.05\r\n\r\n' },
+        { timeMs: 4000, type: 'out', data: '\x1b[32;1madmin@prod-gateway\x1b[0m:\x1b[34;1m~\x1b[0m$ ' },
+        { timeMs: 4500, type: 'out', data: 'netstat -tuln | grep 3000\r\n' },
+        { timeMs: 5000, type: 'out', data: 'tcp        0      0 127.0.0.1:3000          0.0.0.0:*               LISTEN\r\n\r\n' },
+        { timeMs: 5800, type: 'out', data: '\x1b[32;1madmin@prod-gateway\x1b[0m:\x1b[34;1m~\x1b[0m$ ' },
+        { timeMs: 6300, type: 'out', data: 'echo "[xTerminal] System status: OPTIMAL"\r\n' },
+        { timeMs: 6700, type: 'out', data: '\x1b[32;1m[xTerminal] System status: OPTIMAL\x1b[0m\r\n\r\n' },
+        { timeMs: 7500, type: 'out', data: '\x1b[32;1madmin@prod-gateway\x1b[0m:\x1b[34;1m~\x1b[0m$ ' },
       ],
     };
 
@@ -222,7 +386,9 @@ export const SessionRecorderModal: React.FC<SessionRecorderModalProps> = ({
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPlaybackTimeMs(Number(e.target.value));
+    const val = Number(e.target.value);
+    setPlaybackTimeMs(val);
+    syncTerminalToTime(val, true);
   };
 
   const handleExportAsciinema = () => {
@@ -433,32 +599,13 @@ export const SessionRecorderModal: React.FC<SessionRecorderModalProps> = ({
             </div>
           )}
 
-          {/* Terminal Screen Simulation */}
-          <div className="flex-1 bg-[#0A0A0B] p-4 overflow-y-auto font-mono text-xs text-emerald-400 flex flex-col justify-between border-b border-[#222224] select-text">
-            <div className="space-y-1">
-              {visibleEvents.length === 0 && (
-                <div className="text-gray-600 italic">
-                  Press Play to begin session timeline playback...
-                </div>
-              )}
-              {visibleEvents.map((evt, idx) => (
-                <div key={idx} className="leading-relaxed whitespace-pre-wrap">
-                  {evt.type === 'in' ? (
-                    <div className="text-white font-bold my-1">
-                      <span className="text-emerald-500 mr-1.5">
-                        {currentRecording?.username || 'user'}@{currentRecording?.hostName || 'host'}:~$
-                      </span>
-                      {evt.data}
-                    </div>
-                  ) : (
-                    <div className="text-gray-300">{evt.data}</div>
-                  )}
-                </div>
-              ))}
-              {isPlaying && (
-                <span className="inline-block w-2 h-4 bg-emerald-400 animate-pulse ml-0.5" />
-              )}
-            </div>
+          {/* Real Full-Screen xterm.js Terminal Replay Screen */}
+          <div className="flex-1 bg-[#0A0A0B] relative flex flex-col overflow-hidden select-text p-2 min-h-[400px]">
+            <div
+              ref={terminalContainerRef}
+              className="flex-1 w-full h-full overflow-hidden"
+              style={{ minHeight: '400px' }}
+            />
           </div>
         </div>
 
@@ -466,7 +613,7 @@ export const SessionRecorderModal: React.FC<SessionRecorderModalProps> = ({
         <div className="p-4 bg-[#111112] space-y-3 border-t border-[#1C1C1E]">
           {/* Progress bar */}
           <div className="flex items-center gap-3">
-            <span className="text-xs font-mono text-gray-400 w-10 text-right">
+            <span className="text-xs font-mono text-gray-400 w-12 text-right">
               {formatSeconds(playbackTimeMs)}
             </span>
             <input
@@ -477,7 +624,7 @@ export const SessionRecorderModal: React.FC<SessionRecorderModalProps> = ({
               onChange={handleSeek}
               className="flex-1 accent-emerald-500 cursor-pointer h-1.5 bg-[#222224] rounded-lg"
             />
-            <span className="text-xs font-mono text-gray-400 w-10">
+            <span className="text-xs font-mono text-gray-400 w-12">
               {formatSeconds(totalDurationMs)}
             </span>
           </div>
@@ -494,10 +641,7 @@ export const SessionRecorderModal: React.FC<SessionRecorderModalProps> = ({
               </button>
 
               <button
-                onClick={() => {
-                  setPlaybackTimeMs(0);
-                  setIsPlaying(false);
-                }}
+                onClick={handleRestart}
                 className="p-2 rounded-lg bg-[#1C1C1E] hover:bg-[#252528] text-gray-400 hover:text-white border border-[#222224] transition-colors cursor-pointer"
                 title="Restart from beginning"
               >
@@ -534,7 +678,7 @@ export const SessionRecorderModal: React.FC<SessionRecorderModalProps> = ({
             </div>
 
             <div className="text-xs text-gray-500 font-mono">
-              Events: {visibleEvents.length} / {currentRecording?.events?.length || 0}
+              Events: {(currentRecording?.events || []).filter((e) => e.timeMs <= playbackTimeMs).length} / {currentRecording?.events?.length || 0}
             </div>
           </div>
         </div>

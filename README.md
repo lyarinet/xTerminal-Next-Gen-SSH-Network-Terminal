@@ -4,7 +4,7 @@
 ### Next-Generation Multi-Protocol SSH, Telnet, Serial, Android ADB & DevOps Workstation
 **Enterprise Remote Access, Cloud & Network Engineering Suite**
 
-[![Version](https://img.shields.io/badge/version-1.2.3-emerald.svg?style=for-the-badge)](package.json)
+[![Version](https://img.shields.io/badge/version-1.2.4-emerald.svg?style=for-the-badge)](package.json)
 [![Snapcraft](https://img.shields.io/badge/Snapcraft-xterminal-82BEA0.svg?style=for-the-badge&logo=snapcraft&logoColor=white)](https://snapcraft.io/xterminal)
 [![Electron](https://img.shields.io/badge/Electron-44.2.0-47848F?style=for-the-badge&logo=electron&logoColor=white)](https://electronjs.org/)
 [![Android](https://img.shields.io/badge/Android-Capacitor-3DDC84?style=for-the-badge&logo=android&logoColor=white)](android/)
@@ -315,10 +315,10 @@ sudo dpkg -i xTerminal_*_amd64.deb
 ```
 
 ### 🪟 Windows (.exe)
-Download and run the 64-bit installer `xTerminal Setup 1.2.3.exe`.
+Download and run the 64-bit installer `xTerminal Setup 1.2.4.exe`.
 
 ### 🍎 macOS (.dmg)
-Download `xTerminal-1.2.3-arm64.dmg` (Apple Silicon) or `xTerminal-1.2.3-x64.dmg` (Intel).
+Download `xTerminal-1.2.4-arm64.dmg` (Apple Silicon) or `xTerminal-1.2.4-x64.dmg` (Intel).
 Drag **xTerminal.app** to `/Applications`.
 > If Apple Gatekeeper flags the application as untrusted:
 > ```bash
@@ -327,8 +327,8 @@ Drag **xTerminal.app** to `/Applications`.
 
 ### 🤖 Android Mobile
 - **Package ID**: `com.lyarinet.xterminal`
-- **Direct Sideload APK**: Download `xTerminal-1.2.3.apk`, enable *"Install Unknown Apps"* in Android Settings, and install.
-- **Google Play Store App Bundle (.aab)**: Download `xTerminal-1.2.3-playstore.aab` from Releases, or build locally via `.\build.ps1 -Target aab`.
+- **Direct Sideload APK**: Download `xTerminal-1.2.4.apk`, enable *"Install Unknown Apps"* in Android Settings, and install.
+- **Google Play Store App Bundle (.aab)**: Download `xTerminal-1.2.4-playstore.aab` from Releases, or build locally via `.\build.ps1 -Target aab`.
 
 ---
 

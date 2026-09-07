@@ -86,8 +86,13 @@ jobs:
       - name: Build Vite frontend + server bundle
         run: npm run build
 
-      - name: Package Linux AppImage + .deb + .snap
-        run: npx electron-builder --linux AppImage deb snap --publish never
+      - name: Package Linux AppImage + .deb
+        run: npx electron-builder --linux AppImage deb --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package Linux Snap
+        run: npx electron-builder --linux snap --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

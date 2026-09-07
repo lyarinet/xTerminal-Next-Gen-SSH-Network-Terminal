@@ -10,4 +10,7 @@ release/
 android/app/build/
 android/.gradle/
 *.local
-
+*.jks
+*.keystore
+android/keystore.properties
+android/local.properties

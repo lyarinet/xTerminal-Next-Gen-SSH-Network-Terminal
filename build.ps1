@@ -2,12 +2,12 @@
 .SYNOPSIS
     xTerminal - Multi-Platform Interactive Build & Packaging Utility
 .DESCRIPTION
-    Builds Windows (.exe / NSIS), Android (.apk), Linux (.AppImage / .deb), and macOS (.dmg).
+    Builds Windows (.exe), Android Debug APK (.apk), Google Play Store Bundle (.aab), Linux (.AppImage / .deb / .snap), and macOS (.dmg).
     Supports dynamic versioning across package.json, Android gradle, and release filenames.
 .PARAMETER Target
-    Target platform: win, windows, android, linux, mac, macos, all.
+    Target platform: win, windows, android, apk, aab, playstore, linux, mac, macos, all, release.
 .PARAMETER Version
-    Optional version string (e.g. 1.0.0, 1.1.0). Updates package.json and Android build.gradle if specified.
+    Optional version string (e.g. 1.0.0, 1.2.3). Updates package.json and Android build.gradle if specified.
 #>
 
 param(
@@ -257,6 +257,128 @@ function Build-Android {
     }
 }
 
+function New-AndroidKeystore {
+    Write-Host "`n--- Setup Android Play Store Release Keystore ---" -ForegroundColor Cyan
+    Write-Host "This creates an official cryptographic key (.jks) required by Google Play Store." -ForegroundColor DarkGray
+    $alias = Read-Host "Enter Key Alias (Press Enter for default: 'xterminal')"
+    if (-not $alias -or $alias.Trim() -eq "") { $alias = "xterminal" }
+    
+    $rawPass = Read-Host "Enter Keystore Password (min 6 characters)"
+    if (-not $rawPass -or $rawPass.Trim().Length -lt 6) {
+        Write-Host "[!] Password must be at least 6 characters long." -ForegroundColor Red
+        return $false
+    }
+
+    $keystorePath = "$ScriptDir\android\xterminal-release-key.jks"
+    $dname = "CN=Lyarinet, OU=Mobile, O=Lyarinet, L=Karachi, ST=Sindh, C=PK"
+
+    Write-Host "`nGenerating keystore with Java keytool..." -ForegroundColor Cyan
+    cmd.exe /c "keytool -genkeypair -v -keystore `"$keystorePath`" -alias `"$alias`" -keyalg RSA -keysize 2048 -validity 10000 -storepass `"$rawPass`" -keypass `"$rawPass`" -dname `"$dname`""
+
+    if (Test-Path $keystorePath) {
+        $props = "storeFile=../xterminal-release-key.jks`r`nstorePassword=$rawPass`r`nkeyAlias=$alias`r`nkeyPassword=$rawPass`r`n"
+        $propFile = "$ScriptDir\android\keystore.properties"
+        [System.IO.File]::WriteAllText($propFile, $props, (New-Object System.Text.UTF8Encoding($false)))
+        Write-Host "`n[SUCCESS] Keystore created: android\xterminal-release-key.jks" -ForegroundColor Green
+        Write-Host "[SUCCESS] Keystore properties written: android\keystore.properties" -ForegroundColor Green
+        Write-Host "⚠️  IMPORTANT: Keep xterminal-release-key.jks safe! It is already added to .gitignore." -ForegroundColor Yellow
+        return $true
+    } else {
+        Write-Host "[!] Failed to generate keystore. Ensure Java JDK 'keytool' is available in your PATH." -ForegroundColor Red
+        return $false
+    }
+}
+
+function Build-AndroidPlayStore {
+    Show-Banner
+    Write-Host ">>> TARGET: Android Google Play Store App Bundle (.aab) (v$script:AppVersion)`n" -ForegroundColor Yellow
+
+    if (-not $env:ANDROID_HOME -and (Test-Path "$env:LOCALAPPDATA\Android\Sdk")) {
+        $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+    }
+
+    # Ensure local.properties exists for Gradle
+    $localProp = "$ScriptDir\android\local.properties"
+    $sdkDir = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { "$env:LOCALAPPDATA\Android\Sdk" }
+    $escapedSdk = $sdkDir -replace '\\', '\\'
+    if (-not (Test-Path $localProp) -or (Get-Content $localProp -Raw) -notmatch "sdk.dir") {
+        Set-Content -Path $localProp -Value "sdk.dir=$escapedSdk"
+    }
+
+    # Check for Keystore signing
+    $keystoreProp = "$ScriptDir\android\keystore.properties"
+    $keystoreJks = "$ScriptDir\android\xterminal-release-key.jks"
+    if (-not (Test-Path $keystoreProp) -and -not (Test-Path $keystoreJks)) {
+        Write-Host "No release signing keystore detected. What would you like to do?" -ForegroundColor Yellow
+        Write-Host "  [1] Generate a new Play Store release keystore (.jks) now" -ForegroundColor Cyan
+        Write-Host "  [2] Continue with unsigned App Bundle (for Google Play App Signing)" -ForegroundColor White
+        Write-Host "  [3] Cancel" -ForegroundColor DarkGray
+        $kChoice = Read-Host "`nChoose an option [1-3] (Default: 2)"
+        if ($kChoice -eq "1") {
+            $created = New-AndroidKeystore
+            if (-not $created) {
+                Write-Host "Continuing with unsigned bundle..." -ForegroundColor Yellow
+            }
+        } elseif ($kChoice -eq "3") {
+            Write-Host "Build cancelled." -ForegroundColor Yellow
+            return
+        }
+    }
+
+    Write-Host "`n[1/3] Building Web Distribution for Android WebView..." -ForegroundColor Cyan
+    npm run build
+    if ($LASTEXITCODE -ne 0) { return }
+
+    Write-Host "`n[2/3] Syncing Capacitor Android Project (App ID: com.lyarinet.xterminal)..." -ForegroundColor Cyan
+    npx cap sync android
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Capacitor sync failed." -ForegroundColor Red
+        return
+    }
+
+    Write-Host "`n[3/3] Compiling Google Play App Bundle (.aab) with Gradle..." -ForegroundColor Cyan
+    if (Test-Path "$ScriptDir\android\gradlew.bat") {
+        $start = Get-Date
+        Push-Location "$ScriptDir\android"
+        cmd.exe /c "gradlew.bat bundleRelease"
+        $gradleExit = $LASTEXITCODE
+        Pop-Location
+        $elapsed = (Get-Date) - $start
+
+        # Check output bundle in android/app/build/outputs/bundle/release
+        $aabDir = "$ScriptDir\android\app\build\outputs\bundle\release"
+        $aabFile = Get-ChildItem -Path $aabDir -Filter "*.aab" -ErrorAction SilentlyContinue | Select-Object -First 1
+
+        if ($aabFile -and (Test-Path $aabFile.FullName)) {
+            if (-not (Test-Path "$ScriptDir\release")) {
+                New-Item -ItemType Directory -Path "$ScriptDir\release" -Force | Out-Null
+            }
+            $targetAab = "$ScriptDir\release\xTerminal-$script:AppVersion-playstore.aab"
+            Copy-Item $aabFile.FullName $targetAab -Force
+
+            Write-Host "`n=====================================================================" -ForegroundColor Green
+            Write-Host " [SUCCESS] Google Play Store Bundle (.aab) generated successfully in $([math]::Round($elapsed.TotalSeconds, 1))s!" -ForegroundColor Green
+            Write-Host "=====================================================================" -ForegroundColor Green
+            Write-Host "  Release Bundle : release\xTerminal-$script:AppVersion-playstore.aab" -ForegroundColor Green
+            Write-Host "  Package ID     : com.lyarinet.xterminal" -ForegroundColor White
+            Write-Host "  Version Code   : 10203 (v$script:AppVersion)" -ForegroundColor White
+            Write-Host "  Size           : $([math]::Round((Get-Item $targetAab).Length / 1MB, 2)) MB" -ForegroundColor White
+            Write-Host ""
+            Write-Host "  📌 HOW TO UPLOAD TO GOOGLE PLAY CONSOLE:" -ForegroundColor Yellow
+            Write-Host "  1. Open Google Play Console: https://play.google.com/console" -ForegroundColor Cyan
+            Write-Host "  2. Select/Create your app with package: com.lyarinet.xterminal" -ForegroundColor White
+            Write-Host "  3. Go to: Production (or Internal testing) -> Create new release" -ForegroundColor White
+            Write-Host "  4. Drag and drop: release\xTerminal-$script:AppVersion-playstore.aab" -ForegroundColor White
+            Write-Host "  5. Review and roll out release!" -ForegroundColor Green
+            Write-Host "=====================================================================`n" -ForegroundColor Green
+        } else {
+            Write-Host "`n[!] Failed to generate .aab bundle. Check Android build logs above." -ForegroundColor Red
+        }
+    } else {
+        Write-Host "Gradle wrapper not found in android/." -ForegroundColor Red
+    }
+}
+
 function Build-Linux {
     Show-Banner
     Write-Host ">>> TARGET: Linux Desktop Application (v$script:AppVersion)`n" -ForegroundColor Yellow
@@ -441,15 +563,19 @@ if (!(Test-Prerequisites)) {
 
 if ($Target -ne "") {
     switch ($Target.ToLower()) {
-        "win"     { Build-Windows; exit }
-        "windows" { Build-Windows; exit }
-        "android" { Build-Android; exit }
-        "linux"   { Build-Linux; exit }
-        "mac"     { Build-MacOS; exit }
-        "macos"   { Build-MacOS; exit }
-        "all"     { Build-All; exit }
-        "release" { Publish-GitHubRelease; exit }
-        default   { Write-Host "Unknown target: $Target" -ForegroundColor Red; exit 1 }
+        "win"       { Build-Windows; exit }
+        "windows"   { Build-Windows; exit }
+        "android"   { Build-Android; exit }
+        "apk"       { Build-Android; exit }
+        "aab"       { Build-AndroidPlayStore; exit }
+        "playstore" { Build-AndroidPlayStore; exit }
+        "bundle"    { Build-AndroidPlayStore; exit }
+        "linux"     { Build-Linux; exit }
+        "mac"       { Build-MacOS; exit }
+        "macos"     { Build-MacOS; exit }
+        "all"       { Build-All; exit }
+        "release"   { Publish-GitHubRelease; exit }
+        default     { Write-Host "Unknown target: $Target" -ForegroundColor Red; exit 1 }
     }
 }
 
@@ -458,33 +584,35 @@ do {
     Show-Banner
     Write-Host "Select a target platform or utility to build:" -ForegroundColor White
     Write-Host ""
-    Write-Host "  [1]  Windows Desktop       (.exe Installer & Portable win-unpacked)" -ForegroundColor Cyan
-    Write-Host "  [2]  Android App           (Capacitor / Android Native APK)" -ForegroundColor Green
-    Write-Host "  [3]  Linux Desktop         (.AppImage, Debian .deb & Canonical .snap)" -ForegroundColor Yellow
-    Write-Host "  [4]  macOS Desktop         (.dmg Installer)" -ForegroundColor Magenta
-    Write-Host "  [5]  Build All Targets     (Complete Multi-Platform Packaging Suite)" -ForegroundColor White
+    Write-Host "  [1]   Windows Desktop              (.exe Installer & Portable win-unpacked)" -ForegroundColor Cyan
+    Write-Host "  [2]   Android APK (Debug)          (Local testing APK on emulator / phone)" -ForegroundColor Green
+    Write-Host "  [3]   Android Google Play (.aab)   (Production App Bundle for Google Play Store)" -ForegroundColor Green
+    Write-Host "  [4]   Linux Desktop                (.AppImage, Debian .deb & Canonical .snap)" -ForegroundColor Yellow
+    Write-Host "  [5]   macOS Desktop                (.dmg Installer)" -ForegroundColor Magenta
+    Write-Host "  [6]   Build All Targets            (Complete Multi-Platform Packaging Suite)" -ForegroundColor White
     Write-Host "  -------------------------------------------------------------------" -ForegroundColor DarkGray
-    Write-Host "  [6]  Launch Desktop App    (Run locally via Electron)" -ForegroundColor DarkCyan
-    Write-Host "  [7]  Regenerate Icons      (Refresh .ico, .png, Android, Web icons)" -ForegroundColor DarkGray
-    Write-Host "  [8]  Change Version        (Current: v$script:AppVersion)" -ForegroundColor Yellow
-    Write-Host "  [9]  GitHub Auto-Release   (Tag + Push -> GitHub Actions builds all platforms)" -ForegroundColor Magenta
-    Write-Host "  [0]  Exit" -ForegroundColor Red
+    Write-Host "  [7]   Launch Desktop App           (Run locally via Electron)" -ForegroundColor DarkCyan
+    Write-Host "  [8]   Regenerate Icons             (Refresh .ico, .png, Android, Web icons)" -ForegroundColor DarkGray
+    Write-Host "  [9]   Change Version               (Current: v$script:AppVersion)" -ForegroundColor Yellow
+    Write-Host "  [10]  GitHub Auto-Release          (Tag + Push -> GitHub Actions builds all platforms)" -ForegroundColor Magenta
+    Write-Host "  [0]   Exit" -ForegroundColor Red
     Write-Host ""
     
-    $choice = Read-Host "Enter option number [0-9]"
+    $choice = Read-Host "Enter option number [0-10]"
     
     switch ($choice) {
-        "1" { Build-Windows; Pause }
-        "2" { Build-Android; Pause }
-        "3" { Build-Linux; Pause }
-        "4" { Build-MacOS; Pause }
-        "5" { Build-All; Pause }
-        "6" { Run-DevDesktop; Pause }
-        "7" { Refresh-Icons; Pause }
-        "8" { Prompt-ChangeVersion }
-        "9" { Publish-GitHubRelease; Pause }
-        "0" { Write-Host "`nExiting builder. Good bye!" -ForegroundColor DarkGray; break }
-        default { Write-Host "Invalid option. Please choose between 0 and 9." -ForegroundColor Red; Start-Sleep -Seconds 1 }
+        "1"  { Build-Windows; Pause }
+        "2"  { Build-Android; Pause }
+        "3"  { Build-AndroidPlayStore; Pause }
+        "4"  { Build-Linux; Pause }
+        "5"  { Build-MacOS; Pause }
+        "6"  { Build-All; Pause }
+        "7"  { Run-DevDesktop; Pause }
+        "8"  { Refresh-Icons; Pause }
+        "9"  { Prompt-ChangeVersion }
+        "10" { Publish-GitHubRelease; Pause }
+        "0"  { Write-Host "`nExiting builder. Good bye!" -ForegroundColor DarkGray; break }
+        default { Write-Host "Invalid option. Please choose between 0 and 10." -ForegroundColor Red; Start-Sleep -Seconds 1 }
     }
 } while ($choice -ne "0")
 

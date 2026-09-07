@@ -127,8 +127,8 @@ npm run build:electron:linux
         `import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.xterminalx.pro',
-  appName: 'xTerminalx Pro',
+  appId: 'com.lyarinet.xterminal',
+  appName: 'xTerminal Pro',
   webDir: 'dist',
   server: {
     androidScheme: 'https',
@@ -391,7 +391,7 @@ echo "Build complete! Check dist/ and release/ directories."
               </div>
 
               <span className="px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-400 text-xs font-mono font-semibold border border-emerald-500/20">
-                Package ID: com.xterminalx.pro
+                Package ID: com.lyarinet.xterminal
               </span>
             </div>
 

@@ -12,7 +12,7 @@ export interface CapacitorConfig {
 }
 
 const config: CapacitorConfig = {
-  appId: 'com.xterminalx.pro',
+  appId: 'com.lyarinet.xterminal',
   appName: 'xTerminal',
   webDir: 'dist',
   server: {

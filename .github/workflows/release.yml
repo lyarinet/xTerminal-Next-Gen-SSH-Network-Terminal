@@ -187,23 +187,31 @@ jobs:
         id: pkg
         run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
-      - name: Build Android Debug APK
+      - name: Build Android Debug APK & Play Store App Bundle (.aab)
         working-directory: android
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug bundleRelease
 
-      - name: Copy APK to release folder
+      - name: Copy Android packages to release folder
         run: |
           mkdir -p release
           APK_SRC="android/app/build/outputs/apk/debug/app-debug.apk"
-          cp "$APK_SRC" "release/xTerminal-${{ steps.pkg.outputs.VERSION }}.apk"
+          if [ -f "$APK_SRC" ]; then
+            cp "$APK_SRC" "release/xTerminal-${{ steps.pkg.outputs.VERSION }}.apk"
+          fi
+          AAB_SRC=$(find android/app/build/outputs/bundle/release/ -name "*.aab" 2>/dev/null | head -n 1)
+          if [ -n "$AAB_SRC" ] && [ -f "$AAB_SRC" ]; then
+            cp "$AAB_SRC" "release/xTerminal-${{ steps.pkg.outputs.VERSION }}-playstore.aab"
+          fi
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
           name: android-release
-          path: release/*.apk
+          path: |
+            release/*.apk
+            release/*.aab
           retention-days: 5
 
   # ─────────────────────────────────────────────────────
@@ -264,7 +272,8 @@ jobs:
             | 🐧 **Linux (.deb)** | `*.deb` | Debian/Ubuntu Package |
             | 🍎 **macOS (Apple Silicon)** | `*arm64.dmg` / `*arm64-mac.zip` | Apple Silicon (M1/M2/M3/M4) |
             | 🍎 **macOS (Intel)** | `*x64.dmg` / `*x64-mac.zip` | Intel 64-bit Mac |
-            | 🤖 **Android** | `xTerminal-*.apk` | Android APK (sideload) |
+            | 🤖 **Android (Play Store Bundle)** | `xTerminal-*-playstore.aab` | Google Play Store App Bundle (`.aab`) |
+            | 🤖 **Android (Direct APK)** | `xTerminal-*.apk` | Android APK (sideload) |
             
             ---
             

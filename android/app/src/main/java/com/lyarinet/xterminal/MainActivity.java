@@ -1,4 +1,4 @@
-package com.xterminalx.pro;
+﻿package com.lyarinet.xterminal;
 
 import com.getcapacitor.BridgeActivity;
 

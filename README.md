@@ -325,8 +325,10 @@ Drag **xTerminal.app** to `/Applications`.
 > xattr -cr /Applications/xTerminal.app
 > ```
 
-### 🤖 Android (.apk)
-Download `xTerminal-1.2.3.apk`, enable *"Install Unknown Apps"* in Android Settings, and install.
+### 🤖 Android Mobile
+- **Package ID**: `com.lyarinet.xterminal`
+- **Direct Sideload APK**: Download `xTerminal-1.2.3.apk`, enable *"Install Unknown Apps"* in Android Settings, and install.
+- **Google Play Store App Bundle (.aab)**: Download `xTerminal-1.2.3-playstore.aab` from Releases, or build locally via `.\build.ps1 -Target aab`.
 
 ---
 

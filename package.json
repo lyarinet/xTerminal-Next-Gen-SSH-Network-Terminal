@@ -23,7 +23,7 @@
     "build:electron": "npm run build && electron-builder --dir",
     "build:electron:win": "npm run build && electron-builder --win nsis",
     "build:electron:portable": "npm run build && electron-builder --win portable",
-    "build:electron:mac": "npm run build && electron-builder --mac dmg",
+    "build:electron:mac": "npm run build && electron-builder --mac dmg zip",
     "build:electron:linux": "npm run build && electron-builder --linux AppImage deb",
     "build:android": "vite build && cap sync android && cap build android",
     "build:tauri": "tauri build"
@@ -57,8 +57,25 @@
     "mac": {
       "icon": "build/icon.png",
       "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
       "target": [
-        "dmg"
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ]
     },
     "linux": {

@@ -95,10 +95,10 @@ jobs:
           retention-days: 5
 
   # ─────────────────────────────────────────────────────
-  # STAGE 3: Build macOS .dmg
+  # STAGE 3: Build macOS .dmg + .zip (Apple Silicon & Intel)
   # ─────────────────────────────────────────────────────
   build-macos:
-    name: 🍎 macOS Desktop (.dmg)
+    name: 🍎 macOS Desktop (.dmg + .zip)
     runs-on: macos-latest
     steps:
       - name: Checkout source
@@ -116,11 +116,15 @@ jobs:
       - name: Build Vite frontend + server bundle
         run: npm run build
 
-      - name: Package macOS .dmg
-        run: npx electron-builder --mac dmg --publish never
+      - name: Package macOS .dmg and .zip (arm64 & x64)
+        run: npx electron-builder --mac dmg zip --x64 --arm64 --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
@@ -129,6 +133,7 @@ jobs:
           path: |
             release/*.dmg
             release/*.dmg.blockmap
+            release/*-mac.zip
           retention-days: 5
 
   # ─────────────────────────────────────────────────────
@@ -243,7 +248,8 @@ jobs:
             | 🪟 **Windows** | `xTerminal Setup *.exe` | NSIS Installer (64-bit) |
             | 🐧 **Linux** | `*.AppImage` | Portable AppImage (no install needed) |
             | 🐧 **Linux** | `*.deb` | Debian/Ubuntu Package |
-            | 🍎 **macOS** | `*.dmg` | macOS Disk Image |
+            | 🍎 **macOS (Apple Silicon)** | `*arm64.dmg` / `*arm64-mac.zip` | Apple Silicon (M1/M2/M3/M4) |
+            | 🍎 **macOS (Intel)** | `*x64.dmg` / `*x64-mac.zip` | Intel 64-bit Mac |
             | 🤖 **Android** | `xTerminal-*.apk` | Android APK (sideload) |
             
             ---
@@ -265,7 +271,13 @@ jobs:
             - **Windows**: Run the `.exe` installer as Administrator
             - **Linux AppImage**: `chmod +x *.AppImage && ./*.AppImage`
             - **Linux .deb**: `sudo dpkg -i *.deb`
-            - **macOS**: Open `.dmg` and drag to Applications
+            - **macOS**: Drag `xTerminal.app` to `/Applications`.
+              > ⚠️ **macOS "App is damaged and can't be opened" Fix:**
+              > If Gatekeeper displays *"xTerminal is damaged and can't be opened"*, open your **Terminal** and run:
+              > ```bash
+              > xattr -cr /Applications/xTerminal.app
+              > ```
+              > *(This removes Apple Gatekeeper's quarantine flag on downloaded binaries).*
             - **Android**: Enable "Install from Unknown Sources" → install `.apk`
           files: |
             ./dist-release/windows-release/**

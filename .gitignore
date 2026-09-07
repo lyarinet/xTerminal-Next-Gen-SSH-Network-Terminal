@@ -6,3 +6,8 @@ coverage/
 .env*
 !.env.example
 release/
+.gradle/
+android/app/build/
+android/.gradle/
+*.local
+

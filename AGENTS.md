@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **xTerminal-Next-Gen-SSH-Network-Terminal** (858 symbols, 1670 relationships, 49 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **xTerminal-Next-Gen-SSH-Network-Terminal-main** (1087 symbols, 2242 relationships, 90 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 
@@ -25,10 +25,10 @@ This project is indexed by GitNexus as **xTerminal-Next-Gen-SSH-Network-Terminal
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/xTerminal-Next-Gen-SSH-Network-Terminal/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/xTerminal-Next-Gen-SSH-Network-Terminal/clusters` | All functional areas |
-| `gitnexus://repo/xTerminal-Next-Gen-SSH-Network-Terminal/processes` | All execution flows |
-| `gitnexus://repo/xTerminal-Next-Gen-SSH-Network-Terminal/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/xTerminal-Next-Gen-SSH-Network-Terminal-main/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/xTerminal-Next-Gen-SSH-Network-Terminal-main/clusters` | All functional areas |
+| `gitnexus://repo/xTerminal-Next-Gen-SSH-Network-Terminal-main/processes` | All execution flows |
+| `gitnexus://repo/xTerminal-Next-Gen-SSH-Network-Terminal-main/process/{name}` | Step-by-step execution trace |
 
 ## CLI
 

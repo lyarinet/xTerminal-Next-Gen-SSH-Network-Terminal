@@ -188,13 +188,20 @@ npm run build:electron:win
 # Windows Portable Standalone Executable
 npm run build:electron:portable
 
-# macOS (DMG)
+# macOS (.dmg / .zip for Apple Silicon & Intel)
 npm run build:electron:mac
 
 # Linux (AppImage & DEB)
 npm run build:electron:linux
 ```
-*Output location: `release/xTerminal Setup 1.2.0.exe` and `release/win-unpacked/xTerminal.exe`*
+*Output location: `release/`*
+
+> 🍎 **macOS Notice ("App is damaged and can't be opened"):**
+> When downloading unnotarized binaries on macOS, Gatekeeper flags the downloaded file with a quarantine attribute. To launch xTerminal, drag it to `/Applications` and run:
+> ```bash
+> xattr -cr /Applications/xTerminal.app
+> ```
+
 
 ### Android APK (Capacitor)
 ```bash

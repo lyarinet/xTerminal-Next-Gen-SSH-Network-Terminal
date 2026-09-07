@@ -283,8 +283,8 @@ A huge thank you to everyone who has contributed to making **xTerminal** the pre
 
 <div align="center">
   <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal" alt="xTerminal Contributors" style="max-width: 100%; border-radius: 8px;" />
-  </a>
+  <img src="https://contrib.rocks/image?repo=lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal" />
+</a>
   <br /><br />
   <sub>Made with ❤️ by <a href="https://github.com/lyarinet">Lyarinet</a> and our amazing open-source community.</sub>
 </div>

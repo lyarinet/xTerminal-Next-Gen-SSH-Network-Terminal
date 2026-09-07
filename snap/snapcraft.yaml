@@ -42,7 +42,7 @@ parts:
       export PATH="/snap/bin:$PATH"
       echo "Using Node version: $(node -v)"
       echo "Using NPM version: $(npm -v)"
-      npm ci
+      npm install --legacy-peer-deps
       npm run build
       npx electron-builder --linux --dir
       cp -r release/linux-unpacked/* $CRAFT_PART_INSTALL/

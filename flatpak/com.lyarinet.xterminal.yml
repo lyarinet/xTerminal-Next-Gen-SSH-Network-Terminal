@@ -10,11 +10,12 @@ separate-locales: false
 finish-args:
   - --share=ipc
   - --share=network
-  - --socket=x11
+  - --socket=fallback-x11
   - --socket=wayland
   - --socket=pulseaudio
   - --device=all
-  - --filesystem=host
+  - --filesystem=xdg-download
+  - --filesystem=xdg-documents
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.freedesktop.secrets
 
@@ -32,7 +33,7 @@ modules:
     sources:
       - type: file
         url: https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.7/xterminal_1.2.7_amd64.deb
-        sha256: 3ba931b18807199f149cc9933e67b9515b95dc30ccf74d43254712d49cc38ace
+        sha256: 9348b353a7449b007a2e1d777718f47126b5443d8a1c8e33b46f52c317f9e07b
         only-arches: [x86_64]
       - type: file
         path: com.lyarinet.xterminal.desktop

@@ -1,10 +1,14 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
   <id>com.lyarinet.xterminal</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>Proprietary</project_license>
+  <project_license>LicenseRef-proprietary=https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal</project_license>
   <name>xTerminal Pro</name>
   <summary>Enterprise Multi-Protocol SSH, Serial, Telnet and DevOps Workstation</summary>
+
+  <developer id="com.lyarinet">
+    <name>LyariNet</name>
+  </developer>
 
   <description>
     <p>

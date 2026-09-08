@@ -1,0 +1,11 @@
+﻿[Desktop Entry]
+Name=xTerminal Pro
+Comment=Enterprise Multi-Protocol SSH & DevOps Terminal Workstation
+Exec=xterminal %U
+Terminal=false
+Type=Application
+Icon=com.lyarinet.xterminal
+StartupWMClass=xTerminal
+Categories=Development;Network;TerminalEmulator;System;
+MimeType=x-scheme-handler/ssh;x-scheme-handler/telnet;
+Keywords=ssh;sftp;terminal;devops;telnet;serial;

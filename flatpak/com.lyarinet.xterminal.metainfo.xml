@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.lyarinet.xterminal</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Proprietary</project_license>
+  <name>xTerminal Pro</name>
+  <summary>Enterprise Multi-Protocol SSH, Serial, Telnet and DevOps Workstation</summary>
+
+  <description>
+    <p>
+      xTerminal Pro is an ultra-fast, modern, and secure terminal workstation engineered for DevOps professionals, cloud architects, sysadmins, and network engineers.
+    </p>
+    <p>Key Features:</p>
+    <ul>
+      <li>Multi-Protocol Terminal: SSHv2, Telnet, Serial Console (COM/TTY), and Android ADB.</li>
+      <li>Multi-Host Command Orchestrator: Execute commands across multiple target servers in parallel.</li>
+      <li>Live Telemetry &amp; SFTP: Server CPU, RAM, and network monitoring with integrated SFTP manager.</li>
+      <li>Real-time Multiplayer Collaboration: Securely share live terminal sessions with your team.</li>
+      <li>Universal Session Importer: Migrate sessions from PuTTY, Termius, SecureCRT, and OpenSSH.</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">com.lyarinet.xterminal.desktop</launchable>
+
+  <url type="homepage">https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal</url>
+  <url type="bugtracker">https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/issues</url>
+  <url type="help">https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/wiki</url>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>xTerminal Pro Main Workspace</caption>
+      <image>https://raw.githubusercontent.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/main/store_assets/5_microsoft_store/01_terminal_workspace.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>System Health and Server Telemetry Dashboard</caption>
+      <image>https://raw.githubusercontent.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/main/store_assets/5_microsoft_store/02_health_dashboard.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Multi-Host Parallel Command Orchestrator</caption>
+      <image>https://raw.githubusercontent.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/main/store_assets/5_microsoft_store/03_command_orchestrator.png</image>
+    </screenshot>
+  </screenshots>
+
+  <releases>
+    <release version="1.2.7" date="2026-09-08">
+      <description>
+        <p>xTerminal Pro v1.2.7 release with multi-platform packaging, enhanced stability, and Store integration.</p>
+      </description>
+    </release>
+  </releases>
+
+  <content_rating type="oars-1.1" />
+
+  <provides>
+    <binary>xterminal</binary>
+  </provides>
+</component>

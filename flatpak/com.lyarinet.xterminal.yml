@@ -1,0 +1,46 @@
+﻿app-id: com.lyarinet.xterminal
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+base: org.electronjs.Electron2.BaseApp
+base-version: '24.08'
+command: xterminal
+separate-locales: false
+
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=x11
+  - --socket=wayland
+  - --socket=pulseaudio
+  - --device=all
+  - --filesystem=host
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.freedesktop.secrets
+
+modules:
+  - name: xterminal
+    buildsystem: simple
+    build-commands:
+      - bsdtar -Oxf xterminal_1.2.7_amd64.deb 'data.tar.*' | bsdtar -xf -
+      - cp -r opt/xTerminal /app/xterminal-app
+      - chmod +x /app/xterminal-app/xterminal
+      - install -Dm755 xterminal.sh /app/bin/xterminal
+      - install -Dm644 com.lyarinet.xterminal.desktop /app/share/applications/com.lyarinet.xterminal.desktop
+      - install -Dm644 com.lyarinet.xterminal.png /app/share/icons/hicolor/512x512/apps/com.lyarinet.xterminal.png
+      - install -Dm644 com.lyarinet.xterminal.metainfo.xml /app/share/metainfo/com.lyarinet.xterminal.metainfo.xml
+    sources:
+      - type: file
+        url: https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.7/xterminal_1.2.7_amd64.deb
+        sha256: 0000000000000000000000000000000000000000000000000000000000000000 # Replace with SHA256 of released .deb
+        only-arches: [x86_64]
+      - type: file
+        path: com.lyarinet.xterminal.desktop
+      - type: file
+        path: com.lyarinet.xterminal.png
+      - type: file
+        path: com.lyarinet.xterminal.metainfo.xml
+      - type: script
+        dest-filename: xterminal.sh
+        commands:
+          - exec zypak-wrapper /app/xterminal-app/xterminal "$@"

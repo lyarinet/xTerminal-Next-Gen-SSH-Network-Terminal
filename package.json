@@ -2,7 +2,7 @@
   "name": "xterminal",
   "desktopName": "xTerminal",
   "private": true,
-  "version": "1.2.7",
+  "version": "1.2.8",
   "description": "xTerminal - Multi-Protocol DevOps and SSH Desktop Workstation",
   "author": {
     "name": "Lyarinet",

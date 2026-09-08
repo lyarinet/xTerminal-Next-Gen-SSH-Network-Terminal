@@ -26,6 +26,49 @@ set -eo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Set up toolchain shims for Windows / WSL / Git Bash / Linux environments
+SHIM_DIR="/tmp/xterminal-shims-$$"
+mkdir -p "$SHIM_DIR" 2>/dev/null || SHIM_DIR="$SCRIPT_DIR/.shims"
+mkdir -p "$SHIM_DIR" 2>/dev/null || true
+trap 'rm -rf "$SHIM_DIR" 2>/dev/null || true' EXIT
+
+# Resolve node (native, Windows in WSL, or Git Bash)
+if ! command -v node >/dev/null 2>&1; then
+    if command -v node.exe >/dev/null 2>&1; then
+        ln -sf "$(which node.exe)" "$SHIM_DIR/node" 2>/dev/null || true
+    elif [[ -x "/mnt/c/Program Files/nodejs/node.exe" ]]; then
+        ln -sf "/mnt/c/Program Files/nodejs/node.exe" "$SHIM_DIR/node" 2>/dev/null || true
+    fi
+fi
+
+# Resolve npm
+if ! command -v npm >/dev/null 2>&1; then
+    if command -v npm.cmd >/dev/null 2>&1; then
+        cat << 'EOF' > "$SHIM_DIR/npm"
+#!/usr/bin/env bash
+cmd.exe /c "npm" "$@"
+EOF
+        chmod +x "$SHIM_DIR/npm" 2>/dev/null || true
+    elif command -v npm.exe >/dev/null 2>&1; then
+        ln -sf "$(which npm.exe)" "$SHIM_DIR/npm" 2>/dev/null || true
+    fi
+fi
+
+# Resolve npx
+if ! command -v npx >/dev/null 2>&1; then
+    if command -v npx.cmd >/dev/null 2>&1; then
+        cat << 'EOF' > "$SHIM_DIR/npx"
+#!/usr/bin/env bash
+cmd.exe /c "npx" "$@"
+EOF
+        chmod +x "$SHIM_DIR/npx" 2>/dev/null || true
+    elif command -v npx.exe >/dev/null 2>&1; then
+        ln -sf "$(which npx.exe)" "$SHIM_DIR/npx" 2>/dev/null || true
+    fi
+fi
+
+export PATH="$SHIM_DIR:$PATH"
+
 # ANSI Colors
 CLR_RESET="\033[0m"
 CLR_RED="\033[0;31m"
@@ -223,24 +266,17 @@ get_keytool_path() {
     echo "keytool"
 }
 
-# Handle WSL / Git Bash environment where node.exe / npm.cmd are in PATH
-if ! command -v node >/dev/null 2>&1 && command -v node.exe >/dev/null 2>&1; then
-    node() { node.exe "$@"; }
-fi
-if ! command -v npm >/dev/null 2>&1 && command -v npm.cmd >/dev/null 2>&1; then
-    npm() { npm.cmd "$@"; }
-fi
-if ! command -v npx >/dev/null 2>&1 && command -v npx.cmd >/dev/null 2>&1; then
-    npx() { npx.cmd "$@"; }
-fi
-
 test_prerequisites() {
     echo -e "${CLR_GRAY}[-] Checking build toolchain prerequisites...${CLR_RESET}"
     if ! command -v node >/dev/null 2>&1 && ! command -v node.exe >/dev/null 2>&1; then
         echo -e "  ${CLR_RED}[!] Node.js is required but was not found in PATH.${CLR_RESET}"
+        echo -e "      Install Node.js on Linux/WSL: sudo apt update && sudo apt install -y nodejs npm"
+        echo -e "      Or install on Windows: winget install OpenJS.NodeJS.LTS"
         return 1
     fi
-    echo -e "  ${CLR_GREEN}[+] Node.js: $(node --version)${CLR_RESET}"
+    local node_v
+    node_v="$(node --version 2>/dev/null || node.exe --version 2>/dev/null || echo "installed")"
+    echo -e "  ${CLR_GREEN}[+] Node.js: $node_v${CLR_RESET}"
 
     if ! command -v npm >/dev/null 2>&1 && ! command -v npm.cmd >/dev/null 2>&1; then
         echo -e "  ${CLR_RED}[!] npm was not found in PATH.${CLR_RESET}"

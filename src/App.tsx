@@ -29,7 +29,7 @@ import { CloudSyncView } from './components/CloudSyncView';
 import { AppCenterView } from './components/AppCenterView';
 import { AdbManagerView } from './components/AdbManagerView';
 import { SplashScreen } from './components/SplashScreen';
-import { Menu, Bot, Plus, MessageSquare, User } from 'lucide-react';
+import { Menu, Bot, Plus, MessageSquare, User, Pin } from 'lucide-react';
 
 import {
   Host,
@@ -191,6 +191,27 @@ export default function App() {
     };
     window.addEventListener('xterminal:settings-changed' as any, handleSettingsChanged);
     return () => window.removeEventListener('xterminal:settings-changed' as any, handleSettingsChanged);
+  }, []);
+
+  // Sync Desktop Window Always on Top state across Windows, macOS, and Linux
+  useEffect(() => {
+    const isTop = Boolean(
+      terminalSettings.alwaysOnTop ?? (localStorage.getItem('xterminal_always_on_top') === 'true')
+    );
+    const nativeBridge = (window as any).xterminalxNative;
+    if (nativeBridge?.setAlwaysOnTop) {
+      nativeBridge.setAlwaysOnTop(isTop);
+    }
+  }, [terminalSettings.alwaysOnTop]);
+
+  useEffect(() => {
+    const handleAlwaysOnTopEvent = (e: any) => {
+      if (typeof e.detail?.alwaysOnTop === 'boolean') {
+        setTerminalSettings((prev) => ({ ...prev, alwaysOnTop: e.detail.alwaysOnTop }));
+      }
+    };
+    window.addEventListener('xterminal:always-on-top-changed' as any, handleAlwaysOnTopEvent);
+    return () => window.removeEventListener('xterminal:always-on-top-changed' as any, handleAlwaysOnTopEvent);
   }, []);
 
   // Listen for session recorder open requests with loaded recording
@@ -591,8 +612,31 @@ export default function App() {
             <span className="text-[10px] text-gray-500 font-mono">Pro Workstation</span>
           </div>
         </div>
-        <div className="flex items-center gap-2 app-drag-region text-[11px] text-gray-500 font-mono">
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1C1C1E] text-gray-400 border border-[#222224]">v1.2.7</span>
+        <div className="flex items-center gap-2 text-[11px] text-gray-500 font-mono">
+          <button
+            type="button"
+            onClick={() => {
+              const current = Boolean(terminalSettings.alwaysOnTop ?? (localStorage.getItem('xterminal_always_on_top') === 'true'));
+              const next = !current;
+              setTerminalSettings((prev) => ({ ...prev, alwaysOnTop: next }));
+              try { localStorage.setItem('xterminal_always_on_top', String(next)); } catch {}
+              const nativeBridge = (window as any).xterminalxNative;
+              if (nativeBridge?.setAlwaysOnTop) {
+                nativeBridge.setAlwaysOnTop(next);
+              }
+              window.dispatchEvent(new CustomEvent('xterminal:always-on-top-changed', { detail: { alwaysOnTop: next } }));
+            }}
+            title={Boolean(terminalSettings.alwaysOnTop ?? (localStorage.getItem('xterminal_always_on_top') === 'true')) ? 'Window Pinned: Always on Top (Click to Unpin)' : 'Always on Top: Disabled (Click to Pin Window)'}
+            className={`app-no-drag px-2 py-0.5 rounded text-[10px] font-mono flex items-center gap-1 transition-colors border cursor-pointer ${
+              Boolean(terminalSettings.alwaysOnTop ?? (localStorage.getItem('xterminal_always_on_top') === 'true'))
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30'
+                : 'bg-[#1C1C1E] text-gray-400 border-[#222224] hover:text-white hover:bg-[#252528]'
+            }`}
+          >
+            <Pin className={`w-3 h-3 ${Boolean(terminalSettings.alwaysOnTop ?? (localStorage.getItem('xterminal_always_on_top') === 'true')) ? 'fill-emerald-400 text-emerald-400' : ''}`} />
+            <span className="hidden sm:inline">Top</span>
+          </button>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1C1C1E] text-gray-400 border border-[#222224]">v1.2.8</span>
         </div>
       </div>
 

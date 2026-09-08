@@ -23,6 +23,7 @@ import {
   Radio,
   RefreshCw,
   Server,
+  Pin,
 } from 'lucide-react';
 import { TerminalSettings, VaultSettings } from '../types';
 
@@ -52,6 +53,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [safePastePrompt, setSafePastePrompt] = useState<boolean>(true);
   const [audioBell, setAudioBell] = useState<boolean>(false);
   const [hapticFeedback, setHapticFeedback] = useState<boolean>(true);
+
+  // Desktop Window Always On Top (Windows, macOS, Linux)
+  const [alwaysOnTop, setAlwaysOnTop] = useState<boolean>(() => {
+    if (typeof settings.alwaysOnTop === 'boolean') return settings.alwaysOnTop;
+    try {
+      return localStorage.getItem('xterminal_always_on_top') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleAlwaysOnTop = (enabled: boolean) => {
+    setAlwaysOnTop(enabled);
+    updateSettingField('alwaysOnTop', enabled);
+    try {
+      localStorage.setItem('xterminal_always_on_top', String(enabled));
+    } catch {}
+    const nativeBridge = (window as any).xterminalxNative;
+    if (nativeBridge?.setAlwaysOnTop) {
+      nativeBridge.setAlwaysOnTop(enabled);
+    }
+    window.dispatchEvent(new CustomEvent('xterminal:always-on-top-changed', { detail: { alwaysOnTop: enabled } }));
+  };
 
   const [serialBaud, setSerialBaud] = useState<number>(() => {
     try {
@@ -521,6 +545,54 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <option value={30}>30 minutes</option>
                 <option value={60}>60 minutes</option>
               </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop Window & Display Integration */}
+        <div className="bg-[#111112] border border-[#222224] rounded-xl p-5 space-y-4">
+          <div className="flex items-center gap-2 font-semibold text-white text-sm">
+            <Pin className="w-4 h-4 text-emerald-400" />
+            <span>Desktop Window &amp; Display Integration</span>
+          </div>
+
+          <p className="text-gray-400 text-xs">
+            Configure workstation desktop window behavior across Windows, macOS, and Linux.
+          </p>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-3.5 rounded-lg bg-[#1C1C1E] border border-[#222224]">
+              <div className="pr-4">
+                <div className="font-medium text-gray-200 flex items-center gap-2">
+                  <span>Always on Top (Pin Window)</span>
+                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                    alwaysOnTop
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
+                      : 'bg-gray-800 text-gray-400 border border-gray-700'
+                  }`}>
+                    {alwaysOnTop ? 'PINNED' : 'STANDARD'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+                  Keeps xTerminal floating above all other desktop applications on Windows, macOS, and Linux. Perfect for monitoring server terminals while working in IDEs or browsers.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleToggleAlwaysOnTop(!alwaysOnTop)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                  alwaysOnTop ? 'bg-emerald-500' : 'bg-[#2C2C2E]'
+                }`}
+                role="switch"
+                aria-checked={alwaysOnTop}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                    alwaysOnTop ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
           </div>
         </div>

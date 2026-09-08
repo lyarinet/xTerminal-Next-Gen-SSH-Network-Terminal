@@ -46,6 +46,11 @@
   </screenshots>
 
   <releases>
+    <release version="1.2.8" date="2026-09-08">
+      <description>
+        <p>Fixed terminal prompt row clipping behind bottom status footer across Windows, macOS, and Linux. Added desktop Always on Top window pinning option in Settings.</p>
+      </description>
+    </release>
     <release version="1.2.7" date="2026-09-08">
       <description>
         <p>xTerminal Pro v1.2.7 release with multi-platform packaging, enhanced stability, and Store integration.</p>

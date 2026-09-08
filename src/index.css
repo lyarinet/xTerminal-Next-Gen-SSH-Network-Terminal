@@ -25,6 +25,11 @@
     pointer-events: none !important;
   }
 
+  /* Safe terminal viewport padding so the prompt row always sits comfortably above the footer bar on all OSs */
+  .xterm {
+    padding: 8px 12px 16px 12px !important;
+  }
+
   /* Electron desktop window draggable regions for macOS & Windows */
   .app-drag-region {
     -webkit-app-region: drag;

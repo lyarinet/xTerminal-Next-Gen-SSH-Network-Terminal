@@ -258,7 +258,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       if (cursorEl && (cursorEl.offsetTop > 0 || cursorEl.offsetLeft > 0)) {
         setBadgePixelPos({
           x: cursorEl.offsetLeft + 12,
-          y: cursorEl.offsetTop + 12,
+          y: cursorEl.offsetTop + 8,
         });
         return;
       }
@@ -269,7 +269,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
       const cursorY = termRef.current.buffer?.active?.cursorY || 0;
       setBadgePixelPos({
         x: Math.max(20, cursorX * cellWidth + 12),
-        y: Math.max(20, cursorY * cellHeight + 12),
+        y: Math.max(20, cursorY * cellHeight + 8),
       });
     } catch {}
   }, []);
@@ -726,7 +726,7 @@ export const XTermPane: React.FC<XTermPaneProps> = ({
         ref={containerRef}
         onContextMenu={handleContextMenu}
         onMouseUp={handleMouseUp}
-        className="flex-1 overflow-hidden p-3 select-text cursor-text relative transition-colors duration-200"
+        className="flex-1 overflow-hidden select-text cursor-text relative transition-colors duration-200"
         style={{ backgroundColor: activeThemeState.background || '#0A0A0B' }}
         title="Select text to auto-copy | Right-click to paste"
       >

@@ -1,0 +1,2061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lyarinet Gigabit Fiber | Next-Gen Internet Service Provider (ISP)</title>
+  <meta name="description" content="Lyarinet Telecom is Pakistan's premier Ultra-Fast Gigabit Fiber Broadband Provider. Experience true 100% FTTH optical speeds up to 1000 Mbps with zero buffering and lowest gaming latency.">
+  <meta name="keywords" content="Lyarinet, ISP, Fiber Internet, Gigabit Broadband, FTTH, Ultra Fast Internet, Low Ping Gaming, Karachi ISP">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-primary: #050811;
+      --bg-secondary: #0a0f1d;
+      --bg-card: rgba(13, 21, 38, 0.7);
+      --bg-card-hover: rgba(18, 30, 56, 0.85);
+      --border-color: rgba(0, 240, 255, 0.15);
+      --border-hover: rgba(0, 240, 255, 0.4);
+      --cyan: #00f0ff;
+      --cyan-glow: rgba(0, 240, 255, 0.4);
+      --purple: #8b5cf6;
+      --green: #10b981;
+      --green-glow: rgba(16, 185, 129, 0.35);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      color-scheme: dark;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      line-height: 1.6;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Background Fiber Light Glows */
+    .ambient-glow {
+      position: fixed;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      filter: blur(140px);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.18;
+    }
+    .glow-1 {
+      top: -100px;
+      right: -100px;
+      background: radial-gradient(circle, var(--cyan), transparent 70%);
+    }
+    .glow-2 {
+      top: 40%;
+      left: -200px;
+      background: radial-gradient(circle, var(--purple), transparent 70%);
+    }
+    .glow-3 {
+      bottom: 5%;
+      right: 10%;
+      background: radial-gradient(circle, var(--green), transparent 70%);
+    }
+
+    /* Container */
+    .container {
+      width: 100%;
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 2;
+    }
+
+    /* Top Announcement Bar */
+    .announcement-bar {
+      background: linear-gradient(90deg, rgba(0, 240, 255, 0.12), rgba(139, 92, 246, 0.15), rgba(16, 185, 129, 0.12));
+      border-bottom: 1px solid rgba(0, 240, 255, 0.2);
+      font-size: 0.85rem;
+      padding: 8px 16px;
+      text-align: center;
+      color: #e2e8f0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      font-weight: 500;
+    }
+    .announcement-bar .badge {
+      background: var(--cyan);
+      color: #050811;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    /* Navbar */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(5, 8, 17, 0.85);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.3s ease;
+    }
+    .nav-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 80px;
+    }
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+    }
+    .logo-icon {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, #00f0ff 0%, #0077ff 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #050811;
+      font-weight: 900;
+      font-family: var(--font-heading);
+      font-size: 1.5rem;
+      box-shadow: 0 0 20px var(--cyan-glow);
+    }
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+    }
+    .brand-title {
+      font-family: var(--font-heading);
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #ffffff;
+    }
+    .brand-title span {
+      color: var(--cyan);
+    }
+    .brand-sub {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.95rem;
+      transition: color 0.2s ease;
+      position: relative;
+    }
+    .nav-links a:hover, .nav-links a.active {
+      color: var(--cyan);
+    }
+    .nav-links a:hover::after, .nav-links a.active::after {
+      content: '';
+      position: absolute;
+      bottom: -6px;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: var(--cyan);
+      box-shadow: 0 0 8px var(--cyan);
+      border-radius: 2px;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .btn-portal {
+      padding: 10px 18px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      color: #ffffff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.25s ease;
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .btn-portal:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      background: rgba(0, 240, 255, 0.05);
+    }
+    .btn-primary {
+      padding: 11px 24px;
+      background: linear-gradient(135deg, #00f0ff 0%, #0099ff 100%);
+      color: #050811;
+      border: none;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 20px var(--cyan-glow);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 28px rgba(0, 240, 255, 0.6);
+    }
+
+    /* Hero Section */
+    .hero-section {
+      padding: 80px 0 60px;
+      position: relative;
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 48px;
+      align-items: center;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: rgba(0, 240, 255, 0.08);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      border-radius: 30px;
+      color: var(--cyan);
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 24px;
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--green);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--green);
+      animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.4; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.3); }
+      100% { opacity: 0.4; transform: scale(0.9); }
+    }
+
+    .hero-title {
+      font-family: var(--font-heading);
+      font-size: 3.5rem;
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: -1.5px;
+      margin-bottom: 24px;
+    }
+    .hero-title .gradient-text {
+      background: linear-gradient(135deg, #00f0ff 0%, #38bdf8 50%, #818cf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-desc {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      margin-bottom: 36px;
+      max-width: 580px;
+    }
+
+    /* Live Coverage Quick Widget */
+    .coverage-widget {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 10px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
+      display: flex;
+      gap: 12px;
+      margin-bottom: 36px;
+      max-width: 540px;
+    }
+    .coverage-input-group {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-left: 16px;
+    }
+    .coverage-input-group svg {
+      color: var(--cyan);
+    }
+    .coverage-input {
+      width: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #ffffff;
+      font-size: 1rem;
+      font-family: var(--font-body);
+    }
+    .coverage-input::placeholder {
+      color: var(--text-dim);
+    }
+
+    /* Live Stat Ticker */
+    .stat-ticker {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      padding-top: 30px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .stat-item h4 {
+      font-family: var(--font-heading);
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 4px;
+    }
+    .stat-item h4 span {
+      color: var(--cyan);
+      font-size: 1.2rem;
+    }
+    .stat-item p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Hero Right Card: Live Interactive Speed Test */
+    .speedtest-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 24px;
+      padding: 36px 32px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 0 30px rgba(0, 240, 255, 0.04);
+      position: relative;
+      text-align: center;
+    }
+    .speedtest-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding-bottom: 14px;
+    }
+    .speedtest-header .server-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    .meter-circle {
+      position: relative;
+      width: 230px;
+      height: 230px;
+      margin: 0 auto 24px;
+    }
+    .meter-circle svg {
+      transform: rotate(-90deg);
+    }
+    .meter-bg {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.06);
+      stroke-width: 14;
+    }
+    .meter-progress {
+      fill: none;
+      stroke: url(#cyanGrad);
+      stroke-width: 14;
+      stroke-linecap: round;
+      stroke-dasharray: 628;
+      stroke-dashoffset: 628;
+      transition: stroke-dashoffset 0.15s ease-out;
+    }
+    .meter-inner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .meter-value {
+      font-family: var(--font-heading);
+      font-size: 3.2rem;
+      font-weight: 900;
+      color: #ffffff;
+      line-height: 1;
+    }
+    .meter-unit {
+      font-size: 0.85rem;
+      color: var(--cyan);
+      font-weight: 700;
+      letter-spacing: 1px;
+      margin-top: 4px;
+    }
+
+    .telemetry-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .telem-box {
+      background: rgba(5, 8, 17, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 12px 8px;
+    }
+    .telem-label {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .telem-val {
+      font-family: var(--font-mono);
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .btn-speedtest {
+      width: 100%;
+      padding: 14px 20px;
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.15), rgba(16, 185, 129, 0.15));
+      border: 1px solid var(--cyan);
+      color: #ffffff;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    .btn-speedtest:hover {
+      background: var(--cyan);
+      color: #050811;
+      box-shadow: 0 0 24px var(--cyan-glow);
+    }
+
+    /* Section Title */
+    .section-header {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+    .section-tag {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 12px;
+      display: block;
+      font-weight: 700;
+    }
+    .section-title {
+      font-family: var(--font-heading);
+      font-size: 2.8rem;
+      font-weight: 800;
+      letter-spacing: -1px;
+      color: #ffffff;
+      margin-bottom: 16px;
+    }
+    .section-desc {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    /* Pricing Section */
+    .pricing-section {
+      padding: 100px 0;
+      background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, var(--bg-primary) 100%);
+    }
+    .pricing-toggle-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 48px;
+    }
+    .toggle-label {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .toggle-label.active {
+      color: #ffffff;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 56px;
+      height: 28px;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      transition: .3s;
+      border-radius: 34px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 4px;
+      bottom: 3px;
+      background-color: var(--cyan);
+      transition: .3s;
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--cyan);
+    }
+    input:checked + .slider {
+      background-color: rgba(16, 185, 129, 0.2);
+      border-color: var(--green);
+    }
+    input:checked + .slider:before {
+      transform: translateX(26px);
+      background-color: var(--green);
+      box-shadow: 0 0 10px var(--green);
+    }
+    .discount-pill {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid var(--green);
+      color: var(--green);
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+
+    .plans-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+    }
+    .plan-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 36px 28px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: all 0.35s ease;
+      backdrop-filter: blur(14px);
+    }
+    .plan-card:hover {
+      transform: translateY(-8px);
+      border-color: var(--border-hover);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 25px rgba(0, 240, 255, 0.15);
+    }
+    .plan-card.featured {
+      background: linear-gradient(180deg, rgba(0, 240, 255, 0.08) 0%, rgba(13, 21, 38, 0.8) 100%);
+      border: 2px solid var(--cyan);
+      box-shadow: 0 15px 35px rgba(0, 240, 255, 0.2);
+    }
+    .featured-ribbon {
+      position: absolute;
+      top: -14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(90deg, #00f0ff, #0077ff);
+      color: #050811;
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 4px 14px;
+      border-radius: 20px;
+      box-shadow: 0 4px 14px var(--cyan-glow);
+    }
+    .plan-name {
+      font-family: var(--font-heading);
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 8px;
+    }
+    .plan-speed-badge {
+      font-family: var(--font-heading);
+      font-size: 2.5rem;
+      font-weight: 900;
+      color: var(--cyan);
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .plan-speed-badge span {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .plan-type {
+      font-size: 0.8rem;
+      color: var(--green);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 24px;
+    }
+    .plan-price-wrap {
+      margin-bottom: 24px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .plan-price {
+      font-family: var(--font-heading);
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: #ffffff;
+    }
+    .plan-price .currency {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+    }
+    .plan-price .period {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      font-weight: 500;
+    }
+
+    .plan-features {
+      list-style: none;
+      margin-bottom: 32px;
+      flex: 1;
+    }
+    .plan-features li {
+      font-size: 0.9rem;
+      color: #cbd5e1;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .plan-features li svg {
+      color: var(--cyan);
+      flex-shrink: 0;
+    }
+
+    .btn-plan {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      transition: all 0.25s ease;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.04);
+      color: #ffffff;
+    }
+    .btn-plan:hover {
+      background: var(--cyan);
+      color: #050811;
+      border-color: var(--cyan);
+      box-shadow: 0 4px 20px var(--cyan-glow);
+    }
+    .plan-card.featured .btn-plan {
+      background: linear-gradient(135deg, #00f0ff 0%, #0077ff 100%);
+      color: #050811;
+      border: none;
+      box-shadow: 0 4px 20px var(--cyan-glow);
+    }
+
+    /* Key Advantages Feature Grid */
+    .features-section {
+      padding: 100px 0;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 28px;
+    }
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 18px;
+      padding: 32px;
+      transition: all 0.3s ease;
+    }
+    .feature-card:hover {
+      border-color: var(--cyan);
+      transform: translateY(-5px);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4), 0 0 20px rgba(0, 240, 255, 0.1);
+    }
+    .feature-icon-box {
+      width: 54px;
+      height: 54px;
+      background: rgba(0, 240, 255, 0.1);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--cyan);
+      margin-bottom: 20px;
+    }
+    .feature-title {
+      font-family: var(--font-heading);
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 10px;
+    }
+    .feature-text {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    /* Coverage Cities & Map */
+    .coverage-section {
+      padding: 90px 0;
+      background: var(--bg-secondary);
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .city-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-top: 40px;
+    }
+    .city-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+    .city-card:hover {
+      border-color: var(--cyan);
+      background: rgba(0, 240, 255, 0.05);
+    }
+    .city-name {
+      font-weight: 700;
+      color: #ffffff;
+      font-size: 1.05rem;
+    }
+    .city-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 12px;
+      text-transform: uppercase;
+    }
+    .badge-active {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--green);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .badge-expanding {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    /* Testimonials */
+    .reviews-section {
+      padding: 100px 0;
+    }
+    .reviews-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 28px;
+    }
+    .review-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 18px;
+      padding: 28px;
+    }
+    .review-rating {
+      color: #fbbf24;
+      margin-bottom: 14px;
+      font-size: 1.1rem;
+    }
+    .review-quote {
+      color: #e2e8f0;
+      font-size: 0.95rem;
+      font-style: italic;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+    .reviewer-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .reviewer-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #050811;
+    }
+    .reviewer-name {
+      font-weight: 700;
+      color: #ffffff;
+      font-size: 0.95rem;
+    }
+    .reviewer-role {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+
+    /* FAQ Accordion */
+    .faq-section {
+      padding: 80px 0 100px;
+    }
+    .faq-wrapper {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .faq-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      margin-bottom: 16px;
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+    .faq-question {
+      padding: 20px 24px;
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: #ffffff;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    }
+    .faq-question svg {
+      transition: transform 0.3s ease;
+      color: var(--cyan);
+    }
+    .faq-item.open .faq-question svg {
+      transform: rotate(180deg);
+    }
+    .faq-answer {
+      padding: 0 24px 20px;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      display: none;
+      line-height: 1.6;
+    }
+    .faq-item.open .faq-answer {
+      display: block;
+    }
+
+    /* CTA Banner */
+    .cta-section {
+      padding: 80px 0;
+    }
+    .cta-box {
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
+      border: 1px solid var(--cyan);
+      border-radius: 24px;
+      padding: 60px 48px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0, 240, 255, 0.15);
+    }
+    .cta-title {
+      font-family: var(--font-heading);
+      font-size: 2.8rem;
+      font-weight: 900;
+      color: #ffffff;
+      margin-bottom: 16px;
+    }
+    .cta-desc {
+      color: var(--text-muted);
+      font-size: 1.15rem;
+      max-width: 600px;
+      margin: 0 auto 32px;
+    }
+    .cta-actions {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .btn-secondary {
+      padding: 12px 24px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.05);
+      color: #ffffff;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: #ffffff;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(5, 8, 17, 0.85);
+      backdrop-filter: blur(12px);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      padding: 20px;
+    }
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-hover);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 480px;
+      padding: 36px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), 0 0 40px var(--cyan-glow);
+      position: relative;
+    }
+    .modal-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 1.5rem;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .modal-close:hover { color: #ffffff; }
+    .modal-title {
+      font-family: var(--font-heading);
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 8px;
+    }
+    .modal-subtitle {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 24px;
+    }
+    .form-group {
+      margin-bottom: 18px;
+      text-align: left;
+    }
+    .form-group label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .form-control {
+      width: 100%;
+      padding: 12px 16px;
+      background: rgba(5, 8, 17, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      color: #ffffff;
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-control:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.25);
+    }
+    .modal-btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #00f0ff 0%, #0077ff 100%);
+      color: #050811;
+      border: none;
+      border-radius: 10px;
+      font-weight: 800;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-top: 10px;
+      box-shadow: 0 4px 20px var(--cyan-glow);
+    }
+
+    /* Footer */
+    .footer {
+      background: #03050a;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 70px 0 30px;
+      font-size: 0.9rem;
+    }
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr 1fr 1.2fr;
+      gap: 40px;
+      margin-bottom: 50px;
+    }
+    .footer-brand p {
+      color: var(--text-muted);
+      margin: 16px 0 20px;
+      max-width: 320px;
+      font-size: 0.9rem;
+    }
+    .footer-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 20px;
+      font-size: 0.8rem;
+      color: var(--green);
+      font-weight: 600;
+    }
+    .footer-col h5 {
+      color: #ffffff;
+      font-family: var(--font-heading);
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+    }
+    .footer-col ul {
+      list-style: none;
+    }
+    .footer-col ul li {
+      margin-bottom: 12px;
+    }
+    .footer-col ul a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .footer-col ul a:hover {
+      color: var(--cyan);
+    }
+    .footer-bottom {
+      padding-top: 30px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--text-dim);
+      font-size: 0.82rem;
+    }
+
+    /* Responsive Queries */
+    @media (max-width: 1024px) {
+      .hero-grid { grid-template-columns: 1fr; gap: 40px; }
+      .hero-title { font-size: 2.8rem; }
+      .plans-grid { grid-template-columns: repeat(2, 1fr); }
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
+      .city-grid { grid-template-columns: repeat(2, 1fr); }
+      .footer-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 768px) {
+      .nav-links, .btn-portal { display: none; }
+      .hero-title { font-size: 2.3rem; }
+      .stat-ticker { grid-template-columns: repeat(2, 1fr); }
+      .plans-grid { grid-template-columns: 1fr; }
+      .features-grid { grid-template-columns: 1fr; }
+      .reviews-grid { grid-template-columns: 1fr; }
+      .city-grid { grid-template-columns: 1fr; }
+      .cta-box { padding: 40px 24px; }
+      .cta-title { font-size: 2rem; }
+      .footer-grid { grid-template-columns: 1fr; }
+      .footer-bottom { flex-direction: column; gap: 16px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Light Orbs -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+  <div class="ambient-glow glow-3"></div>
+
+  <!-- Announcement Bar -->
+  <div class="announcement-bar" id="announcement-bar">
+    <span class="badge">PTA Licensed</span>
+    <span>⚡ Lyarinet Gigabit Optical Fiber Backbone 2.0 is now live across Karachi & major sectors!</span>
+  </div>
+
+  <!-- Navbar -->
+  <header class="navbar">
+    <div class="container nav-wrapper">
+      <a href="#home" class="brand-logo">
+        <div class="logo-icon">L</div>
+        <div class="brand-text">
+          <div class="brand-title">LYARI<span>NET</span></div>
+          <div class="brand-sub">FIBER TELECOM</div>
+        </div>
+      </a>
+
+      <nav>
+        <ul class="nav-links">
+          <li><a href="#home" class="active">Home</a></li>
+          <li><a href="#plans">Fiber Plans</a></li>
+          <li><a href="#speedtest">Speed Test</a></li>
+          <li><a href="#advantages">Why Us</a></li>
+          <li><a href="#coverage">Coverage Map</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-actions">
+        <a href="#coverage" class="btn-portal">Coverage</a>
+        <button class="btn-primary" onclick="openOrderModal('Ultra Fiber 150 Mbps')">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          Get Connected
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero-section" id="home">
+    <div class="container hero-grid">
+      <div class="hero-content">
+        <div class="hero-badge">
+          <span class="pulse-dot"></span>
+          100% Pure Optical FTTH Technology
+        </div>
+        <h1 class="hero-title">
+          Ultra-Fast <span class="gradient-text">Gigabit Fiber</span> Internet for Modern Homes & Business
+        </h1>
+        <p class="hero-desc">
+          Say goodbye to buffering, packet loss, and high pings. Lyarinet delivers pure laser-driven symmetrical broadband with guaranteed 99.99% uptime and zero throttling.
+        </p>
+
+        <!-- Quick Coverage Check Box -->
+        <div class="coverage-widget">
+          <div class="coverage-input-group">
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <input type="text" id="heroAreaInput" class="coverage-input" placeholder="Enter your Area or Sector (e.g. Lyari, DHA, Clifton)...">
+          </div>
+          <button class="btn-primary" onclick="checkInstantCoverage()">Check Area</button>
+        </div>
+
+        <!-- Live Statistics -->
+        <div class="stat-ticker">
+          <div class="stat-item">
+            <h4>10<span>Gbps</span></h4>
+            <p>Backbone Capacity</p>
+          </div>
+          <div class="stat-item">
+            <h4>&lt;2<span>ms</span></h4>
+            <p>Gaming Latency</p>
+          </div>
+          <div class="stat-item">
+            <h4>99.9<span>%</span></h4>
+            <p>Uptime SLA</p>
+          </div>
+          <div class="stat-item">
+            <h4>24/7</h4>
+            <p>Dedicated NOC</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Interactive Speed Test Simulator -->
+      <div class="speedtest-card" id="speedtest">
+        <div class="speedtest-header">
+          <span>LYARINET OPTICAL POP #1</span>
+          <div class="server-badge">
+            <span class="pulse-dot"></span>
+            10G Direct Node
+          </div>
+        </div>
+
+        <div class="meter-circle">
+          <svg width="230" height="230" viewBox="0 0 230 230">
+            <defs>
+              <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#00f0ff" />
+                <stop offset="100%" stop-color="#10b981" />
+              </linearGradient>
+            </defs>
+            <circle class="meter-bg" cx="115" cy="115" r="100" />
+            <circle id="meterProgress" class="meter-progress" cx="115" cy="115" r="100" />
+          </svg>
+          <div class="meter-inner">
+            <div id="meterValue" class="meter-value">0</div>
+            <div id="meterUnit" class="meter-unit">MBPS</div>
+          </div>
+        </div>
+
+        <div class="telemetry-row">
+          <div class="telem-box">
+            <div class="telem-label">Ping</div>
+            <div id="telemPing" class="telem-val">1 ms</div>
+          </div>
+          <div class="telem-box">
+            <div class="telem-label">Download</div>
+            <div id="telemDown" class="telem-val">--</div>
+          </div>
+          <div class="telem-box">
+            <div class="telem-label">Upload</div>
+            <div id="telemUp" class="telem-val">--</div>
+          </div>
+        </div>
+
+        <button id="startSpeedTestBtn" class="btn-speedtest" onclick="runSpeedTest()">
+          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Run Live Speed Test
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing Plans Section -->
+  <section class="pricing-section" id="plans">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">// Transparent Pricing</span>
+        <h2 class="section-title">Symmetrical Optical Fiber Plans</h2>
+        <p class="section-desc">
+          True high-speed internet with equal upload and download speeds. No fair usage caps, no peak-time throttling.
+        </p>
+      </div>
+
+      <!-- Billing Toggle -->
+      <div class="pricing-toggle-wrap">
+        <span class="toggle-label active" id="labelMonthly" onclick="setBillingCycle('monthly')">Monthly Billing</span>
+        <label class="switch">
+          <input type="checkbox" id="billingToggle" onchange="toggleBilling(this.checked)">
+          <span class="slider"></span>
+        </label>
+        <span class="toggle-label" id="labelAnnual" onclick="setBillingCycle('annual')">Annual (Save 2 Months)</span>
+        <span class="discount-pill">Free Router</span>
+      </div>
+
+      <!-- 4 Plans Grid -->
+      <div class="plans-grid">
+        
+        <!-- Plan 1 -->
+        <div class="plan-card">
+          <div class="plan-name">Home Starter</div>
+          <div class="plan-speed-badge">50 <span>Mbps</span></div>
+          <div class="plan-type">Symmetrical Fiber</div>
+          <div class="plan-price-wrap">
+            <div class="plan-price"><span class="currency">PKR </span><span class="price-val" data-monthly="2,499" data-annual="24,990">2,499</span><span class="period"> /mo</span></div>
+          </div>
+          <ul class="plan-features">
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Unlimited Data Transfer (No Cap)
+            </li>
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Dual-Band 5GHz Wi-Fi ONT
+            </li>
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              HD Streaming on 4+ Devices
+            </li>
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              24/7 WhatsApp Support
+            </li>
+          </ul>
+          <button class="btn-plan" onclick="openOrderModal('Home Starter 50 Mbps')">Choose Plan</button>
+        </div>
+
+        <!-- Plan 2 (Featured) -->
+        <div class="plan-card featured">
+          <div class="featured-ribbon">⭐ Most Popular</div>
+          <div class="plan-name">Ultra Fiber</div>
+          <div class="plan-speed-badge">150 <span>Mbps</span></div>
+          <div class="plan-type">Gigabit-Ready Symmetrical</div>
+          <div class="plan-price-wrap">
+            <div class="plan-price"><span class="currency">PKR </span><span class="price-val" data-monthly="4,299" data-annual="42,990">4,299</span><span class="period"> /mo</span></div>
+          </div>
+          <ul class="plan-features">
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              100% Dedicated Optical Line
+            </li>
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Ultra-Fast Wi-Fi 6 GigaHub Router
+            </li>
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Gaming Fastpath (Middle East & EU)
+            </li>
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Free Static IP on Request
+            </li>
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              4K/8K HDR Bufferless Streaming
+            </li>
+          </ul>
+          <button class="btn-plan" onclick="openOrderModal('Ultra Fiber 150 Mbps')">Get Connected</button>
+        </div>
+
+        <!-- Plan 3 -->
+        <div class="plan-card">
+          <div class="plan-name">Gigabit Pro</div>
+          <div class="plan-speed-badge">500 <span>Mbps</span></div>
+          <div class="plan-type">Hyper Symmetrical</div>
+          <div class="plan-price-wrap">
+            <div class="plan-price"><span class="currency">PKR </span><span class="price-val" data-monthly="7,999" data-annual="79,990">7,999</span><span class="period"> /mo</span></div>
+          </div>
+          <ul class="plan-features">
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Half-Gigabit Pure Optical Throughput
+            </li>
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Sub-Millisecond Local Node Ping
+            </li>
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Quad-Stream Wi-Fi 6 Mesh Ready
+            </li>
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Dedicated Priority Route IP
+            </li>
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              VIP Tier-1 NOC Support
+            </li>
+          </ul>
+          <button class="btn-plan" onclick="openOrderModal('Gigabit Pro 500 Mbps')">Choose Plan</button>
+        </div>
+
+        <!-- Plan 4 -->
+        <div class="plan-card">
+          <div class="plan-name">Enterprise Leased</div>
+          <div class="plan-speed-badge">1,000 <span>Mbps</span></div>
+          <div class="plan-type">1 Gbps Dedicated 1:1</div>
+          <div class="plan-price-wrap">
+            <div class="plan-price"><span class="currency">PKR </span><span class="price-val" data-monthly="16,999" data-annual="169,990">16,999</span><span class="period"> /mo</span></div>
+          </div>
+          <ul class="plan-features">
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Guaranteed 1:1 Contention Ratio
+            </li>
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              99.99% Guaranteed Hardware SLA
+            </li>
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Dual Redundant Fiber Ring
+            </li>
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Subnet of 5 Usable Public IPs
+            </li>
+            <li>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              Dedicated Telecom Account Manager
+            </li>
+          </ul>
+          <button class="btn-plan" onclick="openOrderModal('Enterprise Leased 1 Gbps')">Contact Sales</button>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Why Choose Lyarinet -->
+  <section class="features-section" id="advantages">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">// Engineering Superiority</span>
+        <h2 class="section-title">Built Different from Legacy Cable</h2>
+        <p class="section-desc">
+          Old copper DSL and shared coaxial cable cannot compete with Lyarinet's dedicated laser fiber-optic technology.
+        </p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon-box">
+            <svg width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <h3 class="feature-title">True 100% FTTH Fiber</h3>
+          <p class="feature-text">
+            Optical fiber glass strand comes directly inside your home right into the modem, ensuring immune protection against weather, electromagnetic noise, and voltage drops.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">
+            <svg width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+            </svg>
+          </div>
+          <h3 class="feature-title">Symmetrical Speeds</h3>
+          <p class="feature-text">
+            Upload videos, backup gigabytes of cloud data, and broadcast crystal clear 4K livestreams at the exact same lightning speed as your download.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">
+            <svg width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+            </svg>
+          </div>
+          <h3 class="feature-title">Ultra-Low Gaming Latency</h3>
+          <p class="feature-text">
+            Direct peer interconnection with Valve (CS2, Dota), Riot Games (Valorant), PUBG, Cloudflare, and AWS servers ensures lowest millisecond ping and zero jitter.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">
+            <svg width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <h3 class="feature-title">Smart Wi-Fi 6 ONT Included</h3>
+          <p class="feature-text">
+            Experience next-generation beamforming and OFDMA technology that connects 64+ smart devices simultaneously without slowing down your family.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">
+            <svg width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <h3 class="feature-title">AI Threat Shield & DDoS Protection</h3>
+          <p class="feature-text">
+            Automated core level firewall guards your home network from malware, phishing links, and botnets before malicious packets even reach your device.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">
+            <svg width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+            </svg>
+          </div>
+          <h3 class="feature-title">Rapid 60-Minute Resolution</h3>
+          <p class="feature-text">
+            No robotic IVR wait times. Reach our real fiber field technicians instantly on WhatsApp, phone, or portal with guaranteed swift dispatch.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Coverage Map & Cities -->
+  <section class="coverage-section" id="coverage">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">// Expanding Network</span>
+        <h2 class="section-title">Check Fiber Availability in Your City</h2>
+        <p class="section-desc">
+          Lyarinet's optical rings cover hundreds of thousands of residential and commercial premises with rapid expansion underway.
+        </p>
+      </div>
+
+      <div class="city-grid">
+        <div class="city-card" onclick="selectCity('Karachi - Lyari Zone')">
+          <div>
+            <div class="city-name">Lyari Central & East</div>
+            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 2px;">Zone 1 & 2</div>
+          </div>
+          <span class="city-badge badge-active">Active (10G)</span>
+        </div>
+
+        <div class="city-card" onclick="selectCity('Karachi - Clifton & DHA')">
+          <div>
+            <div class="city-name">Clifton & DHA</div>
+            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 2px;">Phase 1 to 8</div>
+          </div>
+          <span class="city-badge badge-active">Active (10G)</span>
+        </div>
+
+        <div class="city-card" onclick="selectCity('Karachi - Gulshan & Johar')">
+          <div>
+            <div class="city-name">Gulshan-e-Iqbal & Johar</div>
+            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 2px;">Blocks 1 - 19</div>
+          </div>
+          <span class="city-badge badge-active">Active (10G)</span>
+        </div>
+
+        <div class="city-card" onclick="selectCity('Karachi - North Nazimabad')">
+          <div>
+            <div class="city-name">North Nazimabad & Buffer Zone</div>
+            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 2px;">Blocks A - W</div>
+          </div>
+          <span class="city-badge badge-active">Active (10G)</span>
+        </div>
+
+        <div class="city-card" onclick="selectCity('Karachi - PECHS & Tariq Road')">
+          <div>
+            <div class="city-name">PECHS & Bahadurabad</div>
+            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 2px;">Blocks 1 - 6</div>
+          </div>
+          <span class="city-badge badge-active">Active (10G)</span>
+        </div>
+
+        <div class="city-card" onclick="selectCity('Karachi - Saddar & II Chundrigar')">
+          <div>
+            <div class="city-name">I.I. Chundrigar & Saddar</div>
+            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 2px;">Financial District</div>
+          </div>
+          <span class="city-badge badge-active">Active (10G)</span>
+        </div>
+
+        <div class="city-card" onclick="selectCity('Lahore - Gulberg & DHA')">
+          <div>
+            <div class="city-name">Lahore Metro</div>
+            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 2px;">DHA, Gulberg & Cantt</div>
+          </div>
+          <span class="city-badge badge-expanding">Expanding</span>
+        </div>
+
+        <div class="city-card" onclick="selectCity('Islamabad / Rawalpindi')">
+          <div>
+            <div class="city-name">Islamabad & Rawalpindi</div>
+            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 2px;">Sectors F, G & Bahria</div>
+          </div>
+          <span class="city-badge badge-expanding">Expanding</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Customer Reviews -->
+  <section class="reviews-section">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">// Verified Customers</span>
+        <h2 class="section-title">Loved by Gamers, Coders & Families</h2>
+        <p class="section-desc">
+          See why thousands of power users switched to Lyarinet Gigabit Fiber.
+        </p>
+      </div>
+
+      <div class="reviews-grid">
+        <div class="review-card">
+          <div class="review-rating">★★★★★</div>
+          <p class="review-quote">
+            "As a full-stack remote developer pushing Docker images and doing daily Zoom video calls, Lyarinet's 150 Mbps symmetrical speed has been a total gamechanger. Zero disconnections in 8 months."
+          </p>
+          <div class="reviewer-info">
+            <div class="reviewer-avatar">AZ</div>
+            <div>
+              <div class="reviewer-name">Ahmed Zafar</div>
+              <div class="reviewer-role">Senior Software Engineer, Lyari</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-rating">★★★★★</div>
+          <p class="review-quote">
+            "My Valorant ping dropped from 54ms on my old provider down to an unbelievable 18ms with Lyarinet. The routing to Bahrain and Dubai servers is the lowest I have ever experienced in Pakistan."
+          </p>
+          <div class="reviewer-info">
+            <div class="reviewer-avatar">MB</div>
+            <div>
+              <div class="reviewer-name">Mohammad Bilal</div>
+              <div class="reviewer-role">Competitive Esports Gamer, DHA</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-rating">★★★★★</div>
+          <p class="review-quote">
+            "Our whole family streams Netflix in 4K, plays PlayStation, and works from home simultaneously. The Wi-Fi 6 router they provided reaches every room with strong signal. Installation was done within 2 hours!"
+          </p>
+          <div class="reviewer-info">
+            <div class="reviewer-avatar">SK</div>
+            <div>
+              <div class="reviewer-name">Sana Khalid</div>
+              <div class="reviewer-role">Digital Agency Director, Clifton</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ Section -->
+  <section class="faq-section" id="faq">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">// Clarifications</span>
+        <h2 class="section-title">Frequently Asked Questions</h2>
+        <p class="section-desc">Everything you need to know about getting connected with Lyarinet.</p>
+      </div>
+
+      <div class="faq-wrapper">
+        <div class="faq-item open">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            What is the difference between Fiber (FTTH) and standard copper broadband?
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </div>
+          <div class="faq-answer">
+            Lyarinet uses Fiber to the Home (FTTH), meaning pure optical glass cables run directly from our 10G central nodes directly into your residence. Unlike traditional copper or coaxial cables, fiber transmits data at the speed of light, is completely immune to electrical interference, does not degrade over distance, and provides equal (symmetrical) upload and download speeds.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            How long does installation and activation take?
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </div>
+          <div class="faq-answer">
+            Once you submit your request and our coverage team verifies your building or home drop, our certified fiber technician team installs the optical line and activates your Wi-Fi 6 GigaHub ONT router typically within 24 to 48 hours.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            Are there any Fair Usage Policy (FUP) limits or data caps?
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </div>
+          <div class="faq-answer">
+            No! Lyarinet offers truly 100% unlimited data. You can download and upload terabytes of data every single month without any speed throttling, data caps, or hidden restrictions.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            Do I get a static Public IP for hosting, servers, or CCTV?
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </div>
+          <div class="faq-answer">
+            Yes! Static dedicated public IPv4 and IPv6 addresses are readily available. Ultra Fiber and Gigabit Pro packages include complimentary static IP configuration upon request for remote servers, NAS backups, and security DVRs.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            How do I pay my monthly bill?
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </div>
+          <div class="faq-answer">
+            You can pay effortlessly via EasyPaisa, JazzCash, Kuickpay, 1Link Online Banking, Credit/Debit cards, or at our customer service centers. Instant automatic receipt and SMS confirmation are dispatched immediately.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Banner Section -->
+  <section class="cta-section">
+    <div class="container">
+      <div class="cta-box">
+        <h2 class="cta-title">Upgrade to Gigabit Fiber Today</h2>
+        <p class="cta-desc">
+          Experience the internet the way it was engineered to be. Free installation and optical ONT router with annual subscription!
+        </p>
+        <div class="cta-actions">
+          <button class="btn-primary" onclick="openOrderModal('Ultra Fiber 150 Mbps')">
+            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            Request Instant Installation
+          </button>
+          <a href="https://wa.me/923000000000" target="_blank" class="btn-secondary">
+            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.275.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.043.073.043.419-.101.824z"/>
+            </svg>
+            Chat on WhatsApp
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Lead / Order Modal -->
+  <div class="modal-overlay" id="orderModal">
+    <div class="modal-card">
+      <button class="modal-close" onclick="closeOrderModal()">&times;</button>
+      <h3 class="modal-title">Order Fiber Connection</h3>
+      <p class="modal-subtitle" id="modalPlanSubtitle">Selected: Ultra Fiber 150 Mbps</p>
+
+      <form id="orderForm" onsubmit="handleOrderSubmit(event)">
+        <div class="form-group">
+          <label for="orderName">Full Name</label>
+          <input type="text" id="orderName" class="form-control" required placeholder="e.g. Tariq Ahmed">
+        </div>
+        <div class="form-group">
+          <label for="orderPhone">Mobile Number (WhatsApp Enabled)</label>
+          <input type="tel" id="orderPhone" class="form-control" required placeholder="e.g. 0300-1234567">
+        </div>
+        <div class="form-group">
+          <label for="orderAddress">Full Street Address & Sector / City</label>
+          <input type="text" id="orderAddress" class="form-control" required placeholder="e.g. Flat 4B, Lyari Street 5, Karachi">
+        </div>
+        <div class="form-group">
+          <label for="orderPlanSelect">Selected Package</label>
+          <select id="orderPlanSelect" class="form-control">
+            <option value="Home Starter 50 Mbps">Home Starter (50 Mbps) - PKR 2,499/mo</option>
+            <option value="Ultra Fiber 150 Mbps" selected>Ultra Fiber (150 Mbps) - PKR 4,299/mo</option>
+            <option value="Gigabit Pro 500 Mbps">Gigabit Pro (500 Mbps) - PKR 7,999/mo</option>
+            <option value="Enterprise Leased 1 Gbps">Enterprise Leased (1 Gbps) - PKR 16,999/mo</option>
+          </select>
+        </div>
+        <button type="submit" class="modal-btn" id="modalSubmitBtn">Schedule Free Installation</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-grid">
+      <div class="footer-brand">
+        <a href="#home" class="brand-logo">
+          <div class="logo-icon">L</div>
+          <div class="brand-text">
+            <div class="brand-title">LYARI<span>NET</span></div>
+            <div class="brand-sub">FIBER TELECOM</div>
+          </div>
+        </a>
+        <p>
+          Pakistan's premier next-generation Gigabit FTTH Internet Service Provider. Engineered for uncompromised speed, low gaming latency, and round-the-clock reliability.
+        </p>
+        <div class="footer-status">
+          <span class="pulse-dot"></span>
+          All Optical POPs Normal • 0 Outages
+        </div>
+      </div>
+
+      <div class="footer-col">
+        <h5>Internet Services</h5>
+        <ul>
+          <li><a href="#plans">Home Fiber Broadband</a></li>
+          <li><a href="#plans">Dedicated Leased Lines</a></li>
+          <li><a href="#plans">Gaming Fastpath Routing</a></li>
+          <li><a href="#plans">Enterprise Dark Fiber</a></li>
+          <li><a href="#speedtest">Speed Test Utility</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h5>Quick Links</h5>
+        <ul>
+          <li><a href="#coverage">Coverage Map</a></li>
+          <li><a href="privacy.html">Privacy Policy</a></li>
+          <li><a href="#faq">Help & FAQ</a></li>
+          <li><a href="https://github.com/lyarinet" target="_blank">Lyarinet Open Source</a></li>
+          <li><a href="#home">Self-Care Portal</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h5>NOC Support 24/7</h5>
+        <p style="color: var(--text-muted); margin-bottom: 12px; font-size: 0.88rem;">
+          Direct Fiber Helpline: <br>
+          <strong style="color: var(--cyan); font-family: var(--font-mono);">+92 (021) 3456-7890</strong>
+        </p>
+        <p style="color: var(--text-muted); font-size: 0.88rem;">
+          Email: <span style="color: var(--text-main);">support@lyarinet.com</span><br>
+          Licensed by Pakistan Telecommunication Authority (PTA).
+        </p>
+      </div>
+    </div>
+
+    <div class="container footer-bottom">
+      <div>Copyright &copy; 2026 Lyarinet Technologies. All rights reserved.</div>
+      <div>Designed with Precision for Next-Gen Connectivity.</div>
+    </div>
+  </footer>
+
+  <!-- Interactive JavaScript Engine -->
+  <script>
+    // 1. Billing Toggle Handler (Monthly vs Annual)
+    function toggleBilling(isAnnual) {
+      const prices = document.querySelectorAll('.price-val');
+      const labelMonthly = document.getElementById('labelMonthly');
+      const labelAnnual = document.getElementById('labelAnnual');
+
+      if (isAnnual) {
+        labelMonthly.classList.remove('active');
+        labelAnnual.classList.add('active');
+        prices.forEach(el => {
+          el.textContent = el.getAttribute('data-annual');
+          el.nextElementSibling.textContent = ' /yr';
+        });
+      } else {
+        labelMonthly.classList.add('active');
+        labelAnnual.classList.remove('active');
+        prices.forEach(el => {
+          el.textContent = el.getAttribute('data-monthly');
+          el.nextElementSibling.textContent = ' /mo';
+        });
+      }
+    }
+
+    function setBillingCycle(cycle) {
+      const toggle = document.getElementById('billingToggle');
+      if (cycle === 'annual') {
+        toggle.checked = true;
+        toggleBilling(true);
+      } else {
+        toggle.checked = false;
+        toggleBilling(false);
+      }
+    }
+
+    // 2. Interactive Speed Test Simulator
+    let isTesting = false;
+    function runSpeedTest() {
+      if (isTesting) return;
+      isTesting = true;
+
+      const btn = document.getElementById('startSpeedTestBtn');
+      const meterVal = document.getElementById('meterValue');
+      const meterProgress = document.getElementById('meterProgress');
+      const telemPing = document.getElementById('telemPing');
+      const telemDown = document.getElementById('telemDown');
+      const telemUp = document.getElementById('telemUp');
+
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+      btn.innerHTML = '⚡ Testing Fiber Node...';
+
+      telemDown.textContent = '...';
+      telemUp.textContent = '...';
+      telemPing.textContent = '1 ms';
+
+      const circumference = 2 * Math.PI * 100; // ~628
+      let currentSpeed = 0;
+      const targetSpeed = 964.8; // Gigabit peak simulation
+
+      // Animate ping
+      setTimeout(() => {
+        telemPing.textContent = '1.8 ms';
+      }, 600);
+
+      // Download Speed Ramping
+      const startTime = performance.now();
+      const duration = 3200; // ms
+
+      function animateMeter(time) {
+        const elapsed = time - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Easing function for realistic ramp up with jitter
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        const jitter = (Math.random() - 0.5) * 18;
+        currentSpeed = Math.max(0, (targetSpeed * easeOut) + (progress < 1 ? jitter : 0));
+
+        meterVal.textContent = currentSpeed.toFixed(1);
+
+        // Update circular svg meter
+        const percentage = Math.min(currentSpeed / 1000, 1);
+        const offset = circumference - (percentage * circumference);
+        meterProgress.style.strokeDashoffset = offset;
+
+        if (progress < 1) {
+          requestAnimationFrame(animateMeter);
+        } else {
+          meterVal.textContent = targetSpeed.toFixed(1);
+          telemDown.textContent = targetSpeed.toFixed(1) + ' Mbps';
+
+          // Animate Upload Test
+          setTimeout(() => {
+            const uploadSpeed = 938.4;
+            telemUp.textContent = uploadSpeed.toFixed(1) + ' Mbps';
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.innerHTML = '✓ Test Complete — Retest Speed';
+            isTesting = false;
+          }, 800);
+        }
+      }
+
+      requestAnimationFrame(animateMeter);
+    }
+
+    // 3. Quick Area Coverage Check
+    function checkInstantCoverage() {
+      const input = document.getElementById('heroAreaInput');
+      const val = input.value.trim();
+      if (!val) {
+        input.focus();
+        input.style.border = '1px solid var(--cyan)';
+        return;
+      }
+
+      const availableAreas = ['lyari', 'clifton', 'dha', 'gulshan', 'johar', 'pechs', 'nazimabad', 'karachi', 'saddar', 'bahadurabad', 'cantt'];
+      const isAvailable = availableAreas.some(area => val.toLowerCase().includes(area));
+
+      if (isAvailable) {
+        alert('🎉 Great news! Lyarinet 10G Gigabit Optical Fiber is ACTIVE in ' + val + '!\nClick "Get Connected" to schedule free installation.');
+        openOrderModal('Ultra Fiber 150 Mbps');
+      } else {
+        alert('📍 ' + val + ' is scheduled for our Q4 Fiber Expansion!\nYou can pre-register now to receive free installation when we connect your sector.');
+        openOrderModal('Ultra Fiber 150 Mbps');
+      }
+    }
+
+    function selectCity(cityName) {
+      alert('Selected Region: ' + cityName + '\nLyarinet Gigabit Optical Backbone is ready for activation.');
+      openOrderModal('Ultra Fiber 150 Mbps');
+    }
+
+    // 4. Modal Handlers
+    function openOrderModal(planName) {
+      const modal = document.getElementById('orderModal');
+      const subtitle = document.getElementById('modalPlanSubtitle');
+      const select = document.getElementById('orderPlanSelect');
+
+      if (planName) {
+        subtitle.textContent = 'Selected: ' + planName;
+        for (let i = 0; i < select.options.length; i++) {
+          if (select.options[i].value === planName) {
+            select.selectedIndex = i;
+            break;
+          }
+        }
+      }
+      modal.classList.add('active');
+    }
+
+    function closeOrderModal() {
+      document.getElementById('orderModal').classList.remove('active');
+    }
+
+    window.addEventListener('click', (e) => {
+      const modal = document.getElementById('orderModal');
+      if (e.target === modal) closeOrderModal();
+    });
+
+    function handleOrderSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById('orderName').value;
+      const phone = document.getElementById('orderPhone').value;
+      const plan = document.getElementById('orderPlanSelect').value;
+      const btn = document.getElementById('modalSubmitBtn');
+
+      btn.disabled = true;
+      btn.textContent = 'Submitting Request...';
+
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = 'Schedule Free Installation';
+        closeOrderModal();
+        alert('✅ Thank you, ' + name + '!\nYour installation request for ' + plan + ' has been registered.\nOur team will contact you at ' + phone + ' shortly via WhatsApp/Call to confirm your slot.');
+        document.getElementById('orderForm').reset();
+      }, 1000);
+    }
+
+    // 5. FAQ Accordion
+    function toggleFaq(el) {
+      const parent = el.parentElement;
+      const isOpen = parent.classList.contains('open');
+
+      document.querySelectorAll('.faq-item').forEach(item => {
+        item.classList.remove('open');
+      });
+
+      if (!isOpen) {
+        parent.classList.add('open');
+      }
+    }
+  </script>
+</body>
+</html>

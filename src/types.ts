@@ -238,6 +238,7 @@ export interface TerminalSettings {
   cursorBlink: boolean;
   scrollbackLines: number;
   theme: 'one-dark' | 'dracula' | 'tokyo-night' | 'monokai' | 'nord' | 'solarized-dark';
+  alwaysOnTop?: boolean;
 }
 
 export interface ProcessInfo {

@@ -355,6 +355,22 @@ ipcMain.on('window-close', () => {
     mainWindow.close();
   }
 });
+ipcMain.on('window-set-always-on-top', (_event, flag) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const isTop = Boolean(flag);
+    if (process.platform === 'darwin') {
+      mainWindow.setAlwaysOnTop(isTop, isTop ? 'floating' : 'normal');
+    } else {
+      mainWindow.setAlwaysOnTop(isTop);
+    }
+  }
+});
+ipcMain.handle('window-is-always-on-top', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    return mainWindow.isAlwaysOnTop();
+  }
+  return false;
+});
 ipcMain.on('open-external', (_event, url) => {
   if (url && (url.startsWith('https:') || (url.startsWith('http:') && !url.includes('127.0.0.1')))) {
     shell.openExternal(url);

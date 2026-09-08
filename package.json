@@ -58,11 +58,11 @@
       ]
     },
     "appx": {
-      "applicationId": "xTerminal",
-      "identityName": "Lyarinet.xTerminal",
-      "publisher": "CN=0f5493dc-2071-41cf-872a-3490c5d0b812",
+      "applicationId": "xTerminalPro",
+      "identityName": "lyarinet.xTerminalPro",
+      "publisher": "CN=606DEEFE-7269-4857-9459-080316478D15",
       "publisherDisplayName": "lyarinet",
-      "displayName": "xTerminal",
+      "displayName": "xTerminal Pro",
       "backgroundColor": "#1C1C1E"
     },
     "mac": {

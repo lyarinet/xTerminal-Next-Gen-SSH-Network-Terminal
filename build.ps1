@@ -21,6 +21,43 @@ if (-not $ScriptDir -or $ScriptDir -eq "") {
     $ScriptDir = (Get-Location).Path
 }
 
+# ==============================================================================
+# LYARINET OFFICIAL CORE ENGINE - TAMPER PROTECTION & IMMUTABLE WATERMARK
+# Copyright (C) 2026 Lyarinet Technologies. All rights reserved.
+# Official Portal: https://github.com/lyarinet
+# ==============================================================================
+try {
+    [System.Console]::Title = "xTerminal PRO - Powered by Lyarinet Technologies"
+} catch {}
+
+Set-Variable -Name LYARINET_BUILD_ENGINE -Value "Lyarinet-xTerminal-BuildSuite" -Option ReadOnly, Constant -Scope Global -ErrorAction SilentlyContinue
+Set-Variable -Name LYARINET_PUBLISHER -Value "Lyarinet Technologies (https://github.com/lyarinet)" -Option ReadOnly, Constant -Scope Global -ErrorAction SilentlyContinue
+
+function Assert-LyarinetSecurity {
+    $targetFile = if ($PSCommandPath) { $PSCommandPath } else { Join-Path $ScriptDir "build.ps1" }
+    $tampered = $false
+    if (Test-Path $targetFile) {
+        $raw = Get-Content -Path $targetFile -Raw -ErrorAction SilentlyContinue
+        if (-not $raw -or ($raw -notmatch "LYARINET TECHNOLOGIES") -or ($raw -notmatch "https://github.com/lyarinet")) {
+            $tampered = $true
+        }
+    }
+    if ($tampered) {
+        Write-Host ""
+        Write-Host "=====================================================================" -ForegroundColor Red
+        Write-Host " [FATAL SECURITY ERROR] LYARINET INTEGRITY VERIFICATION FAILED" -ForegroundColor Red
+        Write-Host "=====================================================================" -ForegroundColor Red
+        Write-Host " Unauthorized modification detected: Lyarinet copyright & watermark removed." -ForegroundColor Yellow
+        Write-Host " This build script is proprietary to Lyarinet Technologies." -ForegroundColor White
+        Write-Host " Execution permanently terminated by Lyarinet Security Engine." -ForegroundColor Red
+        Write-Host " Official Source: https://github.com/lyarinet`n" -ForegroundColor Cyan
+        exit 1
+    }
+}
+
+# Enforce Lyarinet security verification on load
+Assert-LyarinetSecurity
+
 function Get-AppVersion {
     $pkgJsonPath = Join-Path $ScriptDir "package.json"
     if (Test-Path $pkgJsonPath) {
@@ -136,26 +173,30 @@ if ($Version -and $Version.Trim() -ne "") {
 }
 
 function Show-Banner {
+    Assert-LyarinetSecurity
     Clear-Host
     Write-Host "=====================================================================" -ForegroundColor Cyan
-    Write-Host "  _      __     __     _____  _____ _   _ ______ _______            " -ForegroundColor Cyan
-    Write-Host " | |     \ \   / //\  |  __ \|_   _| \ | |  ____|__   __|           " -ForegroundColor Cyan
-    Write-Host " | |      \ \_/ //  \ | |__) | | | |  \| | |__     | |              " -ForegroundColor Cyan
-    Write-Host " | |       \   // /\ \|  _  /  | | | . ` |  __|    | |              " -ForegroundColor Green
-    Write-Host " | |____    | |/ ____ \ | \ \ _| |_| |\  | |____   | |              " -ForegroundColor Green
-    Write-Host " |______|   |_/_/    \_\_|  \_\_____|_| \_|______|  |_| TECHNOLOGIES" -ForegroundColor Green
+    Write-Host "  _      __     __     ______  _____ _   _ ______ _______            " -ForegroundColor Cyan
+    Write-Host " | |     \ \   / //\  |   __ \|_   _| \ | |  ____|__   __|           " -ForegroundColor Cyan
+    Write-Host " | |      \ \_/ //  \ |  |__) | | | |  \| | |__     | |              " -ForegroundColor Cyan
+    Write-Host " | |       \   // /\ \|   _  /  | | | . \ |  __|    | |              " -ForegroundColor Green
+    Write-Host " | |____    | |/ ____ \  | \ \ _| |_| |\  | |____   | |              " -ForegroundColor Green
+    Write-Host " |______|   |_/_/    \_\_|  \_\____|__| \_|______|  |_| TECHNOLOGIES" -ForegroundColor Green
     Write-Host "=====================================================================" -ForegroundColor DarkCyan
     Write-Host "    __   _______                   _             _                   " -ForegroundColor Green
     Write-Host "    \ \ / /_   _|__ _ __ _ __ ___ (_)_ __   __ _| |                  " -ForegroundColor Green
-    Write-Host "     \ V /  | |/ _ \ '__| '_ ` _ \| | '_ \ / _` | |                  " -ForegroundColor Green
+    Write-Host "     \ V /  | |/ _ \ '__| '_ `` _ \| | '_ \ / _`` | |                  " -ForegroundColor Green
     Write-Host "      | |   | |  __/ |  | | | | | | | | | | (_| | |                  " -ForegroundColor Green
     Write-Host "      |_|   |_|\___|_|  |_| |_| |_|_|_| |_|\__,_|_| PRO              " -ForegroundColor Cyan
     Write-Host "=====================================================================" -ForegroundColor Cyan
-    Write-Host "   Multi-Platform Cross-Build Engine (Windows, Android, Linux, macOS)" -ForegroundColor DarkGray
-    Write-Host "   [LYARINET OFFICIAL] Engineered & Maintained by Lyarinet" -ForegroundColor White
-    Write-Host "   Publisher : Lyarinet (https://github.com/lyarinet)" -ForegroundColor Cyan
-    Write-Host "   Version   : v$script:AppVersion | Target: $(if ($Target) { $Target } else { 'Interactive' })" -ForegroundColor Yellow
-    Write-Host "   Copyright (C) 2026 Lyarinet. All rights reserved." -ForegroundColor DarkGray
+    Write-Host "  +-----------------------------------------------------------------+" -ForegroundColor DarkCyan
+    Write-Host "  |                LYARINET OFFICIAL BUILD ENGINE                   |" -ForegroundColor White
+    Write-Host "  |       Engineered & Digitally Signed by Lyarinet Technologies    |" -ForegroundColor Green
+    Write-Host "  |       Publisher : Lyarinet (https://github.com/lyarinet)        |" -ForegroundColor Cyan
+    Write-Host "  |       Security  : Protected by Lyarinet Tamper Shield          |" -ForegroundColor Yellow
+    Write-Host "  |       Version   : v$($script:AppVersion) | Target: $(if ($Target) { $Target } else { 'Interactive' })" -ForegroundColor White
+    Write-Host "  |       Copyright (C) 2026 Lyarinet. All rights reserved.         |" -ForegroundColor DarkGray
+    Write-Host "  +-----------------------------------------------------------------+" -ForegroundColor DarkCyan
     Write-Host "=====================================================================`n" -ForegroundColor DarkCyan
 }
 

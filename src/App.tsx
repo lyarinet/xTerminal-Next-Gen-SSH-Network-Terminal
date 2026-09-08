@@ -592,7 +592,7 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-2 app-drag-region text-[11px] text-gray-500 font-mono">
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1C1C1E] text-gray-400 border border-[#222224]">v1.2.1</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1C1C1E] text-gray-400 border border-[#222224]">v1.2.6</span>
         </div>
       </div>
 

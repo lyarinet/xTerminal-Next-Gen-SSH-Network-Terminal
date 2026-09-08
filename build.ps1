@@ -52,6 +52,8 @@ function Get-AppVersion {
 # Version update across all platforms
 # .\build.ps1 -Version 1.2.6
 
+# .\build.ps1 -Version 1.2.7 -Target store
+
 function Set-AppVersion([string]$newVer) {
     if (-not $newVer) { return }
     $cleanVer = $newVer.Trim().TrimStart('v').TrimStart('V')
@@ -113,6 +115,15 @@ function Set-AppVersion([string]$newVer) {
         $tauriContent = $tauriContent -replace '("version"\s*:\s*)"[^"]+"', "`$1`"$cleanVer`""
         [System.IO.File]::WriteAllText($tauriPath, $tauriContent, $utf8NoBom)
         Write-Host "  [+] Updated src-tauri/tauri.conf.json version -> $cleanVer" -ForegroundColor Green
+    }
+
+    # 6. Update src/App.tsx header badge
+    $appTsxPath = Join-Path $ScriptDir "src\App.tsx"
+    if (Test-Path $appTsxPath) {
+        $appTsxContent = [System.IO.File]::ReadAllText($appTsxPath, [System.Text.Encoding]::UTF8)
+        $appTsxContent = $appTsxContent -replace '>v\d+\.\d+\.\d+<', ">v$cleanVer<"
+        [System.IO.File]::WriteAllText($appTsxPath, $appTsxContent, $utf8NoBom)
+        Write-Host "  [+] Updated src/App.tsx version badge -> v$cleanVer" -ForegroundColor Green
     }
 
     $script:AppVersion = $cleanVer

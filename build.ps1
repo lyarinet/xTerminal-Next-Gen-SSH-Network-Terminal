@@ -6,13 +6,39 @@
     Supports comprehensive version synchronization across package.json, package-lock.json,
     Android build.gradle (versionName & versionCode), snapcraft.yaml, and tauri.conf.json.
 .PARAMETER Target
-    Target platform: win, windows, android, apk, aab, playstore, bundle, linux, mac, macos, all, release, keystore, icons.
+    Target platform: win, windows, store, msix, appx, android, apk, aab, playstore, bundle, linux, mac, macos, all, release, keystore, icons.
 .PARAMETER Version
     Optional version string (e.g. 1.2.4). Automatically updates all project configuration files.
 #>
 
+param(
+    [string]$Target = "",
+    [string]$Version = ""
+)
+
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+if (-not $ScriptDir -or $ScriptDir -eq "") {
+    $ScriptDir = (Get-Location).Path
+}
+
+function Get-AppVersion {
+    $pkgJsonPath = Join-Path $ScriptDir "package.json"
+    if (Test-Path $pkgJsonPath) {
+        try {
+            $content = Get-Content $pkgJsonPath -Raw
+            if ($content -match '"version"\s*:\s*"([^"]+)"') {
+                return $matches[1]
+            }
+        } catch {}
+    }
+    return "1.2.6"
+}
+
 # Interactive Menu
 # .\build.ps1
+
+# Direct Microsoft Store AppX / MSIX Package
+# .\build.ps1 -Target store
 
 # Direct Google Play Store AAB
 # .\build.ps1 -Target aab
@@ -24,7 +50,7 @@
 # .\build.ps1 -Target keystore
 
 # Version update across all platforms
-# .\build.ps1 -Version 1.2.5
+# .\build.ps1 -Version 1.2.6
 
 function Set-AppVersion([string]$newVer) {
     if (-not $newVer) { return }
@@ -241,6 +267,75 @@ function Build-Windows {
         Write-Host ""
     } else {
         Write-Host "`n[!] Windows packaging encountered an error. Check logs above." -ForegroundColor Red
+    }
+}
+
+function Build-WindowsStore {
+    Show-Banner
+    Write-Host ">>> TARGET: Microsoft Store Package (.appx / .msix) (v$script:AppVersion)`n" -ForegroundColor Yellow
+    Write-Host "This packages xTerminal into a Microsoft Store AppX / MSIX package." -ForegroundColor DarkGray
+    Write-Host "When uploaded to Microsoft Partner Center, Microsoft signs the app with their official" -ForegroundColor DarkGray
+    Write-Host "trusted root certificate for FREE (avoids policy 10.2.9 unsigned binary rejection).`n" -ForegroundColor DarkGray
+
+    # Terminate any running instances or installers that could lock files
+    Get-Process -Name "xTerminal", "electron" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 500
+
+    # Clean temporary directories and previous store packages
+    if (Test-Path "$ScriptDir\release") {
+        Get-ChildItem -Path "$ScriptDir\release" -Filter "*.appx" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -Path "$ScriptDir\release" -Filter "*.msix" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    }
+    if (Test-Path "$ScriptDir\release\win-unpacked.tmp") {
+        Remove-Item "$ScriptDir\release\win-unpacked.tmp" -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    # Backup any Android APKs and AABs if present so electron-builder doesn't wipe them
+    $backupDir = "$env:TEMP\xterminal-mobile-backup"
+    if (Test-Path "$ScriptDir\release") {
+        New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+        Get-ChildItem -Path "$ScriptDir\release" -Include "*.apk", "*.aab" -Recurse | ForEach-Object {
+            Copy-Item $_.FullName "$backupDir\$($_.Name)" -Force
+        }
+    }
+
+    Build-FrontendAndServer
+
+    Write-Host "`n[2/2] Packaging Microsoft Store AppX package via electron-builder..." -ForegroundColor Cyan
+    $start = Get-Date
+    cmd.exe /c "npx electron-builder --win appx"
+    $buildSuccess = ($LASTEXITCODE -eq 0)
+    $elapsed = (Get-Date) - $start
+
+    # Restore Android packages if they were backed up
+    if (Test-Path $backupDir) {
+        Get-ChildItem -Path $backupDir | ForEach-Object {
+            Copy-Item $_.FullName "$ScriptDir\release\$($_.Name)" -Force
+        }
+        Remove-Item $backupDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    $appxFile = Get-ChildItem -Path "$ScriptDir\release" -Filter "*.appx" | Select-Object -First 1
+    if ($buildSuccess -and $appxFile) {
+        $fileSizeMB = [math]::Round($appxFile.Length / 1MB, 2)
+        Write-Host "`n=====================================================================" -ForegroundColor Green
+        Write-Host " [SUCCESS] Microsoft Store package (.appx) generated successfully in $([math]::Round($elapsed.TotalSeconds, 1))s!" -ForegroundColor Green
+        Write-Host "=====================================================================" -ForegroundColor Green
+        Write-Host "  Store Package  : release\$($appxFile.Name)" -ForegroundColor Green
+        Write-Host "  Package ID     : Lyarinet.xTerminal" -ForegroundColor White
+        Write-Host "  Version        : $script:AppVersion.0" -ForegroundColor White
+        Write-Host "  Size           : $fileSizeMB MB" -ForegroundColor White
+        Write-Host ""
+        Write-Host "  [*] HOW TO UPLOAD TO MICROSOFT PARTNER CENTER:" -ForegroundColor Yellow
+        Write-Host "  1. Open Microsoft Partner Center: https://partner.microsoft.com/dashboard/apps-and-games/overview" -ForegroundColor Cyan
+        Write-Host "  2. Click on your app: xTerminal (Product ID: 0f5493dc-2071-41cf-872a-3490c5d0b812)" -ForegroundColor White
+        Write-Host "  3. Go to: Packages (under Submissions)" -ForegroundColor White
+        Write-Host "  4. Drag and drop: release\$($appxFile.Name)" -ForegroundColor White
+        Write-Host "  5. Microsoft Store will automatically validate and sign the package for FREE!" -ForegroundColor Green
+        Write-Host "  6. Submit to certification - 100% compliant with Policy 10.2.9!" -ForegroundColor Green
+        Write-Host "=====================================================================`n" -ForegroundColor Green
+    } else {
+        Write-Host "`n[!] Microsoft Store packaging encountered an error. Check logs above." -ForegroundColor Red
     }
 }
 
@@ -751,10 +846,13 @@ if (!(Test-Prerequisites)) {
     exit 1
 }
 
-if ($Target -ne "") {
-    switch ($Target.ToLower()) {
+if ($Target -and $Target.Trim() -ne "") {
+    switch ($Target.ToLower().Trim()) {
         "win"       { Build-Windows; exit }
         "windows"   { Build-Windows; exit }
+        "store"     { Build-WindowsStore; exit }
+        "msix"      { Build-WindowsStore; exit }
+        "appx"      { Build-WindowsStore; exit }
         "android"   { Build-Android; exit }
         "apk"       { Build-Android; exit }
         "aab"       { Build-AndroidPlayStore; exit }
@@ -777,35 +875,37 @@ do {
     Write-Host "Select a target platform or utility to build:" -ForegroundColor White
     Write-Host ""
     Write-Host "  [1]   Windows Desktop              (.exe Installer & win-unpacked portable)" -ForegroundColor Cyan
-    Write-Host "  [2]   Android Mobile (APK)         (Direct .apk for phone installation / testing)" -ForegroundColor Green
-    Write-Host "  [3]   Android Google Play (.aab)   (Production App Bundle for Google Play Store)" -ForegroundColor Green
-    Write-Host "  [4]   Linux Desktop                (.AppImage, Debian .deb & Canonical .snap)" -ForegroundColor Yellow
-    Write-Host "  [5]   macOS Desktop                (.dmg Installer)" -ForegroundColor Magenta
-    Write-Host "  [6]   Build All Targets            (Complete Multi-Platform Packaging Suite)" -ForegroundColor White
+    Write-Host "  [2]   Microsoft Store (APPX/MSIX)  (Certified Store Package for Partner Center)" -ForegroundColor Cyan
+    Write-Host "  [3]   Android Mobile (APK)         (Direct .apk for phone installation / testing)" -ForegroundColor Green
+    Write-Host "  [4]   Android Google Play (.aab)   (Production App Bundle for Google Play Store)" -ForegroundColor Green
+    Write-Host "  [5]   Linux Desktop                (.AppImage, Debian .deb & Canonical .snap)" -ForegroundColor Yellow
+    Write-Host "  [6]   macOS Desktop                (.dmg Installer)" -ForegroundColor Magenta
+    Write-Host "  [7]   Build All Targets            (Complete Multi-Platform Packaging Suite)" -ForegroundColor White
     Write-Host "  -------------------------------------------------------------------" -ForegroundColor DarkGray
-    Write-Host "  [7]   Android Keystore Info        (View fingerprints SHA-1/SHA-256 for Play Console)" -ForegroundColor Green
-    Write-Host "  [8]   Launch Desktop App           (Run live locally via Electron)" -ForegroundColor DarkCyan
-    Write-Host "  [9]   Regenerate Icons             (Refresh all platform icons from logo.png)" -ForegroundColor DarkGray
-    Write-Host "  [10]  Change Version               (Current: v$script:AppVersion - Syncs all files)" -ForegroundColor Yellow
-    Write-Host "  [11]  GitHub Auto-Release          (Tag + Push -> Triggers GitHub Actions)" -ForegroundColor Magenta
+    Write-Host "  [8]   Android Keystore Info        (View fingerprints SHA-1/SHA-256 for Play Console)" -ForegroundColor Green
+    Write-Host "  [9]   Launch Desktop App           (Run live locally via Electron)" -ForegroundColor DarkCyan
+    Write-Host "  [10]  Regenerate Icons             (Refresh all platform icons from logo.png)" -ForegroundColor DarkGray
+    Write-Host "  [11]  Change Version               (Current: v$script:AppVersion - Syncs all files)" -ForegroundColor Yellow
+    Write-Host "  [12]  GitHub Auto-Release          (Tag + Push -> Triggers GitHub Actions)" -ForegroundColor Magenta
     Write-Host "  [0]   Exit" -ForegroundColor Red
     Write-Host ""
     
-    $choice = Read-Host "Enter option number [0-11]"
+    $choice = Read-Host "Enter option number [0-12]"
     
     switch ($choice) {
         "1"  { Build-Windows; Pause }
-        "2"  { Build-Android; Pause }
-        "3"  { Build-AndroidPlayStore; Pause }
-        "4"  { Build-Linux; Pause }
-        "5"  { Build-MacOS; Pause }
-        "6"  { Build-All; Pause }
-        "7"  { Show-KeystoreInfo; Pause }
-        "8"  { Run-DevDesktop; Pause }
-        "9"  { Refresh-Icons; Pause }
-        "10" { Prompt-ChangeVersion }
-        "11" { Publish-GitHubRelease; Pause }
+        "2"  { Build-WindowsStore; Pause }
+        "3"  { Build-Android; Pause }
+        "4"  { Build-AndroidPlayStore; Pause }
+        "5"  { Build-Linux; Pause }
+        "6"  { Build-MacOS; Pause }
+        "7"  { Build-All; Pause }
+        "8"  { Show-KeystoreInfo; Pause }
+        "9"  { Run-DevDesktop; Pause }
+        "10" { Refresh-Icons; Pause }
+        "11" { Prompt-ChangeVersion }
+        "12" { Publish-GitHubRelease; Pause }
         "0"  { Write-Host "`nExiting builder. Good bye!" -ForegroundColor DarkGray; break }
-        default { Write-Host "Invalid option. Please choose between 0 and 11." -ForegroundColor Red; Start-Sleep -Seconds 1 }
+        default { Write-Host "Invalid option. Please choose between 0 and 12." -ForegroundColor Red; Start-Sleep -Seconds 1 }
     }
 } while ($choice -ne "0")

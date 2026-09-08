@@ -40,8 +40,8 @@ jobs:
       - name: Build Vite frontend + server bundle
         run: npm run build
 
-      - name: Package Windows NSIS installer
-        run: npx electron-builder --win nsis --publish never
+      - name: Package Windows NSIS installer & Microsoft Store AppX
+        run: npx electron-builder --win nsis appx --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -51,6 +51,7 @@ jobs:
           name: windows-release
           path: |
             release/*.exe
+            release/*.appx
             release/*.blockmap
             release/latest.yml
           retention-days: 5
@@ -268,7 +269,8 @@ jobs:
             
             | Platform | File | Description |
             |----------|------|-------------|
-            | 🪟 **Windows** | `xTerminal Setup *.exe` | NSIS Installer (64-bit) |
+            | 🪟 **Windows (Setup)** | `xTerminal Setup *.exe` | NSIS Installer (64-bit) |
+            | 🪟 **Windows (Store)** | `xTerminal *.appx` | Microsoft Store Package (Auto-Signed by MS) |
             | 🐧 **Linux (Snap)** | `*.snap` | Canonical Snap Store package (`sudo snap install --dangerous *.snap`) |
             | 🐧 **Linux (AppImage)** | `*.AppImage` | Portable AppImage (no install needed) |
             | 🐧 **Linux (.deb)** | `*.deb` | Debian/Ubuntu Package |

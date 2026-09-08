@@ -138,6 +138,13 @@ if ($Version -and $Version.Trim() -ne "") {
 function Show-Banner {
     Clear-Host
     Write-Host "=====================================================================" -ForegroundColor Cyan
+    Write-Host "  _      __     __     _____  _____ _   _ ______ _______            " -ForegroundColor Cyan
+    Write-Host " | |     \ \   / //\  |  __ \|_   _| \ | |  ____|__   __|           " -ForegroundColor Cyan
+    Write-Host " | |      \ \_/ //  \ | |__) | | | |  \| | |__     | |              " -ForegroundColor Cyan
+    Write-Host " | |       \   // /\ \|  _  /  | | | . ` |  __|    | |              " -ForegroundColor Green
+    Write-Host " | |____    | |/ ____ \ | \ \ _| |_| |\  | |____   | |              " -ForegroundColor Green
+    Write-Host " |______|   |_/_/    \_\_|  \_\_____|_| \_|______|  |_| TECHNOLOGIES" -ForegroundColor Green
+    Write-Host "=====================================================================" -ForegroundColor DarkCyan
     Write-Host "    __   _______                   _             _                   " -ForegroundColor Green
     Write-Host "    \ \ / /_   _|__ _ __ _ __ ___ (_)_ __   __ _| |                  " -ForegroundColor Green
     Write-Host "     \ V /  | |/ _ \ '__| '_ ` _ \| | '_ \ / _` | |                  " -ForegroundColor Green
@@ -145,8 +152,11 @@ function Show-Banner {
     Write-Host "      |_|   |_|\___|_|  |_| |_| |_|_|_| |_|\__,_|_| PRO              " -ForegroundColor Cyan
     Write-Host "=====================================================================" -ForegroundColor Cyan
     Write-Host "   Multi-Platform Cross-Build Engine (Windows, Android, Linux, macOS)" -ForegroundColor DarkGray
-    Write-Host "   Version: v$script:AppVersion | Target: $(if ($Target) { $Target } else { 'Interactive' })" -ForegroundColor Yellow
-    Write-Host "=====================================================================`n" -ForegroundColor DarkGray
+    Write-Host "   [LYARINET OFFICIAL] Engineered & Maintained by Lyarinet" -ForegroundColor White
+    Write-Host "   Publisher : Lyarinet (https://github.com/lyarinet)" -ForegroundColor Cyan
+    Write-Host "   Version   : v$script:AppVersion | Target: $(if ($Target) { $Target } else { 'Interactive' })" -ForegroundColor Yellow
+    Write-Host "   Copyright (C) 2026 Lyarinet. All rights reserved." -ForegroundColor DarkGray
+    Write-Host "=====================================================================`n" -ForegroundColor DarkCyan
 }
 
 function Get-KeytoolPath {
@@ -852,6 +862,8 @@ function Publish-GitHubRelease {
 }
 
 # --- Main CLI Dispatcher ---
+Show-Banner
+
 if (!(Test-Prerequisites)) {
     Read-Host "`nPress Enter to exit..."
     exit 1

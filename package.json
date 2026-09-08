@@ -2,7 +2,7 @@
   "name": "xterminal",
   "desktopName": "xTerminal",
   "private": true,
-  "version": "1.2.6",
+  "version": "1.2.7",
   "description": "xTerminal - Multi-Protocol DevOps and SSH Desktop Workstation",
   "author": {
     "name": "Lyarinet",
@@ -34,7 +34,7 @@
   "build": {
     "appId": "com.lyarinet.xterminal",
     "productName": "xTerminal",
-    "copyright": "Copyright © 2024 Lyarinet. All rights reserved.",
+    "copyright": "Copyright \u00a9 2024 Lyarinet. All rights reserved.",
     "npmRebuild": false,
     "nodeGypRebuild": false,
     "compression": "normal",
@@ -96,7 +96,7 @@
       "maintainer": "Lyarinet <support@lyarinet.com>",
       "syncDesktopName": true,
       "synopsis": "Enterprise SSH & Remote Access Workstation",
-      "description": "xTerminal Pro — Enterprise Remote Access & Infrastructure Suite. SSH, SFTP, RDP, Serial TTY, Android ADB, TFTP and more.",
+      "description": "xTerminal Pro \u2014 Enterprise Remote Access & Infrastructure Suite. SSH, SFTP, RDP, Serial TTY, Android ADB, TFTP and more.",
       "executableName": "xterminal",
       "target": [
         "AppImage",

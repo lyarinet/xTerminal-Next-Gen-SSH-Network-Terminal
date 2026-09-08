@@ -1,0 +1,84 @@
+﻿Field,Type,English (United States)
+ProductName,Text,xTerminal
+Description,Text,"⚡ xTerminal — Next-Generation Multi-Protocol DevOps & SSH Terminal Workstation
+
+xTerminal is an ultra-fast, modern, and secure terminal workstation engineered for DevOps engineers, cloud architects, sysadmins, and network professionals. Manage your Windows systems, Linux servers, cloud infrastructure, network switches, and IoT hardware from a single unified workstation.
+
+🚀 CORE FEATURES:
+• Full-duplex SSHv2, Telnet, Serial Console (COM / WebSerial), and Android ADB support.
+• Built-in local Windows PowerShell & CMD PTY terminal with split panes.
+• Persistent background sessions — switching tabs never drops your active connection.
+• Full xterm.js emulation with syntax highlighting and customizable themes.
+• Multi-Host Command Orchestrator: Execute shell commands across multiple servers in parallel with risk analysis.
+• Real-Time Server Telemetry: Live CPU, RAM, and bandwidth meters with SFTP transfer queues.
+• Multiplayer Collaboration: Share live terminal sessions securely with team members.
+• Universal Importer: One-click migration from PuTTY, Termius, SecureCRT, and MobaXterm.
+• Local Encrypted Vault: Passwords and SSH keys are encrypted locally on your PC (AES-256) with zero telemetry tracking."
+WhatsNew,Text,Initial Microsoft Store release of xTerminal v1.2.6 with full SSH, Telnet, Serial, local PowerShell PTY, and multi-host orchestrator.
+ProductFeatures1,Text,Multi-Protocol Terminal: SSHv2, Telnet, Serial (COM), and Local PowerShell PTY
+ProductFeatures2,Text,Parallel Multi-Host Command Runner with live comparison
+ProductFeatures3,Text,Real-time Hardware Telemetry (CPU, RAM, and network bandwidth)
+ProductFeatures4,Text,Built-in SFTP dual-pane file manager with background transfer queue
+ProductFeatures5,Text,Real-time Multiplayer terminal collaboration and session sharing
+ProductFeatures6,Text,Universal Connection Importer (PuTTY, Termius, MobaXterm, SecureCRT)
+ProductFeatures7,Text,Encrypted local credential and SSH key vault (AES-256)
+ProductFeatures8,Text,
+ProductFeatures9,Text,
+ProductFeatures10,Text,
+ProductFeatures11,Text,
+ProductFeatures12,Text,
+ProductFeatures13,Text,
+ProductFeatures14,Text,
+ProductFeatures15,Text,
+ProductFeatures16,Text,
+ProductFeatures17,Text,
+ProductFeatures18,Text,
+ProductFeatures19,Text,
+ProductFeatures20,Text,
+ShortDescription,Text,Enterprise SSH, Telnet, Serial & DevOps terminal workstation with live telemetry.
+SearchTerms1,Text,ssh
+SearchTerms2,Text,terminal
+SearchTerms3,Text,putty
+SearchTerms4,Text,devops
+SearchTerms5,Text,sftp
+SearchTerms6,Text,telnet
+SearchTerms7,Text,powershell
+Applicable license terms,Text,https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/blob/main/LICENSE
+Copyright,Text,Copyright © 2026 Lyarinet. All rights reserved.
+DevelopedBy,Text,Lyarinet
+RequirementsMinimum1,Text,Keyboard
+RequirementsMinimum2,Text,Mouse
+RequirementsMinimum3,Text,
+RequirementsMinimum4,Text,
+RequirementsMinimum5,Text,
+RequirementsMinimum6,Text,
+RequirementsMinimum7,Text,
+RequirementsMinimum8,Text,
+RequirementsMinimum9,Text,
+RequirementsMinimum10,Text,
+RequirementsMinimum11,Text,
+RequirementsRecommended1,Text,Keyboard
+RequirementsRecommended2,Text,Mouse
+RequirementsRecommended3,Text,
+RequirementsRecommended4,Text,
+RequirementsRecommended5,Text,
+RequirementsRecommended6,Text,
+RequirementsRecommended7,Text,
+RequirementsRecommended8,Text,
+RequirementsRecommended9,Text,
+RequirementsRecommended10,Text,
+RequirementsRecommended11,Text,
+StoreLogos1,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,
+StoreLogos2,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,
+Screenshots1,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,
+Screenshots2,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,
+Screenshots3,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,
+Screenshots4,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,
+Screenshots5,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,
+Screenshots6,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,
+Screenshots7,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,
+Screenshots8,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,
+Screenshots9,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,
+Screenshots10,Provide the file name only if it is in the same folder. Provide relative path to image starting with the subfolder name otherwise,
+HeroArts,Text,
+Trailers,Text,

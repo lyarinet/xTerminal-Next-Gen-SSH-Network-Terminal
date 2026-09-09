@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/latest">
-    <img src="https://img.shields.io/badge/version-1.2.6-emerald.svg?style=for-the-badge&logo=semver&logoColor=white" alt="Release 1.2.6" />
+    <img src="https://img.shields.io/badge/version-1.2.9-emerald.svg?style=for-the-badge&logo=semver&logoColor=white" alt="Release 1.2.9" />
   </a>
   <a href="https://snapcraft.io/xterminal">
     <img src="https://img.shields.io/badge/Snapcraft-xterminal-82BEA0.svg?style=for-the-badge&logo=snapcraft&logoColor=white" alt="Snapcraft" />
@@ -39,7 +39,7 @@
   <img src="https://img.shields.io/badge/Electron-44.2-47848F?style=flat-square&logo=electron&logoColor=white" />
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black" />
   <img src="https://img.shields.io/badge/TypeScript-5.8-3178C6?style=flat-square&logo=typescript&logoColor=white" />
-  <img src="https://img.shields.io/badge/Android-Capacitor_6-3DDC84?style=flat-square&logo=android&logoColor=white" />
+  <img src="https://img.shields.io/badge/Android-Capacitor_7-3DDC84?style=flat-square&logo=android&logoColor=white" />
   <img src="https://img.shields.io/badge/Vite-6.4-646CFF?style=flat-square&logo=vite&logoColor=white" />
   <img src="https://img.shields.io/badge/TailwindCSS-3.4-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white" />
 </p>
@@ -52,10 +52,10 @@
 ### 📥 One-Click Official Downloads
 
 <p align="center">
-  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.6/xTerminal.Setup.1.2.6.exe">
+  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.9/xTerminal.Setup.1.2.9.exe">
     <img src="https://img.shields.io/badge/Windows-Download_.exe-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows Installer" />
   </a>
-  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.6/xTerminal-1.2.6.dmg">
+  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.9/xTerminal-1.2.9.dmg">
     <img src="https://img.shields.io/badge/macOS-Download_.dmg-000000?style=for-the-badge&logo=apple&logoColor=white" alt="macOS DMG" />
   </a>
   <a href="https://snapcraft.io/xterminal">
@@ -64,13 +64,13 @@
   <a href="https://copr.fedorainfracloud.org/coprs/asifagaria/xterminal/">
     <img src="https://img.shields.io/badge/Fedora%20%2F%20RHEL-Copr_RPM-2F406A?style=for-the-badge&logo=fedora&logoColor=white" alt="Fedora Copr" />
   </a>
-  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.6/xTerminal-1.2.6.AppImage">
+  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.9/xTerminal-1.2.9.AppImage">
     <img src="https://img.shields.io/badge/Linux-AppImage-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Linux AppImage" />
   </a>
   <a href="https://play.google.com/store/apps/details?id=com.lyarinet.xterminal">
     <img src="https://img.shields.io/badge/Google_Play-Get_it_on_Play_Store-414141?style=for-the-badge&logo=googleplay&logoColor=white" alt="Google Play Store" />
   </a>
-  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.6/app-release-signed.apk">
+  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.9/app-release-signed.apk">
     <img src="https://img.shields.io/badge/Android-Direct_.apk-3DDC84?style=for-the-badge&logo=android&logoColor=black" alt="Android APK" />
   </a>
 </p>
@@ -245,10 +245,10 @@ Download pre-compiled release artifacts from the official [**GitHub Releases Pag
 | 🐧 **Linux (Ubuntu / Debian)** | `.deb` standalone | `sudo dpkg -i xTerminal_*_amd64.deb` |
 | 🐧 **Linux (Portable)** | `.AppImage` | `chmod +x xTerminal-*.AppImage && ./xTerminal-*.AppImage` |
 | 🪟 **Windows (Store)** | Microsoft Store | Available via Microsoft Store |
-| 🪟 **Windows (Installer)** | Setup `.exe` / Portable | Run `xTerminal.Setup.1.2.6.exe` or standalone portable binary |
-| 🍎 **macOS** | `.dmg` (Apple Silicon & Intel) | Open `xTerminal-1.2.6.dmg` and drag `xTerminal.app` to `/Applications` |
+| 🪟 **Windows (Installer)** | Setup `.exe` / Portable | Run `xTerminal.Setup.1.2.9.exe` or standalone portable binary |
+| 🍎 **macOS** | `.dmg` (Apple Silicon & Intel) | Open `xTerminal-1.2.9.dmg` and drag `xTerminal.app` to `/Applications` |
 | 🤖 **Android (Google Play)** | Official Play Store | [**Install from Google Play**](https://play.google.com/store/apps/details?id=com.lyarinet.xterminal) |
-| 🤖 **Android (Direct APK)** | `.apk` standalone | [**Download APK (v1.2.6)**](https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.6/app-release-signed.apk) |
+| 🤖 **Android (Direct APK)** | `.apk` standalone | [**Download APK (v1.2.9)**](https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.9/app-release-signed.apk) |
 
 > [!NOTE]
 > **Hardware & Serial Permissions for Linux Snap:**  
@@ -296,6 +296,18 @@ npm run setup
 - **Local Station PTY**: Instant local terminal access (PowerShell on Windows, Bash/Zsh on Linux and macOS, `/system/bin/sh` on Android) with automatic user home directory detection.
 - **Serial TTY & Microcontroller Console**: Local hardware serial communication via WebSerial API (COM / TTY ports, baud rates up to 921600, data bits, parity, stop bits, flow control, RTS/DTR pins, and 250ms Break signals).
 - **TFTP Engine (Server & Client)**: Full RFC 1350 & RFC 2348 implementation for firmware image transfers, Cisco/MikroTik backup & restore, with configurable block sizes and live transfer speed metrics.
+</details>
+
+<details open>
+<summary><b>📱 Android Standalone Termux Emulator & Native Local Shell (v1.2.9)</b></summary>
+<br />
+
+- **Pure Termux Interface**: Android mobile client automatically launches directly into a full-bleed, high-contrast `#000000` terminal canvas with an emerald block cursor, custom typography, and zero distracting desktop toolbars.
+- **Mobile Touch Accessory Row**: Full tactile accessory keyboard bar featuring `[ESC]`, `[TAB]`, `[CTRL]`, `[ALT]`, `[^C]`, `[-]`, `[/]`, `[|]`, `[~]`, `[↑]`, `[↓]`, `[←]`, `[→]`, and `[Paste]`.
+- **Sticky Modifier Keys**: Tap `CTRL` or `ALT` to arm the modifier key so soft mobile keyboards (Gboard, Samsung, SwiftKey) can seamlessly transmit Unix terminal control codes (`^C`, `^D`, `^Z`, `^L`).
+- **Interactive Local Shell (`/system/bin/sh`)**: Native Android Toybox/Toolbox execution with instant keystroke echo, smooth backspace, working directory tracking (`cd /sdcard`), command history navigation, and process interruption (`Ctrl+C`).
+- **Multi-Session Tab Manager**: Spawn concurrent local shell sessions using the `[+]` button with an auto-collapsing tab strip.
+- **One-Tap SSH Switch**: Instant `[SSH]` toggle in the header returns you to the complete SSH/Telnet multi-host workstation without terminating local sessions.
 </details>
 
 <details>

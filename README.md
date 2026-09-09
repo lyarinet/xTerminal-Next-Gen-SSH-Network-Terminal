@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/latest">
-    <img src="https://img.shields.io/badge/version-1.2.8-emerald.svg?style=for-the-badge&logo=semver&logoColor=white" alt="Release 1.2.8" />
+    <img src="https://img.shields.io/badge/version-1.2.6-emerald.svg?style=for-the-badge&logo=semver&logoColor=white" alt="Release 1.2.6" />
   </a>
   <a href="https://snapcraft.io/xterminal">
     <img src="https://img.shields.io/badge/Snapcraft-xterminal-82BEA0.svg?style=for-the-badge&logo=snapcraft&logoColor=white" alt="Snapcraft" />
@@ -52,26 +52,26 @@
 ### 📥 One-Click Official Downloads
 
 <p align="center">
-  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.8/xTerminal.Setup.1.2.8.exe">
+  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.6/xTerminal.Setup.1.2.6.exe">
     <img src="https://img.shields.io/badge/Windows-Download_.exe-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows Installer" />
   </a>
-  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.8/xterminal_1.2.8_amd64.deb">
-    <img src="https://img.shields.io/badge/Ubuntu%20%2F%20Debian-Download_.deb-E95420?style=for-the-badge&logo=ubuntu&logoColor=white" alt="Ubuntu/Debian .deb" />
-  </a>
-  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.8/xTerminal-1.2.8.AppImage">
-    <img src="https://img.shields.io/badge/Linux-AppImage-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Linux AppImage" />
-  </a>
-  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.8/xterminal-1.2.8.x86_64.rpm">
-    <img src="https://img.shields.io/badge/Fedora%20%2F%20RHEL-Download_.rpm-2F406A?style=for-the-badge&logo=fedora&logoColor=white" alt="Fedora/RHEL .rpm" />
-  </a>
-  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.8/xTerminal-1.2.8-arm64.dmg">
+  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.6/xTerminal-1.2.6.dmg">
     <img src="https://img.shields.io/badge/macOS-Download_.dmg-000000?style=for-the-badge&logo=apple&logoColor=white" alt="macOS DMG" />
   </a>
-  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.8/xTerminal-1.2.8.apk">
-    <img src="https://img.shields.io/badge/Android-Direct_.apk-3DDC84?style=for-the-badge&logo=android&logoColor=black" alt="Android APK" />
-  </a>
   <a href="https://snapcraft.io/xterminal">
-    <img src="https://img.shields.io/badge/Snapcraft-xterminal-82BEA0.svg?style=for-the-badge&logo=snapcraft&logoColor=white" alt="Snapcraft" />
+    <img src="https://img.shields.io/badge/Ubuntu%20%2F%20Debian-Snap_Install-E95420?style=for-the-badge&logo=snapcraft&logoColor=white" alt="Snapcraft" />
+  </a>
+  <a href="https://copr.fedorainfracloud.org/coprs/asifagaria/xterminal/">
+    <img src="https://img.shields.io/badge/Fedora%20%2F%20RHEL-Copr_RPM-2F406A?style=for-the-badge&logo=fedora&logoColor=white" alt="Fedora Copr" />
+  </a>
+  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.6/xTerminal-1.2.6.AppImage">
+    <img src="https://img.shields.io/badge/Linux-AppImage-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Linux AppImage" />
+  </a>
+  <a href="https://play.google.com/store/apps/details?id=com.lyarinet.xterminal">
+    <img src="https://img.shields.io/badge/Google_Play-Get_it_on_Play_Store-414141?style=for-the-badge&logo=googleplay&logoColor=white" alt="Google Play Store" />
+  </a>
+  <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.6/app-release-signed.apk">
+    <img src="https://img.shields.io/badge/Android-Direct_.apk-3DDC84?style=for-the-badge&logo=android&logoColor=black" alt="Android APK" />
   </a>
 </p>
 
@@ -239,16 +239,16 @@ Download pre-compiled release artifacts from the official [**GitHub Releases Pag
 
 | Platform | Package Format | Installation Command / Action |
 | :--- | :--- | :--- |
-| 🐧 **Linux (Ubuntu / Debian)** | `.deb` standalone | [**Download .deb**](https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.8/xterminal_1.2.8_amd64.deb) &nbsp; `sudo dpkg -i xterminal_1.2.8_amd64.deb` |
-| 🐧 **Linux (Universal Portable)** | `.AppImage` | [**Download AppImage**](https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.8/xTerminal-1.2.8.AppImage) &nbsp; `chmod +x xTerminal-1.2.8.AppImage && ./xTerminal-1.2.8.AppImage` |
-| 🐧 **Linux (Fedora / RHEL)** | `.rpm` standalone | [**Download .rpm**](https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.8/xterminal-1.2.8.x86_64.rpm) &nbsp; `sudo dnf install ./xterminal-1.2.8.x86_64.rpm` |
-| 🐧 **Linux (Flatpak)** | Flatpak bundle | `flatpak install --user https://dl.flathub.org/build-repo/318238/com.lyarinet.xterminal.flatpakref` |
 | 🐧 **Linux (Snap)** | Canonical Snap | `sudo snap install xterminal` |
-| 🪟 **Windows (Installer)** | Setup `.exe` | [**Download Windows Setup (.exe)**](https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.8/xTerminal.Setup.1.2.8.exe) |
-| 🪟 **Windows (Store)** | Microsoft Store AppX | [**Download .appx**](https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.8/xTerminal.1.2.8.appx) |
-| 🍎 **macOS** | `.dmg` (Apple Silicon & Intel) | [**Download macOS (.dmg)**](https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.8/xTerminal-1.2.8-arm64.dmg) |
-| 🤖 **Android (Direct APK)** | `.apk` standalone | [**Download APK (v1.2.8)**](https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.8/xTerminal-1.2.8.apk) |
+| 🐧 **Linux (Fedora / RHEL)** | Fedora Copr Repo | `sudo dnf copr enable asifagaria/xterminal && sudo dnf install xterminal` |
+| 🐧 **Linux (RPM Package)** | `.rpm` standalone | `sudo dnf install ./xTerminal-*.rpm` *(or `sudo rpm -i`)* |
+| 🐧 **Linux (Ubuntu / Debian)** | `.deb` standalone | `sudo dpkg -i xTerminal_*_amd64.deb` |
+| 🐧 **Linux (Portable)** | `.AppImage` | `chmod +x xTerminal-*.AppImage && ./xTerminal-*.AppImage` |
+| 🪟 **Windows (Store)** | Microsoft Store | Available via Microsoft Store |
+| 🪟 **Windows (Installer)** | Setup `.exe` / Portable | Run `xTerminal.Setup.1.2.6.exe` or standalone portable binary |
+| 🍎 **macOS** | `.dmg` (Apple Silicon & Intel) | Open `xTerminal-1.2.6.dmg` and drag `xTerminal.app` to `/Applications` |
 | 🤖 **Android (Google Play)** | Official Play Store | [**Install from Google Play**](https://play.google.com/store/apps/details?id=com.lyarinet.xterminal) |
+| 🤖 **Android (Direct APK)** | `.apk` standalone | [**Download APK (v1.2.6)**](https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/download/v1.2.6/app-release-signed.apk) |
 
 > [!NOTE]
 > **Hardware & Serial Permissions for Linux Snap:**  

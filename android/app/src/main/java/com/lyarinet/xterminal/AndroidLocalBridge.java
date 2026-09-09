@@ -578,8 +578,8 @@ public class AndroidLocalBridge {
         session.localWorkingDir = home;
 
         String banner = "\r\n\u001b[1;32m════════════════════════════════════════\u001b[0m\r\n"
-            + "\u001b[1;32m       xTerminal — Android Station (v1.2.9)\u001b[0m\r\n"
-            + "\u001b[90m  Native Shell (/system/bin/sh) • Termux Mode\u001b[0m\r\n"
+            + "\u001b[1;32m   xTerminal — Android Station (v1.2.9)\u001b[0m\r\n"
+            + "\u001b[90m   (/system/bin/sh) • Termux Mode\u001b[0m\r\n"
             + "\u001b[1;32m════════════════════════════════════════\u001b[0m\r\n\r\n";
         send(session.ws, banner);
         sendPrompt(session);

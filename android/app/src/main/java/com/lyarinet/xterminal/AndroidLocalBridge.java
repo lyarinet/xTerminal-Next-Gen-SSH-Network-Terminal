@@ -21,7 +21,9 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
@@ -216,7 +218,13 @@ public class AndroidLocalBridge {
                 }
             }
 
-            // 3. Raw user terminal keystrokes
+            // 3. Local shell input vs SSH/Telnet raw stream input
+            if (session.isLocalShell) {
+                handleLocalShellInput(session, message);
+                return;
+            }
+
+            // 4. Raw user terminal keystrokes for SSH / Telnet
             session.writeInput(message.getBytes(StandardCharsets.UTF_8));
         }
 
@@ -224,6 +232,13 @@ public class AndroidLocalBridge {
         public void onMessage(WebSocket conn, ByteBuffer bytes) {
             ClientSession session = mSessions.get(conn);
             if (session == null) return;
+
+            if (session.isLocalShell) {
+                byte[] b = new byte[bytes.remaining()];
+                bytes.get(b);
+                handleLocalShellInput(session, new String(b, StandardCharsets.UTF_8));
+                return;
+            }
 
             byte[] b = new byte[bytes.remaining()];
             bytes.get(b);
@@ -545,52 +560,307 @@ public class AndroidLocalBridge {
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Local Android Shell (/system/bin/sh)
+    // Local Android Shell (/system/bin/sh) - Termux Mode
     // ---------------------------------------------------------------------------------------------
 
     private void startLocalShell(ClientSession session, JSONObject data) {
+        session.isLocalShell = true;
+        File home = null;
+        if (mAppContext != null) {
+            home = mAppContext.getFilesDir();
+        }
+        if (home == null || !home.exists()) {
+            home = new File("/sdcard");
+            if (!home.exists()) {
+                home = new File("/data/local/tmp");
+            }
+        }
+        session.localWorkingDir = home;
+
+        String banner = "\r\n\u001b[1;32m══════════════════════════════════════════════════\u001b[0m\r\n"
+            + "\u001b[1;32m       xTerminal — Android Station\u001b[0m\r\n"
+            + "\u001b[90m  Native Shell (/system/bin/sh) • Termux Mode\u001b[0m\r\n"
+            + "\u001b[1;32m══════════════════════════════════════════════════\u001b[0m\r\n\r\n";
+        send(session.ws, banner);
+        sendPrompt(session);
+    }
+
+    private void sendPrompt(ClientSession session) {
+        String dirName = "~";
+        if (session.localWorkingDir != null) {
+            String path = session.localWorkingDir.getAbsolutePath();
+            File home = mAppContext != null ? mAppContext.getFilesDir() : null;
+            if (home != null && path.equals(home.getAbsolutePath())) {
+                dirName = "~";
+            } else if (home != null && path.startsWith(home.getAbsolutePath())) {
+                dirName = "~" + path.substring(home.getAbsolutePath().length());
+            } else {
+                dirName = path;
+            }
+        }
+        send(session.ws, "\u001b[1;34m" + dirName + " $ \u001b[0m");
+    }
+
+    private void clearLine(ClientSession session) {
+        send(session.ws, "\r\u001b[K");
+        sendPrompt(session);
+    }
+
+    private void handleLocalShellInput(ClientSession session, String input) {
+        if (session.runningChildProcess != null && session.runningChildProcess.isAlive()) {
+            if (input.contains("\u0003")) { // Ctrl+C
+                try {
+                    session.runningChildProcess.destroyForcibly();
+                } catch (Exception ignored) {}
+                session.runningChildProcess = null;
+                send(session.ws, "^C\r\n");
+                sendPrompt(session);
+                return;
+            }
+            // Forward input to running process
+            if (session.processOut != null) {
+                try {
+                    session.processOut.write(input.getBytes(StandardCharsets.UTF_8));
+                    session.processOut.flush();
+                } catch (Exception ignored) {}
+            }
+            return;
+        }
+
+        // Handle escape sequences (Up/Down Arrow History)
+        if (input.equals("\u001b[A")) { // Up Arrow
+            if (!session.commandHistory.isEmpty()) {
+                if (session.historyIndex == -1) {
+                    session.historyIndex = session.commandHistory.size() - 1;
+                } else if (session.historyIndex > 0) {
+                    session.historyIndex--;
+                }
+                String histCmd = session.commandHistory.get(session.historyIndex);
+                clearLine(session);
+                session.localLineBuffer.setLength(0);
+                session.localLineBuffer.append(histCmd);
+                send(session.ws, histCmd);
+            }
+            return;
+        } else if (input.equals("\u001b[B")) { // Down Arrow
+            if (session.historyIndex != -1) {
+                if (session.historyIndex < session.commandHistory.size() - 1) {
+                    session.historyIndex++;
+                    String histCmd = session.commandHistory.get(session.historyIndex);
+                    clearLine(session);
+                    session.localLineBuffer.setLength(0);
+                    session.localLineBuffer.append(histCmd);
+                    send(session.ws, histCmd);
+                } else {
+                    session.historyIndex = -1;
+                    clearLine(session);
+                    session.localLineBuffer.setLength(0);
+                }
+            }
+            return;
+        }
+
+        // Process characters sequentially
+        for (int i = 0; i < input.length(); i++) {
+            char ch = input.charAt(i);
+
+            if (ch == '\u0003') { // Ctrl+C
+                session.localLineBuffer.setLength(0);
+                session.historyIndex = -1;
+                send(session.ws, "^C\r\n");
+                sendPrompt(session);
+            } else if (ch == '\u000c') { // Ctrl+L (Clear screen)
+                send(session.ws, "\u001b[2J\u001b[H");
+                sendPrompt(session);
+                send(session.ws, session.localLineBuffer.toString());
+            } else if (ch == '\t') { // Tab completion
+                handleTabCompletion(session);
+            } else if (ch == '\r' || ch == '\n') {
+                send(session.ws, "\r\n");
+                String cmd = session.localLineBuffer.toString().trim();
+                session.localLineBuffer.setLength(0);
+                session.historyIndex = -1;
+
+                if (cmd.isEmpty()) {
+                    sendPrompt(session);
+                    return;
+                }
+
+                session.commandHistory.add(cmd);
+
+                if ("clear".equalsIgnoreCase(cmd)) {
+                    send(session.ws, "\u001b[2J\u001b[H");
+                    sendPrompt(session);
+                    return;
+                }
+
+                if ("exit".equalsIgnoreCase(cmd)) {
+                    send(session.ws, "\u001b[90m[xTerminal] Local shell closed.\u001b[0m\r\n");
+                    session.ws.close();
+                    return;
+                }
+
+                if (cmd.startsWith("cd ") || cmd.equals("cd")) {
+                    handleCdCommand(session, cmd);
+                    return;
+                }
+
+                if (cmd.startsWith("pkg") || cmd.startsWith("apt")) {
+                    showPkgHelp(session);
+                    sendPrompt(session);
+                    return;
+                }
+
+                if ("help".equalsIgnoreCase(cmd)) {
+                    showLocalHelp(session);
+                    sendPrompt(session);
+                    return;
+                }
+
+                executeLocalCommand(session, cmd);
+                return;
+            } else if (ch == '\u007F' || ch == '\b') {
+                if (session.localLineBuffer.length() > 0) {
+                    session.localLineBuffer.setLength(session.localLineBuffer.length() - 1);
+                    send(session.ws, "\b \b");
+                }
+            } else if (ch >= 32) {
+                session.localLineBuffer.append(ch);
+                send(session.ws, String.valueOf(ch));
+            }
+        }
+    }
+
+    private void handleCdCommand(ClientSession session, String cmd) {
+        String target = cmd.length() > 2 ? cmd.substring(2).trim() : "";
+        File baseDir = session.localWorkingDir;
+        if (baseDir == null) {
+            baseDir = mAppContext != null ? mAppContext.getFilesDir() : new File("/");
+        }
+
+        File newDir;
+        if (target.isEmpty() || target.equals("~")) {
+            newDir = mAppContext != null ? mAppContext.getFilesDir() : new File("/sdcard");
+        } else if (target.startsWith("/")) {
+            newDir = new File(target);
+        } else if (target.startsWith("~/")) {
+            File home = mAppContext != null ? mAppContext.getFilesDir() : new File("/sdcard");
+            newDir = new File(home, target.substring(2));
+        } else {
+            newDir = new File(baseDir, target);
+        }
+
+        try {
+            newDir = newDir.getCanonicalFile();
+            if (newDir.exists() && newDir.isDirectory()) {
+                session.localWorkingDir = newDir;
+            } else if (!newDir.exists()) {
+                send(session.ws, "cd: no such file or directory: " + target + "\r\n");
+            } else {
+                send(session.ws, "cd: not a directory: " + target + "\r\n");
+            }
+        } catch (Exception e) {
+            send(session.ws, "cd: " + e.getMessage() + "\r\n");
+        }
+        sendPrompt(session);
+    }
+
+    private void handleTabCompletion(ClientSession session) {
+        String current = session.localLineBuffer.toString();
+        int lastSpace = current.lastIndexOf(' ');
+        String token = lastSpace >= 0 ? current.substring(lastSpace + 1) : current;
+
+        File dir = session.localWorkingDir != null ? session.localWorkingDir : new File(".");
+        File[] files = dir.listFiles();
+        if (files == null || files.length == 0) return;
+
+        List<String> matches = new ArrayList<>();
+        for (File f : files) {
+            if (f.getName().startsWith(token)) {
+                matches.add(f.getName() + (f.isDirectory() ? "/" : ""));
+            }
+        }
+
+        if (matches.size() == 1) {
+            String full = matches.get(0);
+            String addition = full.substring(token.length());
+            session.localLineBuffer.append(addition);
+            send(session.ws, addition);
+        } else if (matches.size() > 1) {
+            send(session.ws, "\r\n");
+            StringBuilder sb = new StringBuilder();
+            for (String m : matches) {
+                sb.append(m).append("   ");
+            }
+            sb.append("\r\n");
+            send(session.ws, sb.toString());
+            sendPrompt(session);
+            send(session.ws, session.localLineBuffer.toString());
+        }
+    }
+
+    private void showLocalHelp(ClientSession session) {
+        String help = "\u001b[1;36mxTerminal Android Station Commands & Utilities:\u001b[0m\r\n"
+            + "  • \u001b[32mls, dir\u001b[0m       - List directory contents\r\n"
+            + "  • \u001b[32mpwd\u001b[0m           - Print working directory\r\n"
+            + "  • \u001b[32mcd <dir>\u001b[0m      - Change directory (e.g. cd /sdcard, cd ~)\r\n"
+            + "  • \u001b[32muname -a\u001b[0m      - Display Linux kernel version & architecture\r\n"
+            + "  • \u001b[32mping <host>\u001b[0m   - Send ICMP ECHO_REQUEST (e.g. ping -c 4 8.8.8.8)\r\n"
+            + "  • \u001b[32mwhoami, id\u001b[0m     - Show Android user & group IDs\r\n"
+            + "  • \u001b[32mclear\u001b[0m         - Clear terminal screen (or Ctrl+L)\r\n"
+            + "  • \u001b[32mexit\u001b[0m          - Close terminal station\r\n"
+            + "  • \u001b[33mTouch Bar\u001b[0m     - Use ESC, TAB, CTRL, ALT, and Arrow keys\r\n\r\n";
+        send(session.ws, help);
+    }
+
+    private void showPkgHelp(ClientSession session) {
+        String msg = "\u001b[33m[xTerminal] 'pkg' / 'apt' are Termux-specific package managers.\u001b[0m\r\n"
+            + "\u001b[90mThis station runs on Android's native Linux shell (/system/bin/sh).\u001b[0m\r\n"
+            + "\u001b[36m• Native commands available:\u001b[0m ls, pwd, cd, cat, ping, ip, ps, top, uname, whoami, df, etc.\r\n"
+            + "\u001b[32m• Want full Linux packages (apt, python, git, docker)?\u001b[0m\r\n"
+            + "  1. Tap \u001b[1;32m[SSH]\u001b[0m to connect to your Linux server, VPS, Raspberry Pi, or PC.\r\n"
+            + "  2. Or if you have Termux installed on phone, run '\u001b[36msshd\u001b[0m' in Termux and connect via SSH to \u001b[1;32m127.0.0.1:8022\u001b[0m!\r\n\r\n";
+        send(session.ws, msg);
+    }
+
+    private void executeLocalCommand(ClientSession session, String cmd) {
         session.streamPool.execute(() -> {
             try {
-                int cols = Math.max(10, data.optInt("cols", 80));
-                int rows = Math.max(5, data.optInt("rows", 24));
-
-                ProcessBuilder pb = new ProcessBuilder("/system/bin/sh", "-i");
+                ProcessBuilder pb = new ProcessBuilder("/system/bin/sh", "-c", cmd);
                 pb.redirectErrorStream(true);
+
+                if (session.localWorkingDir != null && session.localWorkingDir.exists()) {
+                    pb.directory(session.localWorkingDir);
+                }
 
                 Map<String, String> env = pb.environment();
                 env.put("TERM", "xterm-256color");
-                env.put("COLUMNS", String.valueOf(cols));
-                env.put("LINES", String.valueOf(rows));
                 env.put("PATH", "/system/bin:/system/xbin:/vendor/bin:/data/local/tmp");
-
                 if (mAppContext != null) {
-                    File home = mAppContext.getFilesDir();
-                    env.put("HOME", home.getAbsolutePath());
-                    pb.directory(home);
+                    env.put("HOME", mAppContext.getFilesDir().getAbsolutePath());
                 }
 
                 Process process = pb.start();
-                session.localProcess = process;
+                session.runningChildProcess = process;
                 session.processOut = process.getOutputStream();
+
                 InputStream in = process.getInputStream();
-
-                send(session.ws, "\r\n\u001b[32m[xTerminal] Local Android Station Initialized (/system/bin/sh)\u001b[0m\r\n\r\n");
-
-                byte[] buffer = new byte[8192];
+                byte[] buffer = new byte[4096];
                 int read;
                 while ((read = in.read(buffer)) != -1) {
                     if (read > 0 && session.ws.isOpen()) {
-                        session.ws.send(ByteBuffer.wrap(Arrays.copyOf(buffer, read)));
+                        String text = new String(buffer, 0, read, StandardCharsets.UTF_8);
+                        String formatted = text.replace("\r\n", "\n").replace("\n", "\r\n");
+                        send(session.ws, formatted);
                     }
                 }
-
-                int exitCode = process.waitFor();
-                send(session.ws, "\r\n\u001b[90m[xTerminal] Local Android shell exited (code " + exitCode + ")\u001b[0m\r\n");
-                session.ws.close();
+                process.waitFor();
             } catch (Exception e) {
-                Log.e(TAG, "Local shell failure", e);
-                send(session.ws, "\r\n\u001b[31m[xTerminal] Local Shell Error: " + (e.getMessage() != null ? e.getMessage() : e.toString()) + "\u001b[0m\r\n");
-                session.ws.close();
+                send(session.ws, "\u001b[31mError: " + (e.getMessage() != null ? e.getMessage() : e.toString()) + "\u001b[0m\r\n");
+            } finally {
+                session.runningChildProcess = null;
+                session.processOut = null;
+                sendPrompt(session);
             }
         });
     }
@@ -620,6 +890,14 @@ public class AndroidLocalBridge {
         ChannelShell jschChannel;
         Socket telnetSocket;
         Process localProcess;
+
+        // Local Android Station State (Termux Mode)
+        boolean isLocalShell = false;
+        File localWorkingDir;
+        final StringBuilder localLineBuffer = new StringBuilder();
+        final List<String> commandHistory = new ArrayList<>();
+        int historyIndex = -1;
+        Process runningChildProcess;
 
         ClientSession(WebSocket ws) {
             this.ws = ws;
@@ -671,6 +949,13 @@ public class AndroidLocalBridge {
                     localProcess.destroy();
                 }
             } catch (Exception ignored) {}
+
+            if (runningChildProcess != null) {
+                try {
+                    runningChildProcess.destroyForcibly();
+                } catch (Exception ignored) {}
+                runningChildProcess = null;
+            }
 
             streamPool.shutdownNow();
         }

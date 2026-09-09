@@ -29,7 +29,9 @@ import { CloudSyncView } from './components/CloudSyncView';
 import { AppCenterView } from './components/AppCenterView';
 import { AdbManagerView } from './components/AdbManagerView';
 import { SplashScreen } from './components/SplashScreen';
-import { Menu, Bot, Plus, MessageSquare, User, Pin } from 'lucide-react';
+import { TermuxEmulatorView } from './components/TermuxEmulatorView';
+import { Menu, Bot, Plus, MessageSquare, User, Pin, RefreshCw } from 'lucide-react';
+import { isMobileApp } from './lib/networkConfig';
 
 import {
   Host,
@@ -91,7 +93,7 @@ export default function App() {
 
   // View & UI Navigation
   const [showSplashScreen, setShowSplashScreen] = useState(true);
-  const [activeView, setActiveView] = useState<string>('dashboard');
+  const [activeView, setActiveView] = useState<string>(isMobileApp() ? 'termux' : 'dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isQuickConnectOpen, setIsQuickConnectOpen] = useState(false);
@@ -636,7 +638,7 @@ export default function App() {
             <Pin className={`w-3 h-3 ${Boolean(terminalSettings.alwaysOnTop ?? (localStorage.getItem('xterminal_always_on_top') === 'true')) ? 'fill-emerald-400 text-emerald-400' : ''}`} />
             <span className="hidden sm:inline">Top</span>
           </button>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1C1C1E] text-gray-400 border border-[#222224]">v1.2.8</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1C1C1E] text-gray-400 border border-[#222224]">v1.2.9</span>
         </div>
       </div>
 
@@ -659,52 +661,93 @@ export default function App() {
         {/* Main Viewport Container */}
         <main className="flex-1 flex flex-col overflow-hidden relative">
         {/* Mobile Header Bar */}
-        <header className="md:hidden h-12 bg-[#111112] border-b border-[#222224] px-3 flex items-center justify-between shrink-0 select-none z-20">
-          <div className="flex items-center gap-2.5">
-            <button
-              onClick={() => setIsMobileSidebarOpen(true)}
-              className="p-1.5 rounded-lg bg-[#1C1C1E] text-gray-300 hover:text-white border border-[#222224] active:scale-95 transition-transform"
-              aria-label="Open Navigation Menu"
-            >
-              <Menu className="w-4 h-4" />
-            </button>
-            <div className="flex items-center gap-1.5 font-bold text-xs text-white">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="capitalize">{activeView}</span>
+        {activeView !== 'termux' && (
+          <header className="md:hidden h-10 bg-[#111112] border-b border-[#222224] px-2.5 flex items-center justify-between shrink-0 select-none z-20">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsMobileSidebarOpen(true)}
+                className="p-1.5 rounded-lg bg-[#1C1C1E] text-gray-300 hover:text-white border border-[#222224] active:scale-95 transition-transform"
+                aria-label="Open Navigation Menu"
+              >
+                <Menu className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-1.5 font-bold text-xs text-white">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="truncate max-w-[150px]">
+                  {activeView === 'terminal' ? (tabs.find((t) => t.id === activeTabId)?.title || 'Terminal') : activeView}
+                </span>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('xterminal:toggle-chat'))}
-              className="p-1.5 rounded-md bg-[#1C1C1E] text-emerald-400 hover:bg-[#252528] border border-[#222224] flex items-center gap-1 active:scale-95"
-              title="Multiplayer Chat & Team (Slide Over)"
-            >
-              <MessageSquare className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setIsQuickConnectOpen(true)}
-              className="px-2.5 py-1 rounded-md bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold flex items-center gap-1 shadow-xs active:scale-95"
-            >
-              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>Connect</span>
-            </button>
-            <button
-              onClick={() => setIsAiAssistantOpen(true)}
-              className="p-1.5 rounded-md bg-[#1C1C1E] text-emerald-400 hover:bg-[#252528] border border-[#222224]"
-              title="AI Copilot"
-            >
-              <Bot className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('xterminal:open-profile'))}
-              className="p-1.5 rounded-md bg-[#1C1C1E] text-emerald-400 hover:bg-[#252528] border border-[#222224] flex items-center active:scale-95"
-              title="Change Profile & Avatar"
-            >
-              <User className="w-4 h-4" />
-            </button>
-          </div>
-        </header>
+            <div className="flex items-center gap-1.5">
+              {activeView === 'terminal' ? (
+                <>
+                  <button
+                    onClick={() => window.dispatchEvent(new CustomEvent('xterminal:reconnect-tab', { detail: { tabId: activeTabId } }))}
+                    className="p-1.5 rounded-md bg-[#1C1C1E] text-gray-300 hover:text-emerald-400 hover:bg-[#252528] border border-[#222224] active:scale-95"
+                    title="Reconnect Terminal Session"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={handleNewTab}
+                    className="p-1.5 rounded-md bg-[#1C1C1E] text-gray-300 hover:text-white hover:bg-[#252528] border border-[#222224] active:scale-95"
+                    title="New Tab"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setIsQuickConnectOpen(true)}
+                    className="px-2 py-1 rounded-md bg-emerald-500 hover:bg-emerald-400 text-black text-[11px] font-bold flex items-center gap-1 shadow-xs active:scale-95"
+                    title="Quick Connect SSH"
+                  >
+                    <span>SSH</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => window.dispatchEvent(new CustomEvent('xterminal:toggle-chat'))}
+                    className="p-1.5 rounded-md bg-[#1C1C1E] text-emerald-400 hover:bg-[#252528] border border-[#222224] flex items-center gap-1 active:scale-95"
+                    title="Multiplayer Chat & Team (Slide Over)"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setIsQuickConnectOpen(true)}
+                    className="px-2.5 py-1 rounded-md bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold flex items-center gap-1 shadow-xs active:scale-95"
+                  >
+                    <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>Connect</span>
+                  </button>
+                  <button
+                    onClick={() => setIsAiAssistantOpen(true)}
+                    className="p-1.5 rounded-md bg-[#1C1C1E] text-emerald-400 hover:bg-[#252528] border border-[#222224]"
+                    title="AI Copilot"
+                  >
+                    <Bot className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => window.dispatchEvent(new CustomEvent('xterminal:open-profile'))}
+                    className="p-1.5 rounded-md bg-[#1C1C1E] text-emerald-400 hover:bg-[#252528] border border-[#222224] flex items-center active:scale-95"
+                    title="Change Profile & Avatar"
+                  >
+                    <User className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+            </div>
+          </header>
+        )}
+
+        {activeView === 'termux' && (
+          <TermuxEmulatorView
+            onOpenMenu={() => setIsMobileSidebarOpen(true)}
+            onOpenSsh={() => setActiveView('terminal')}
+            onOpenQuickConnect={() => setIsQuickConnectOpen(true)}
+          />
+        )}
+
         {activeView === 'dashboard' && (
           <DashboardView
             hosts={hosts}
@@ -938,7 +981,7 @@ export default function App() {
         {activeView === 'appCenter' && <AppCenterView />}
 
         {/* Elegant Dark Status Footer */}
-        <footer className="h-7 bg-[#111112] border-t border-[#222224] px-4 flex items-center justify-between text-[10px] text-gray-500 uppercase tracking-widest font-mono shrink-0">
+        <footer className="hidden md:flex h-7 bg-[#111112] border-t border-[#222224] px-4 items-center justify-between text-[10px] text-gray-500 uppercase tracking-widest font-mono shrink-0">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1.5 text-gray-400">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />

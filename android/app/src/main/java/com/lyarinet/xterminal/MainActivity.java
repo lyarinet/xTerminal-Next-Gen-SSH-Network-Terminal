@@ -6,9 +6,9 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        // Start standalone native terminal bridge on 127.0.0.1:3000
+        // Start standalone native terminal bridge on 127.0.0.1:3000 before WebView loads
         AndroidLocalBridge.getInstance().startBridge(this, AndroidLocalBridge.DEFAULT_PORT);
+        super.onCreate(savedInstanceState);
 
         // Check Google Play Store for new version updates
         PlayStoreUpdateManager.getInstance().checkForAppUpdate(this);

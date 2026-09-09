@@ -129,6 +129,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 text-[9px] rounded border border-emerald-500/20 uppercase tracking-widest font-mono font-bold">
                 PRO
               </span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1C1C1E] text-gray-400 border border-[#222224] font-mono">v1.2.9</span>
             </div>
             <div className="text-[11px] text-gray-400 font-mono">DevOps Workstation</div>
           </div>
@@ -274,7 +275,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <Settings className="w-3.5 h-3.5" />
             <span>Preferences</span>
           </button>
-          <span className="font-mono text-[10px]">xTerminal Enterprise</span>
+          <span className="font-mono text-[10px] text-gray-400">v1.2.9</span>
         </div>
       </div>
     </div>

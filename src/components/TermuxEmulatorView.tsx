@@ -281,6 +281,7 @@ export const TermuxEmulatorView: React.FC<TermuxEmulatorViewProps> = ({
           <div className="flex items-center gap-1.5 font-bold text-xs text-white truncate">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
             <span className="truncate">Termux</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#161618] text-gray-400 border border-[#262628] font-mono font-normal shrink-0">v1.2.9</span>
             <span className="text-[10px] text-gray-500 hidden sm:inline font-normal">(/system/bin/sh)</span>
           </div>
         </div>

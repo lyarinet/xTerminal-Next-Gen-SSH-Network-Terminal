@@ -117,12 +117,15 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
         </div>
 
         {/* Title */}
-        <div className="flex items-center gap-2.5 mb-2">
+        <div className="flex items-center gap-2 mb-2">
           <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent font-sans">
             xTerminal
           </h1>
           <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 text-xs font-bold font-mono tracking-widest border border-emerald-500/30 uppercase shadow-[0_0_12px_rgba(16,185,129,0.2)]">
             PRO
+          </span>
+          <span className="px-1.5 py-0.5 rounded bg-[#161618] text-gray-400 border border-[#26262a] text-[10px] font-mono font-medium">
+            v1.2.9
           </span>
         </div>
 

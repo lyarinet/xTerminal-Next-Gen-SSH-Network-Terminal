@@ -900,6 +900,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             Reset Settings to Defaults
           </button>
         </div>
+        {/* Application & Version Information */}
+        <div className="bg-[#111112] border border-[#222224] rounded-xl p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-white">xTerminal Pro</div>
+              <div className="text-xs text-gray-400 font-mono">DevOps &amp; SSH Mobile Workstation</div>
+            </div>
+            <span className="px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold">
+              v1.2.9
+            </span>
+          </div>
+          <div className="text-[11px] text-gray-500 font-mono flex items-center justify-between border-t border-[#1C1C1E] pt-2">
+            <span>Core: Native Shell &amp; Multi-Protocol</span>
+            <span>Lyarinet</span>
+          </div>
+        </div>
       </form>
     </div>
   );

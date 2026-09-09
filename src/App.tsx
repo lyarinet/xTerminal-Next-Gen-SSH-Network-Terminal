@@ -673,9 +673,10 @@ export default function App() {
               </button>
               <div className="flex items-center gap-1.5 font-bold text-xs text-white">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="truncate max-w-[150px]">
+                <span className="truncate max-w-[130px]">
                   {activeView === 'terminal' ? (tabs.find((t) => t.id === activeTabId)?.title || 'Terminal') : activeView}
                 </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1C1C1E] text-gray-400 border border-[#222224] font-mono font-normal">v1.2.9</span>
               </div>
             </div>
 

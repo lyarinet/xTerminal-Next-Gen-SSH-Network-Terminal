@@ -30,6 +30,7 @@ import { AppCenterView } from './components/AppCenterView';
 import { AdbManagerView } from './components/AdbManagerView';
 import { SplashScreen } from './components/SplashScreen';
 import { TermuxEmulatorView } from './components/TermuxEmulatorView';
+import { SharedTerminalScreen } from './components/multiplayer/SharedTerminalScreen';
 import { Menu, Bot, Plus, MessageSquare, User, Pin, RefreshCw } from 'lucide-react';
 import { isMobileApp } from './lib/networkConfig';
 
@@ -103,6 +104,28 @@ export default function App() {
   const [activeRecording, setActiveRecording] = useState<SessionRecording | undefined>(undefined);
   const [sftpSelectedHostId, setSftpSelectedHostId] = useState<string | undefined>(hosts[0]?.id);
   const [aiTerminalContext, setAiTerminalContext] = useState<string>('');
+
+  // Standalone Multiplayer Session View Mode (?session=XT-XXXXXX)
+  const [standaloneSessionId, setStandaloneSessionId] = useState<string | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('session');
+      return code ? code.trim() : null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    const handlePopState = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        setStandaloneSessionId(params.get('session'));
+      } catch {}
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Background Transfer Queue State (populated in real-time by SFTP and file sync)
   const [transfers, setTransfers] = useState<TransferQueueItem[]>([]);
@@ -593,6 +616,23 @@ export default function App() {
       addAuditLog('VAULT_LOCKED', 'Keystore locked and session keys purged from memory');
     }
   };
+
+  // If opened via multiplayer invite link (?session=XT-XXXXXX), render ONLY the terminal screen
+  if (standaloneSessionId) {
+    return (
+      <SharedTerminalScreen
+        sessionId={standaloneSessionId}
+        onExitToWorkstation={() => {
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('session');
+            window.history.pushState({}, '', url.pathname + (url.search ? url.search : ''));
+          } catch {}
+          setStandaloneSessionId(null);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0A0A0B] font-sans antialiased text-[#E0E0E0] select-none">

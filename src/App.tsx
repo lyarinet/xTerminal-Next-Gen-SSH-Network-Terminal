@@ -678,7 +678,7 @@ export default function App() {
             <Pin className={`w-3 h-3 ${Boolean(terminalSettings.alwaysOnTop ?? (localStorage.getItem('xterminal_always_on_top') === 'true')) ? 'fill-emerald-400 text-emerald-400' : ''}`} />
             <span className="hidden sm:inline">Top</span>
           </button>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1C1C1E] text-gray-400 border border-[#222224]">v1.2.9</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1C1C1E] text-gray-400 border border-[#222224]">v1.3.0</span>
         </div>
       </div>
 
@@ -716,7 +716,7 @@ export default function App() {
                 <span className="truncate max-w-[130px]">
                   {activeView === 'terminal' ? (tabs.find((t) => t.id === activeTabId)?.title || 'Terminal') : activeView}
                 </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1C1C1E] text-gray-400 border border-[#222224] font-mono font-normal">v1.2.9</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1C1C1E] text-gray-400 border border-[#222224] font-mono font-normal">v1.3.0</span>
               </div>
             </div>
 

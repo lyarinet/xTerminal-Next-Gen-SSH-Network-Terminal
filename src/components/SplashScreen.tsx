@@ -125,7 +125,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
             PRO
           </span>
           <span className="px-1.5 py-0.5 rounded bg-[#161618] text-gray-400 border border-[#26262a] text-[10px] font-mono font-medium">
-            v1.2.9
+            v1.3.0
           </span>
         </div>
 

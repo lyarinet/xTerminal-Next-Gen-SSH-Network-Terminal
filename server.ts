@@ -3686,6 +3686,208 @@ app.get("/api/system/os", (_req, res) => {
   });
 });
 
+// ==========================================
+// Web UI Password Authentication
+// ==========================================
+const AUTH_PASSWORD = "xTerminal@999";
+const AUTH_COOKIE = "xt_auth_token";
+const AUTH_SESSIONS = new Set<string>();
+
+function parseCookies(cookieHeader: string): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  cookieHeader.split(";").forEach((part) => {
+    const [key, ...val] = part.trim().split("=");
+    if (key) cookies[key.trim()] = decodeURIComponent(val.join("="));
+  });
+  return cookies;
+}
+
+function genAuthToken(): string {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+const LOGIN_PAGE_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>xTerminal — Access Protected</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #08080A;
+    font-family: 'Inter', system-ui, sans-serif;
+    background-image:
+      radial-gradient(ellipse 80% 60% at 50% -10%, rgba(56,189,248,0.12) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 110%, rgba(139,92,246,0.1) 0%, transparent 60%);
+  }
+  .card {
+    width: 100%;
+    max-width: 400px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    padding: 44px 40px 36px;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(56,189,248,0.06);
+  }
+  .logo-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .logo-icon {
+    width: 44px; height: 44px;
+    background: linear-gradient(135deg, #38BDF8 0%, #818CF8 100%);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    box-shadow: 0 0 24px rgba(56,189,248,0.3);
+  }
+  .logo-text { display: flex; flex-direction: column; }
+  .logo-name { font-size: 18px; font-weight: 700; color: #F0F4FF; letter-spacing: -0.3px; }
+  .logo-sub { font-size: 11px; color: #64748B; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; }
+  h2 { font-size: 22px; font-weight: 700; color: #F0F4FF; margin-bottom: 6px; }
+  .sub { font-size: 13px; color: #64748B; margin-bottom: 28px; }
+  label { display: block; font-size: 12px; font-weight: 600; color: #94A3B8; margin-bottom: 8px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .input-wrap { position: relative; margin-bottom: 20px; }
+  input[type=password] {
+    width: 100%; padding: 13px 48px 13px 16px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    color: #F0F4FF;
+    font-size: 15px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input[type=password]:focus { border-color: #38BDF8; box-shadow: 0 0 0 3px rgba(56,189,248,0.12); }
+  .eye-btn {
+    position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; color: #64748B; font-size: 18px;
+    transition: color 0.2s;
+  }
+  .eye-btn:hover { color: #94A3B8; }
+  button[type=submit] {
+    width: 100%; padding: 13px;
+    background: linear-gradient(135deg, #38BDF8 0%, #818CF8 100%);
+    border: none; border-radius: 10px;
+    color: #fff; font-size: 15px; font-weight: 600;
+    font-family: inherit; cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    box-shadow: 0 4px 24px rgba(56,189,248,0.25);
+  }
+  button[type=submit]:hover { opacity: 0.9; }
+  button[type=submit]:active { transform: scale(0.98); }
+  .error {
+    background: rgba(239,68,68,0.12);
+    border: 1px solid rgba(239,68,68,0.25);
+    border-radius: 8px;
+    color: #FCA5A5;
+    font-size: 13px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .footer { text-align: center; margin-top: 24px; font-size: 11px; color: #334155; }
+  .lock-icon { font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo-wrap">
+    <div class="logo-icon">⚡</div>
+    <div class="logo-text">
+      <span class="logo-name">xTerminal</span>
+      <span class="logo-sub">Network Workstation</span>
+    </div>
+  </div>
+  <h2>Access Protected</h2>
+  <p class="sub">Enter your password to access the workstation.</p>
+  <div class="error" id="err">❌ Incorrect password. Please try again.</div>
+  <form id="loginForm">
+    <label for="pwd">Password</label>
+    <div class="input-wrap">
+      <input type="password" id="pwd" placeholder="Enter password..." autofocus autocomplete="current-password" />
+      <button type="button" class="eye-btn" onclick="togglePwd()">👁</button>
+    </div>
+    <button type="submit" id="btn">Unlock Access →</button>
+  </form>
+  <div class="footer"><span class="lock-icon">🔒</span> xTerminal v1.3.0 — Secured Access</div>
+</div>
+<script>
+  function togglePwd() {
+    const i = document.getElementById('pwd');
+    i.type = i.type === 'password' ? 'text' : 'password';
+  }
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pwd = document.getElementById('pwd').value;
+    const btn = document.getElementById('btn');
+    const err = document.getElementById('err');
+    btn.textContent = 'Verifying...';
+    btn.disabled = true;
+    err.style.display = 'none';
+    try {
+      const r = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pwd })
+      });
+      const data = await r.json();
+      if (data.success) {
+        window.location.reload();
+      } else {
+        err.style.display = 'block';
+        btn.textContent = 'Unlock Access →';
+        btn.disabled = false;
+      }
+    } catch {
+      err.style.display = 'block';
+      btn.textContent = 'Unlock Access →';
+      btn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>`;
+
+// Auth login endpoint
+app.post("/api/auth/login", (req, res) => {
+  const { password } = req.body || {};
+  if (password === AUTH_PASSWORD) {
+    const token = genAuthToken();
+    AUTH_SESSIONS.add(token);
+    const maxAge = 60 * 60 * 24 * 7; // 7 days
+    res.setHeader("Set-Cookie", `${AUTH_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}`);
+    return res.json({ success: true });
+  }
+  return res.status(401).json({ success: false, error: "Invalid password" });
+});
+
+// Auth logout endpoint
+app.post("/api/auth/logout", (req, res) => {
+  const cookies = parseCookies(req.headers.cookie || "");
+  const token = cookies[AUTH_COOKIE];
+  if (token) AUTH_SESSIONS.delete(token);
+  res.setHeader("Set-Cookie", `${AUTH_COOKIE}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT`);
+  return res.json({ success: true });
+});
+
+// Auth check endpoint (for frontend)
+app.get("/api/auth/status", (req, res) => {
+  const cookies = parseCookies(req.headers.cookie || "");
+  const token = cookies[AUTH_COOKIE];
+  res.json({ authenticated: AUTH_SESSIONS.has(token) });
+});
+
 async function startServer() {
   const hasDist = fs.existsSync(path.join(__dirname, "index.html")) || fs.existsSync(path.join(process.cwd(), "dist", "index.html"));
   const isDev = process.env.NODE_ENV === "development" || (!hasDist && process.env.NODE_ENV !== "production");
@@ -3737,6 +3939,21 @@ async function startServer() {
     app.use(async (req, res, next) => {
       if (req.method !== "GET" && req.method !== "HEAD") return next();
       if (req.path.startsWith("/api")) return next();
+
+      // ── Password Gate ──────────────────────────────────────────
+      // Skip auth check for static assets (JS, CSS, fonts, images)
+      const reqExt = path.extname(req.path).toLowerCase();
+      const isStaticAsset = [".js", ".css", ".png", ".ico", ".svg", ".woff", ".woff2", ".jpg", ".jpeg", ".webp"].includes(reqExt);
+      if (!isStaticAsset) {
+        const cookies = parseCookies(req.headers.cookie || "");
+        const token = cookies[AUTH_COOKIE];
+        if (!AUTH_SESSIONS.has(token)) {
+          res.setHeader("Content-Type", "text/html; charset=utf-8");
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          return res.send(LOGIN_PAGE_HTML);
+        }
+      }
+      // ───────────────────────────────────────────────────────────
 
       let reqPath = req.path;
       if (reqPath === "/" || reqPath === "") reqPath = "/index.html";

@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/latest">
-    <img src="https://img.shields.io/badge/version-1.2.9-emerald.svg?style=for-the-badge&logo=semver&logoColor=white" alt="Release 1.2.9" />
+    <img src="https://img.shields.io/badge/version-1.3.0-emerald.svg?style=for-the-badge&logo=semver&logoColor=white" alt="Release 1.3.0" />
   </a>
   <a href="https://snapcraft.io/xterminal">
     <img src="https://img.shields.io/badge/Snapcraft-xterminal-82BEA0.svg?style=for-the-badge&logo=snapcraft&logoColor=white" alt="Snapcraft" />
@@ -285,7 +285,26 @@ npm run setup
 
 ---
 
-## ✨ Comprehensive Features Breakdown
+## 🔐 Web UI Password Protection
+
+xTerminal's built-in web server (`http://YOUR-IP:3000`) is protected by a password gate. Anyone visiting the URL from a browser will see a **secure login screen** before accessing the workstation.
+
+| Setting | Value |
+|---|---|
+| **Default Password** | `xTerminal@999` |
+| **Session** | Cookie-based (7-day expiry) |
+| **Login Endpoint** | `POST /api/auth/login` |
+| **Logout Endpoint** | `POST /api/auth/logout` |
+| **Auth Status** | `GET /api/auth/status` |
+
+> **To change the password**, edit the `AUTH_PASSWORD` constant in `server.ts` and rebuild.
+
+### Multiplayer Session Links
+Direct session invite links (`http://YOUR-IP:3000/?session=XT-XXXXXX`) also require login first — once authenticated, the standalone terminal screen opens automatically.
+
+---
+
+
 
 <details open>
 <summary><b>🌐 Multi-Protocol Terminal & Communication Engine</b></summary>

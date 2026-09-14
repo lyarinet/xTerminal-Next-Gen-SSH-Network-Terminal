@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/latest">
-    <img src="https://img.shields.io/badge/version-1.3.0-emerald.svg?style=for-the-badge&logo=semver&logoColor=white" alt="Release 1.3.0" />
+    <img src="https://img.shields.io/badge/version-1.3.3-emerald.svg?style=for-the-badge&logo=semver&logoColor=white" alt="Release 1.3.3" />
   </a>
   <a href="https://snapcraft.io/xterminal">
     <img src="https://img.shields.io/badge/Snapcraft-xterminal-82BEA0.svg?style=for-the-badge&logo=snapcraft&logoColor=white" alt="Snapcraft" />
@@ -285,22 +285,30 @@ npm run setup
 
 ---
 
-## 🔐 Web UI Password Protection
+## 🔐 Web Access Protection (Windows System Password)
 
-xTerminal's built-in web server (`http://YOUR-IP:3000`) is protected by a password gate. Anyone visiting the URL from a browser will see a **secure login screen** before accessing the workstation.
+xTerminal features built-in **Web Access Protection** powered directly by **Windows Native Authentication**. When enabled from **Settings → Preferences → Web Access Protection**, anyone accessing xTerminal over the local network via a web browser (`http://YOUR-IP:3000`) is presented with a secure Windows authentication screen.
+
+### 🛡️ How It Works
+
+- **Direct Windows Authentication**: Validates user credentials directly against your host machine's Windows user account using the Win32 `LogonUser` API (`advapi32.dll` / Local Security Authority).
+- **No Separate Passwords**: No need to create, store, or remember a separate web password. Your Windows account password locks and unlocks access.
+- **Auto-Synchronized**: Whenever you change your Windows login password, it automatically applies here without manual reconfiguration.
+- **Zero Credential Storage**: Passwords are validated in real-time by the Windows security subsystem and are never saved or cached on disk.
+- **One-Click Toggle**: Enable or disable protection anytime with a single click in **Settings → Preferences → Web Access Protection**.
 
 | Setting | Value |
 |---|---|
-| **Default Password** | `xTerminal@999` |
-| **Session** | Cookie-based (7-day expiry) |
+| **Auth Engine** | Windows Native Win32 (`LogonUser` / LSA) |
+| **Protected Account** | Host Windows User (`%USERNAME%`) |
+| **Control Toggle** | **Settings → Preferences → Web Access Protection** |
+| **Session Lifetime** | Secure Cookie (`HttpOnly`, `SameSite=Strict`, 7-day expiry) |
 | **Login Endpoint** | `POST /api/auth/login` |
 | **Logout Endpoint** | `POST /api/auth/logout` |
-| **Auth Status** | `GET /api/auth/status` |
+| **Config Endpoints** | `GET /api/auth/config`, `POST /api/auth/config` |
 
-> **To change the password**, edit the `AUTH_PASSWORD` constant in `server.ts` and rebuild.
-
-### Multiplayer Session Links
-Direct session invite links (`http://YOUR-IP:3000/?session=XT-XXXXXX`) also require login first — once authenticated, the standalone terminal screen opens automatically.
+### Multiplayer & Remote Links
+Direct session invite links (`http://YOUR-IP:3000/?session=XT-XXXXXX`) automatically prompt for Windows system credentials before launching the standalone terminal screen.
 
 ---
 

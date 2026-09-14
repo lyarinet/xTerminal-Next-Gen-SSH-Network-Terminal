@@ -1,18 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, ShieldOff, Eye, EyeOff, Check, AlertCircle, Loader } from 'lucide-react';
+import { Shield, ShieldOff, Check, AlertCircle, Loader, Lock, Key, RefreshCw, Laptop } from 'lucide-react';
 
 export const WebAccessProtection: React.FC = () => {
   const [enabled, setEnabled] = useState<boolean>(false);
+  const [systemUser, setSystemUser] = useState<string>('');
+  const [platform, setPlatform] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [saveMsg, setSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  // Password change form
-  const [currentPwd, setCurrentPwd] = useState('');
-  const [newPwd, setNewPwd] = useState('');
-  const [confirmPwd, setConfirmPwd] = useState('');
-  const [showCurrent, setShowCurrent] = useState(false);
-  const [showNew, setShowNew] = useState(false);
 
   // Load current config on mount
   useEffect(() => {
@@ -20,6 +15,8 @@ export const WebAccessProtection: React.FC = () => {
       .then((r) => r.json())
       .then((d) => {
         setEnabled(Boolean(d.enabled));
+        if (d.systemUser) setSystemUser(d.systemUser);
+        if (d.platform) setPlatform(d.platform);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -33,52 +30,22 @@ export const WebAccessProtection: React.FC = () => {
   const handleToggle = async (val: boolean) => {
     setSaving(true);
     try {
-      const body: any = { enabled: val };
-      // If turning OFF while currently enabled, need currentPassword
-      if (!val && enabled && currentPwd) body.currentPassword = currentPwd;
       const r = await fetch('/api/auth/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ enabled: val }),
       });
       const d = await r.json();
       if (d.success) {
         setEnabled(val);
-        showFeedback('success', val ? 'Password protection enabled.' : 'Password protection disabled.');
+        showFeedback(
+          'success',
+          val
+            ? 'Windows System Password Protection enabled.'
+            : 'Password protection disabled (Open Access).'
+        );
       } else {
         showFeedback('error', d.error || 'Failed to update setting.');
-      }
-    } catch {
-      showFeedback('error', 'Network error. Please try again.');
-    }
-    setSaving(false);
-  };
-
-  const handlePasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newPwd.length < 6) {
-      showFeedback('error', 'New password must be at least 6 characters.');
-      return;
-    }
-    if (newPwd !== confirmPwd) {
-      showFeedback('error', 'New passwords do not match.');
-      return;
-    }
-    setSaving(true);
-    try {
-      const r = await fetch('/api/auth/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: newPwd, currentPassword: currentPwd }),
-      });
-      const d = await r.json();
-      if (d.success) {
-        setCurrentPwd('');
-        setNewPwd('');
-        setConfirmPwd('');
-        showFeedback('success', 'Password changed successfully.');
-      } else {
-        showFeedback('error', d.error || 'Incorrect current password.');
       }
     } catch {
       showFeedback('error', 'Network error. Please try again.');
@@ -90,38 +57,41 @@ export const WebAccessProtection: React.FC = () => {
     return (
       <div className="flex items-center gap-2 text-gray-500 text-xs py-2">
         <Loader className="w-3.5 h-3.5 animate-spin" />
-        <span>Loading protection settings...</span>
+        <span>Loading system authentication status...</span>
       </div>
     );
   }
 
   return (
-    <div className="space-y-5">
-      {/* Enable / Disable Toggle */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            {enabled
-              ? <Shield className="w-3.5 h-3.5 text-sky-400" />
-              : <ShieldOff className="w-3.5 h-3.5 text-gray-500" />
-            }
-            <span className={`text-xs font-semibold ${enabled ? 'text-sky-400' : 'text-gray-400'}`}>
-              {enabled ? 'Protection Enabled' : 'Protection Disabled'}
+    <div className="space-y-4">
+      {/* Enable / Disable Toggle Header */}
+      <div className="flex items-start justify-between gap-4 p-4 rounded-xl bg-[#111112] border border-[#222224]">
+        <div className="flex-1 space-y-1">
+          <div className="flex items-center gap-2">
+            {enabled ? (
+              <Shield className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <ShieldOff className="w-4 h-4 text-gray-500" />
+            )}
+            <span className={`text-xs font-semibold ${enabled ? 'text-emerald-400' : 'text-gray-400'}`}>
+              {enabled ? 'Windows System Lock Active' : 'Protection Disabled (Open Network Access)'}
             </span>
           </div>
-          <p className="text-[11px] text-gray-500 leading-relaxed">
+          <p className="text-[11.5px] text-gray-400 leading-relaxed">
             {enabled
-              ? 'Anyone accessing the web UI must enter the password first.'
-              : 'Web UI is open — anyone on the network can access it without a password.'}
+              ? `Web interface is secured with your host Windows account credentials. Users must enter the password for "${systemUser || 'Host User'}" to unlock access.`
+              : 'Web interface is currently open — any device on your local network can access xTerminal without a password.'}
           </p>
         </div>
+
         <button
           type="button"
           disabled={saving}
           onClick={() => handleToggle(!enabled)}
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 mt-0.5 ${
-            enabled ? 'bg-sky-500' : 'bg-[#2A2A2E]'
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 mt-1 ${
+            enabled ? 'bg-emerald-500' : 'bg-[#2A2A2E]'
           } ${saving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          title={enabled ? 'Click to disable' : 'Click to enable'}
         >
           <span
             className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transform transition-transform ${
@@ -133,87 +103,78 @@ export const WebAccessProtection: React.FC = () => {
 
       {/* Feedback message */}
       {saveMsg && (
-        <div className={`flex items-center gap-2 text-[11px] px-3 py-2 rounded-lg border ${
-          saveMsg.type === 'success'
-            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-            : 'bg-red-500/10 border-red-500/20 text-red-400'
-        }`}>
-          {saveMsg.type === 'success'
-            ? <Check className="w-3 h-3 flex-shrink-0" />
-            : <AlertCircle className="w-3 h-3 flex-shrink-0" />
-          }
-          {saveMsg.text}
+        <div
+          className={`flex items-center gap-2 text-[11px] px-3 py-2 rounded-lg border ${
+            saveMsg.type === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+              : 'bg-red-500/10 border-red-500/20 text-red-400'
+          }`}
+        >
+          {saveMsg.type === 'success' ? (
+            <Check className="w-3.5 h-3.5 flex-shrink-0" />
+          ) : (
+            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+          )}
+          <span>{saveMsg.text}</span>
         </div>
       )}
 
-      {/* Password change form — only shown when enabled */}
-      {enabled && (
-        <form onSubmit={handlePasswordChange} className="space-y-3 pt-2 border-t border-[#1E1F26]">
-          <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Change Password</p>
-
-          <div>
-            <label className="block text-[10px] text-gray-400 mb-1 uppercase tracking-wide font-medium">Current Password</label>
-            <div className="relative">
-              <input
-                type={showCurrent ? 'text' : 'password'}
-                value={currentPwd}
-                onChange={(e) => setCurrentPwd(e.target.value)}
-                placeholder="Enter current password"
-                className="w-full px-3 py-2 pr-9 rounded-md bg-[#1C1C1E] border border-[#222224] text-gray-100 text-xs focus:outline-none focus:border-sky-500"
-              />
-              <button type="button" onClick={() => setShowCurrent(!showCurrent)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
-                {showCurrent ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-[10px] text-gray-400 mb-1 uppercase tracking-wide font-medium">New Password</label>
-              <div className="relative">
-                <input
-                  type={showNew ? 'text' : 'password'}
-                  value={newPwd}
-                  onChange={(e) => setNewPwd(e.target.value)}
-                  placeholder="Min. 6 characters"
-                  className="w-full px-3 py-2 pr-9 rounded-md bg-[#1C1C1E] border border-[#222224] text-gray-100 text-xs focus:outline-none focus:border-sky-500"
-                />
-                <button type="button" onClick={() => setShowNew(!showNew)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
-                  {showNew ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-            </div>
-            <div>
-              <label className="block text-[10px] text-gray-400 mb-1 uppercase tracking-wide font-medium">Confirm Password</label>
-              <input
-                type="password"
-                value={confirmPwd}
-                onChange={(e) => setConfirmPwd(e.target.value)}
-                placeholder="Repeat new password"
-                className="w-full px-3 py-2 rounded-md bg-[#1C1C1E] border border-[#222224] text-gray-100 text-xs focus:outline-none focus:border-sky-500"
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={saving || !currentPwd || !newPwd || !confirmPwd}
-            className="px-4 py-1.5 rounded-md bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/20 text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-          >
-            {saving ? <Loader className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-            Change Password
-          </button>
-        </form>
-      )}
-
-      {/* Default password hint */}
-      {!enabled && (
-        <div className="text-[10.5px] text-gray-600 leading-relaxed">
-          💡 Default password is <span className="font-mono text-gray-500">xTerminal@999</span> — change it after enabling.
+      {/* Host System User Information Badge */}
+      <div className="flex items-center justify-between px-3.5 py-2.5 rounded-lg bg-[#111112] border border-[#1E1F26] text-xs">
+        <div className="flex items-center gap-2 text-gray-400">
+          <Laptop className="w-3.5 h-3.5 text-sky-400" />
+          <span>Host System Account:</span>
         </div>
-      )}
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded text-[11px] font-semibold">
+            {systemUser || 'Windows User'}
+          </span>
+          <span className="text-gray-500 text-[10px] font-mono uppercase">
+            ({platform || 'win32'})
+          </span>
+        </div>
+      </div>
+
+      {/* Comprehensive Guide: How Windows System Password Protection Works */}
+      <div className="p-4 rounded-xl bg-[#0F0F11] border border-[#1F2026] space-y-3">
+        <div className="flex items-center gap-2 text-xs font-semibold text-gray-300">
+          <Lock className="w-3.5 h-3.5 text-sky-400" />
+          <span>System Password Protection Guide</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+          {/* Card 1: Lock & Unlock */}
+          <div className="p-3 rounded-lg bg-[#161618] border border-[#222226] space-y-1.5">
+            <div className="flex items-center gap-1.5 text-sky-400 text-xs font-medium">
+              <Key className="w-3.5 h-3.5" />
+              <span>Lock &amp; Unlock</span>
+            </div>
+            <p className="text-[11px] text-gray-400 leading-relaxed">
+              When enabled, connecting browsers are locked. Enter your Windows login password for{' '}
+              <strong className="text-gray-200">{systemUser || 'your system user'}</strong> to unlock the session.
+            </p>
+          </div>
+
+          {/* Card 2: Automatic Synchronization */}
+          <div className="p-3 rounded-lg bg-[#161618] border border-[#222226] space-y-1.5">
+            <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-medium">
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Auto-Synchronized</span>
+            </div>
+            <p className="text-[11px] text-gray-400 leading-relaxed">
+              Whenever you change your Windows login password, it automatically applies here. No separate password management or manual updates required.
+            </p>
+          </div>
+        </div>
+
+        {/* Note on zero storage */}
+        <div className="text-[10.5px] text-gray-500 leading-relaxed pt-1 flex items-start gap-2">
+          <span className="text-sky-400 font-bold">ℹ</span>
+          <span>
+            Passwords are never stored on disk or cached. Authentication is handled natively in real-time by the Windows Local Security Authority (LSA).
+          </span>
+        </div>
+      </div>
     </div>
   );
 };

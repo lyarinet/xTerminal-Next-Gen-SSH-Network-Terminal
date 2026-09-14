@@ -3704,7 +3704,6 @@ const AUTH_CONFIG_PATH = (() => {
 
 interface AuthConfig {
   enabled: boolean;
-  password: string;
 }
 
 function loadAuthConfig(): AuthConfig {
@@ -3714,12 +3713,11 @@ function loadAuthConfig(): AuthConfig {
       const parsed = JSON.parse(raw);
       return {
         enabled: Boolean(parsed.enabled),
-        password: parsed.password || "xTerminal@999",
       };
     }
   } catch {}
   // Default: disabled
-  return { enabled: false, password: "xTerminal@999" };
+  return { enabled: false };
 }
 
 function saveAuthConfig(cfg: AuthConfig) {
@@ -3743,12 +3741,75 @@ function genAuthToken(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-const LOGIN_PAGE_HTML = `<!DOCTYPE html>
+// Windows / System Native Authentication using Win32 LogonUser via PowerShell
+function verifySystemPassword(username: string, password: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!password) return resolve(false);
+
+    if (process.platform === "win32") {
+      const psScript = `
+$src = @'
+using System;
+using System.Runtime.InteropServices;
+public class WinAuth {
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern bool LogonUser(string lpszUsername, string lpszDomain, string lpszPassword, int dwLogonType, int dwLogonProvider, out IntPtr phToken);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool CloseHandle(IntPtr handle);
+    public static bool Verify(string user, string pwd) {
+        IntPtr token = IntPtr.Zero;
+        string domain = ".";
+        if (user.Contains("\\\\")) {
+            string[] parts = user.Split(new char[] { '\\\\' }, 2);
+            domain = parts[0];
+            user = parts[1];
+        }
+        // Try LOGON32_LOGON_NETWORK (3) first, then LOGON32_LOGON_INTERACTIVE (2)
+        bool ok = LogonUser(user, domain, pwd, 3, 0, out token);
+        if (!ok) {
+            ok = LogonUser(user, domain, pwd, 2, 0, out token);
+        }
+        if (token != IntPtr.Zero) CloseHandle(token);
+        return ok;
+    }
+}
+'@
+Add-Type -TypeDefinition $src -ErrorAction SilentlyContinue
+$u = [Console]::In.ReadLine()
+$p = [Console]::In.ReadLine()
+$res = [WinAuth]::Verify($u, $p)
+Write-Output $res
+`;
+      const ps = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "-"], {
+        windowsHide: true,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+
+      let stdout = "";
+      ps.stdout.on("data", (d) => { stdout += d.toString(); });
+      ps.on("close", () => {
+        resolve(stdout.trim().toLowerCase().includes("true"));
+      });
+      ps.on("error", () => resolve(false));
+
+      const targetUser = username || process.env.USERNAME || os.userInfo().username || "";
+      ps.stdin.write(psScript.trim() + "\n");
+      ps.stdin.write(targetUser + "\n");
+      ps.stdin.write(password + "\n");
+      ps.stdin.end();
+    } else {
+      resolve(false);
+    }
+  });
+}
+
+function getLoginPageHtml(systemUser: string): string {
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>xTerminal — Access Protected</title>
+<title>xTerminal — Windows System Access Protected</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -3760,37 +3821,40 @@ const LOGIN_PAGE_HTML = `<!DOCTYPE html>
     background: #08080A;
     font-family: 'Inter', system-ui, sans-serif;
     background-image:
-      radial-gradient(ellipse 80% 60% at 50% -10%, rgba(56,189,248,0.12) 0%, transparent 60%),
+      radial-gradient(ellipse 80% 60% at 50% -10%, rgba(56,189,248,0.14) 0%, transparent 60%),
       radial-gradient(ellipse 60% 40% at 80% 110%, rgba(139,92,246,0.1) 0%, transparent 60%);
   }
   .card {
     width: 100%;
-    max-width: 400px;
+    max-width: 420px;
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 20px;
-    padding: 44px 40px 36px;
+    padding: 38px 34px 30px;
     backdrop-filter: blur(20px);
-    box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(56,189,248,0.06);
+    box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(56,189,248,0.08);
   }
-  .logo-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+  .logo-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
   .logo-icon { width: 44px; height: 44px; background: linear-gradient(135deg, #38BDF8 0%, #818CF8 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; box-shadow: 0 0 24px rgba(56,189,248,0.3); }
   .logo-text { display: flex; flex-direction: column; }
   .logo-name { font-size: 18px; font-weight: 700; color: #F0F4FF; letter-spacing: -0.3px; }
   .logo-sub { font-size: 11px; color: #64748B; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; }
-  h2 { font-size: 22px; font-weight: 700; color: #F0F4FF; margin-bottom: 6px; }
-  .sub { font-size: 13px; color: #64748B; margin-bottom: 28px; }
-  label { display: block; font-size: 12px; font-weight: 600; color: #94A3B8; margin-bottom: 8px; letter-spacing: 0.5px; text-transform: uppercase; }
-  .input-wrap { position: relative; margin-bottom: 20px; }
-  input[type=password], input[type=text] { width: 100%; padding: 13px 48px 13px 16px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; color: #F0F4FF; font-size: 15px; font-family: inherit; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.25); border-radius: 20px; font-size: 12px; color: #38BDF8; font-family: monospace; margin-bottom: 14px; font-weight: 500; }
+  h2 { font-size: 21px; font-weight: 700; color: #F0F4FF; margin-bottom: 6px; }
+  .sub { font-size: 12.5px; color: #94A3B8; margin-bottom: 22px; line-height: 1.5; }
+  label { display: block; font-size: 11px; font-weight: 600; color: #94A3B8; margin-bottom: 8px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .input-wrap { position: relative; margin-bottom: 18px; }
+  input[type=password], input[type=text] { width: 100%; padding: 13px 48px 13px 16px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; color: #F0F4FF; font-size: 14px; font-family: inherit; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
   input:focus { border-color: #38BDF8; box-shadow: 0 0 0 3px rgba(56,189,248,0.12); }
   .eye-btn { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #64748B; font-size: 18px; transition: color 0.2s; }
   .eye-btn:hover { color: #94A3B8; }
-  button[type=submit] { width: 100%; padding: 13px; background: linear-gradient(135deg, #38BDF8 0%, #818CF8 100%); border: none; border-radius: 10px; color: #fff; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; transition: opacity 0.2s, transform 0.1s; box-shadow: 0 4px 24px rgba(56,189,248,0.25); }
+  button[type=submit] { width: 100%; padding: 13px; background: linear-gradient(135deg, #38BDF8 0%, #818CF8 100%); border: none; border-radius: 10px; color: #fff; font-size: 14.5px; font-weight: 600; font-family: inherit; cursor: pointer; transition: opacity 0.2s, transform 0.1s; box-shadow: 0 4px 24px rgba(56,189,248,0.25); }
   button[type=submit]:hover { opacity: 0.9; }
   button[type=submit]:active { transform: scale(0.98); }
-  .error { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.25); border-radius: 8px; color: #FCA5A5; font-size: 13px; padding: 10px 14px; margin-bottom: 16px; display: none; }
-  .footer { text-align: center; margin-top: 24px; font-size: 11px; color: #334155; }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .error { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.25); border-radius: 8px; color: #FCA5A5; font-size: 12.5px; padding: 10px 14px; margin-bottom: 16px; display: none; }
+  .guide-box { margin-top: 20px; padding: 12px 14px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; font-size: 11px; color: #64748B; line-height: 1.5; text-align: left; }
+  .footer { text-align: center; margin-top: 20px; font-size: 11px; color: #475569; }
 </style>
 </head>
 <body>
@@ -3799,18 +3863,25 @@ const LOGIN_PAGE_HTML = `<!DOCTYPE html>
     <div class="logo-icon">⚡</div>
     <div class="logo-text"><span class="logo-name">xTerminal</span><span class="logo-sub">Network Workstation</span></div>
   </div>
-  <h2>Access Protected</h2>
-  <p class="sub">Enter your password to access the workstation.</p>
-  <div class="error" id="err">❌ Incorrect password. Please try again.</div>
+  <div class="badge">
+    <span>🪟</span>
+    <span>Host User: ${systemUser}</span>
+  </div>
+  <h2>Windows System Locked</h2>
+  <p class="sub">Enter your Windows account password for <strong>${systemUser}</strong> to unlock the terminal workstation.</p>
+  <div class="error" id="err">❌ Incorrect Windows password. Please try again.</div>
   <form id="loginForm">
-    <label for="pwd">Password</label>
+    <label for="pwd">Windows Password</label>
     <div class="input-wrap">
-      <input type="password" id="pwd" placeholder="Enter password..." autofocus autocomplete="current-password" />
+      <input type="password" id="pwd" placeholder="Enter Windows login password..." autofocus autocomplete="current-password" />
       <button type="button" class="eye-btn" onclick="togglePwd()">👁</button>
     </div>
     <button type="submit" id="btn">Unlock Access →</button>
   </form>
-  <div class="footer">🔒 xTerminal v1.3.0 — Secured Access</div>
+  <div class="guide-box">
+    🛡️ <strong>System Security:</strong> This session is locked with host Windows authentication. Changing your Windows user password automatically updates this lock.
+  </div>
+  <div class="footer">🔒 xTerminal v1.3.3 — Windows Native Authentication</div>
 </div>
 <script>
   function togglePwd() { const i=document.getElementById('pwd'); i.type=i.type==='password'?'text':'password'; }
@@ -3819,9 +3890,9 @@ const LOGIN_PAGE_HTML = `<!DOCTYPE html>
     const pwd=document.getElementById('pwd').value;
     const btn=document.getElementById('btn');
     const err=document.getElementById('err');
-    btn.textContent='Verifying...'; btn.disabled=true; err.style.display='none';
+    btn.textContent='Verifying with Windows...'; btn.disabled=true; err.style.display='none';
     try {
-      const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd})});
+      const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd,username:'${systemUser}'})});
       const data=await r.json();
       if(data.success){window.location.reload();}else{err.style.display='block';btn.textContent='Unlock Access →';btn.disabled=false;}
     } catch {err.style.display='block';btn.textContent='Unlock Access →';btn.disabled=false;}
@@ -3829,19 +3900,24 @@ const LOGIN_PAGE_HTML = `<!DOCTYPE html>
 </script>
 </body>
 </html>`;
+}
 
-// Auth login endpoint
-app.post("/api/auth/login", (req, res) => {
-  const { password } = req.body || {};
+// Auth login endpoint — validates directly with Windows System Credentials
+app.post("/api/auth/login", async (req, res) => {
+  const { password, username } = req.body || {};
   if (!authConfig.enabled) return res.json({ success: true, reason: "auth_disabled" });
-  if (password === authConfig.password) {
+
+  const targetUser = username || process.env.USERNAME || os.userInfo().username || "";
+  const isValid = await verifySystemPassword(targetUser, password);
+
+  if (isValid) {
     const token = genAuthToken();
     AUTH_SESSIONS.add(token);
     const maxAge = 60 * 60 * 24 * 7; // 7 days
     res.setHeader("Set-Cookie", `${AUTH_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}`);
     return res.json({ success: true });
   }
-  return res.status(401).json({ success: false, error: "Invalid password" });
+  return res.status(401).json({ success: false, error: "Invalid Windows password" });
 });
 
 // Auth logout endpoint
@@ -3860,24 +3936,22 @@ app.get("/api/auth/status", (req, res) => {
   res.json({ authenticated: AUTH_SESSIONS.has(token), enabled: authConfig.enabled });
 });
 
-// Auth config GET — returns current enable state (never returns password)
+// Auth config GET — returns current enable state and host system user info
 app.get("/api/auth/config", (_req, res) => {
-  res.json({ enabled: authConfig.enabled });
+  const systemUser = process.env.USERNAME || os.userInfo().username || "System User";
+  res.json({
+    enabled: authConfig.enabled,
+    systemUser,
+    platform: process.platform,
+  });
 });
 
-// Auth config POST — update enable/disable and optionally change password
+// Auth config POST — update enable/disable (no custom password needed)
 app.post("/api/auth/config", (req, res) => {
-  const { enabled, password, currentPassword } = req.body || {};
-  // If auth is currently enabled, require currentPassword to make changes
-  if (authConfig.enabled && currentPassword !== authConfig.password) {
-    return res.status(403).json({ success: false, error: "Current password is incorrect" });
-  }
+  const { enabled } = req.body || {};
   if (typeof enabled === "boolean") authConfig.enabled = enabled;
-  if (password && typeof password === "string" && password.length >= 6) {
-    authConfig.password = password;
-  }
   saveAuthConfig(authConfig);
-  // If disabling, clear all sessions
+  // If disabling, clear all active sessions
   if (!authConfig.enabled) AUTH_SESSIONS.clear();
   return res.json({ success: true, enabled: authConfig.enabled });
 });
@@ -3944,7 +4018,8 @@ async function startServer() {
           if (!AUTH_SESSIONS.has(token)) {
             res.setHeader("Content-Type", "text/html; charset=utf-8");
             res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-            return res.send(LOGIN_PAGE_HTML);
+            const sysUser = process.env.USERNAME || os.userInfo().username || "System User";
+            return res.send(getLoginPageHtml(sysUser));
           }
         }
       }

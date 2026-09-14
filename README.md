@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/lyarinet/xTerminal-Next-Gen-SSH-Network-Terminal/releases/latest">
-    <img src="https://img.shields.io/badge/version-1.3.3-emerald.svg?style=for-the-badge&logo=semver&logoColor=white" alt="Release 1.3.3" />
+    <img src="https://img.shields.io/badge/version-1.3.4-emerald.svg?style=for-the-badge&logo=semver&logoColor=white" alt="Release 1.3.4" />
   </a>
   <a href="https://snapcraft.io/xterminal">
     <img src="https://img.shields.io/badge/Snapcraft-xterminal-82BEA0.svg?style=for-the-badge&logo=snapcraft&logoColor=white" alt="Snapcraft" />

@@ -3741,13 +3741,17 @@ function genAuthToken(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-// Windows / System Native Authentication using Win32 LogonUser via PowerShell
+// Windows / System Native Authentication using Win32 LogonUser + PrincipalContext via PowerShell EncodedCommand
 function verifySystemPassword(username: string, password: string): Promise<boolean> {
   return new Promise((resolve) => {
     if (!password) return resolve(false);
 
     if (process.platform === "win32") {
       const psScript = `
+$ErrorActionPreference = 'SilentlyContinue'
+$u = $env:WIN_AUTH_USER
+$p = $env:WIN_AUTH_PWD
+
 $src = @'
 using System;
 using System.Runtime.InteropServices;
@@ -3764,52 +3768,68 @@ public class WinAuth {
             domain = parts[0];
             user = parts[1];
         }
-        // Try LOGON32_LOGON_NETWORK (3) first, then LOGON32_LOGON_INTERACTIVE (2)
+        // Try LOGON32_LOGON_NETWORK (3) first
         bool ok = LogonUser(user, domain, pwd, 3, 0, out token);
-        if (!ok) {
-            ok = LogonUser(user, domain, pwd, 2, 0, out token);
-        }
+        if (token != IntPtr.Zero) CloseHandle(token);
+        if (ok) return true;
+
+        // Try LOGON32_LOGON_INTERACTIVE (2)
+        token = IntPtr.Zero;
+        ok = LogonUser(user, domain, pwd, 2, 0, out token);
         if (token != IntPtr.Zero) CloseHandle(token);
         return ok;
     }
 }
 '@
 Add-Type -TypeDefinition $src -ErrorAction SilentlyContinue
-$u = [Console]::In.ReadLine()
-$p = [Console]::In.ReadLine()
-$res = [WinAuth]::Verify($u, $p)
-Write-Output $res
+
+$ok = [WinAuth]::Verify($u, $p)
+
+if (!$ok) {
+    try {
+        Add-Type -AssemblyName System.DirectoryServices.AccountManagement -ErrorAction SilentlyContinue
+        $pc = New-Object System.DirectoryServices.AccountManagement.PrincipalContext([System.DirectoryServices.AccountManagement.ContextType]::Machine)
+        $ok = $pc.ValidateCredentials($u, $p)
+    } catch {}
+}
+
+Write-Output "RES:$ok"
 `;
-      const ps = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "-"], {
+      const buffer = Buffer.from(psScript, "utf16le");
+      const encoded = buffer.toString("base64");
+
+      const targetUser = username || process.env.USERNAME || os.userInfo().username || "";
+      const ps = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", encoded], {
+        env: {
+          ...process.env,
+          WIN_AUTH_USER: targetUser,
+          WIN_AUTH_PWD: password,
+        },
+        stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
-        stdio: ["pipe", "pipe", "pipe"],
       });
 
       let stdout = "";
       ps.stdout.on("data", (d) => { stdout += d.toString(); });
       ps.on("close", () => {
-        resolve(stdout.trim().toLowerCase().includes("true"));
+        resolve(stdout.trim().toLowerCase().includes("res:true"));
       });
       ps.on("error", () => resolve(false));
-
-      const targetUser = username || process.env.USERNAME || os.userInfo().username || "";
-      ps.stdin.write(psScript.trim() + "\n");
-      ps.stdin.write(targetUser + "\n");
-      ps.stdin.write(password + "\n");
-      ps.stdin.end();
     } else {
       resolve(false);
     }
   });
 }
 
-function getLoginPageHtml(systemUser: string): string {
+function getLoginPageHtml(_systemUser?: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>xTerminal — Windows System Access Protected</title>
+<title>xTerminal — System Access Protected</title>
+<link rel="icon" type="image/png" href="/logo.png" />
+<link rel="icon" type="image/x-icon" href="/favicon.ico" />
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -3834,12 +3854,11 @@ function getLoginPageHtml(systemUser: string): string {
     backdrop-filter: blur(20px);
     box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(56,189,248,0.08);
   }
-  .logo-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
-  .logo-icon { width: 44px; height: 44px; background: linear-gradient(135deg, #38BDF8 0%, #818CF8 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; box-shadow: 0 0 24px rgba(56,189,248,0.3); }
+  .logo-wrap { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+  .logo-img { width: 48px; height: 48px; border-radius: 12px; object-fit: contain; box-shadow: 0 0 24px rgba(56,189,248,0.35); border: 1px solid rgba(255,255,255,0.1); }
   .logo-text { display: flex; flex-direction: column; }
-  .logo-name { font-size: 18px; font-weight: 700; color: #F0F4FF; letter-spacing: -0.3px; }
+  .logo-name { font-size: 19px; font-weight: 700; color: #F0F4FF; letter-spacing: -0.3px; }
   .logo-sub { font-size: 11px; color: #64748B; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; }
-  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.25); border-radius: 20px; font-size: 12px; color: #38BDF8; font-family: monospace; margin-bottom: 14px; font-weight: 500; }
   h2 { font-size: 21px; font-weight: 700; color: #F0F4FF; margin-bottom: 6px; }
   .sub { font-size: 12.5px; color: #94A3B8; margin-bottom: 22px; line-height: 1.5; }
   label { display: block; font-size: 11px; font-weight: 600; color: #94A3B8; margin-bottom: 8px; letter-spacing: 0.5px; text-transform: uppercase; }
@@ -3860,28 +3879,24 @@ function getLoginPageHtml(systemUser: string): string {
 <body>
 <div class="card">
   <div class="logo-wrap">
-    <div class="logo-icon">⚡</div>
+    <img src="/logo.png" alt="xTerminal Logo" class="logo-img" onerror="this.src='/icon.png';" />
     <div class="logo-text"><span class="logo-name">xTerminal</span><span class="logo-sub">Network Workstation</span></div>
   </div>
-  <div class="badge">
-    <span>🪟</span>
-    <span>Host User: ${systemUser}</span>
-  </div>
-  <h2>Windows System Locked</h2>
-  <p class="sub">Enter your Windows account password for <strong>${systemUser}</strong> to unlock the terminal workstation.</p>
-  <div class="error" id="err">❌ Incorrect Windows password. Please try again.</div>
+  <h2>System Access Protected</h2>
+  <p class="sub">Enter your Windows system password to unlock the terminal workstation.</p>
+  <div class="error" id="err">❌ Incorrect system password. Please try again.</div>
   <form id="loginForm">
-    <label for="pwd">Windows Password</label>
+    <label for="pwd">System Password</label>
     <div class="input-wrap">
-      <input type="password" id="pwd" placeholder="Enter Windows login password..." autofocus autocomplete="current-password" />
+      <input type="password" id="pwd" placeholder="Enter system password..." autofocus autocomplete="current-password" />
       <button type="button" class="eye-btn" onclick="togglePwd()">👁</button>
     </div>
     <button type="submit" id="btn">Unlock Access →</button>
   </form>
   <div class="guide-box">
-    🛡️ <strong>System Security:</strong> This session is locked with host Windows authentication. Changing your Windows user password automatically updates this lock.
+    🛡️ <strong>System Security:</strong> This session is locked with host system password. Changing your Windows system password automatically updates this lock.
   </div>
-  <div class="footer">🔒 xTerminal v1.3.3 — Windows Native Authentication</div>
+  <div class="footer">🔒 xTerminal v1.3.4 — Windows System Authentication</div>
 </div>
 <script>
   function togglePwd() { const i=document.getElementById('pwd'); i.type=i.type==='password'?'text':'password'; }
@@ -3892,7 +3907,7 @@ function getLoginPageHtml(systemUser: string): string {
     const err=document.getElementById('err');
     btn.textContent='Verifying with Windows...'; btn.disabled=true; err.style.display='none';
     try {
-      const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd,username:'${systemUser}'})});
+      const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd})});
       const data=await r.json();
       if(data.success){window.location.reload();}else{err.style.display='block';btn.textContent='Unlock Access →';btn.disabled=false;}
     } catch {err.style.display='block';btn.textContent='Unlock Access →';btn.disabled=false;}

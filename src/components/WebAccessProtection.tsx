@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, ShieldOff, Check, AlertCircle, Loader, Lock, Key, RefreshCw, Laptop } from 'lucide-react';
+import { Shield, ShieldOff, Check, AlertCircle, Loader, Lock, Key, RefreshCw } from 'lucide-react';
 
 export const WebAccessProtection: React.FC = () => {
   const [enabled, setEnabled] = useState<boolean>(false);
-  const [systemUser, setSystemUser] = useState<string>('');
-  const [platform, setPlatform] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [saveMsg, setSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -15,8 +13,6 @@ export const WebAccessProtection: React.FC = () => {
       .then((r) => r.json())
       .then((d) => {
         setEnabled(Boolean(d.enabled));
-        if (d.systemUser) setSystemUser(d.systemUser);
-        if (d.platform) setPlatform(d.platform);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -41,8 +37,8 @@ export const WebAccessProtection: React.FC = () => {
         showFeedback(
           'success',
           val
-            ? 'Windows System Password Protection enabled.'
-            : 'Password protection disabled (Open Access).'
+            ? 'System Password Protection enabled.'
+            : 'Protection disabled (Open Access).'
         );
       } else {
         showFeedback('error', d.error || 'Failed to update setting.');
@@ -57,7 +53,7 @@ export const WebAccessProtection: React.FC = () => {
     return (
       <div className="flex items-center gap-2 text-gray-500 text-xs py-2">
         <Loader className="w-3.5 h-3.5 animate-spin" />
-        <span>Loading system authentication status...</span>
+        <span>Loading system protection status...</span>
       </div>
     );
   }
@@ -74,12 +70,12 @@ export const WebAccessProtection: React.FC = () => {
               <ShieldOff className="w-4 h-4 text-gray-500" />
             )}
             <span className={`text-xs font-semibold ${enabled ? 'text-emerald-400' : 'text-gray-400'}`}>
-              {enabled ? 'Windows System Lock Active' : 'Protection Disabled (Open Network Access)'}
+              {enabled ? 'System Password Lock Active' : 'Protection Disabled (Open Network Access)'}
             </span>
           </div>
           <p className="text-[11.5px] text-gray-400 leading-relaxed">
             {enabled
-              ? `Web interface is secured with your host Windows account credentials. Users must enter the password for "${systemUser || 'Host User'}" to unlock access.`
+              ? 'Web interface is secured with your host system password. Users connecting from browser must enter your system password to unlock access.'
               : 'Web interface is currently open — any device on your local network can access xTerminal without a password.'}
           </p>
         </div>
@@ -119,23 +115,7 @@ export const WebAccessProtection: React.FC = () => {
         </div>
       )}
 
-      {/* Host System User Information Badge */}
-      <div className="flex items-center justify-between px-3.5 py-2.5 rounded-lg bg-[#111112] border border-[#1E1F26] text-xs">
-        <div className="flex items-center gap-2 text-gray-400">
-          <Laptop className="w-3.5 h-3.5 text-sky-400" />
-          <span>Host System Account:</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded text-[11px] font-semibold">
-            {systemUser || 'Windows User'}
-          </span>
-          <span className="text-gray-500 text-[10px] font-mono uppercase">
-            ({platform || 'win32'})
-          </span>
-        </div>
-      </div>
-
-      {/* Comprehensive Guide: How Windows System Password Protection Works */}
+      {/* Comprehensive Guide: How System Password Protection Works */}
       <div className="p-4 rounded-xl bg-[#0F0F11] border border-[#1F2026] space-y-3">
         <div className="flex items-center gap-2 text-xs font-semibold text-gray-300">
           <Lock className="w-3.5 h-3.5 text-sky-400" />
@@ -150,8 +130,7 @@ export const WebAccessProtection: React.FC = () => {
               <span>Lock &amp; Unlock</span>
             </div>
             <p className="text-[11px] text-gray-400 leading-relaxed">
-              When enabled, connecting browsers are locked. Enter your Windows login password for{' '}
-              <strong className="text-gray-200">{systemUser || 'your system user'}</strong> to unlock the session.
+              When enabled, connecting browsers are locked. Enter your Windows system login password to unlock access to the workstation.
             </p>
           </div>
 
@@ -162,7 +141,7 @@ export const WebAccessProtection: React.FC = () => {
               <span>Auto-Synchronized</span>
             </div>
             <p className="text-[11px] text-gray-400 leading-relaxed">
-              Whenever you change your Windows login password, it automatically applies here. No separate password management or manual updates required.
+              Whenever you change your Windows system password, it automatically applies here. No separate password management or manual updates needed.
             </p>
           </div>
         </div>
@@ -171,7 +150,7 @@ export const WebAccessProtection: React.FC = () => {
         <div className="text-[10.5px] text-gray-500 leading-relaxed pt-1 flex items-start gap-2">
           <span className="text-sky-400 font-bold">ℹ</span>
           <span>
-            Passwords are never stored on disk or cached. Authentication is handled natively in real-time by the Windows Local Security Authority (LSA).
+            Passwords are never stored on disk or cached. Authentication is verified in real-time by the Windows Local Security Authority.
           </span>
         </div>
       </div>

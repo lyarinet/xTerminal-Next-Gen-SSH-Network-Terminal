@@ -159,20 +159,22 @@ function createWindow() {
     console.log(`[RENDERER] (${level}) ${message} [${sourceId}:${line}]`);
   });
 
-  // Watchdog: If root element is not populated after 3s, open DevTools for diagnostic info
-  setTimeout(async () => {
-    try {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        const hasMounted = await mainWindow.webContents.executeJavaScript(
-          "Boolean(document.getElementById('root') && document.getElementById('root').children.length > 0)"
-        );
-        if (!hasMounted) {
-          console.warn('[WATCHDOG] Root empty after 3s. Opening DevTools...');
-          mainWindow.webContents.openDevTools();
+  // Watchdog: In development only, if root element is not populated after 4s, open DevTools
+  if (process.env.NODE_ENV === 'development') {
+    setTimeout(async () => {
+      try {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          const hasMounted = await mainWindow.webContents.executeJavaScript(
+            "Boolean((document.getElementById('root') && document.getElementById('root').children.length > 0) || document.getElementById('loginForm'))"
+          );
+          if (!hasMounted) {
+            console.warn('[WATCHDOG] Root empty after 4s. Opening DevTools...');
+            mainWindow.webContents.openDevTools();
+          }
         }
-      }
-    } catch (e) {}
-  }, 3000);
+      } catch (e) {}
+    }, 4000);
+  }
 
   mainWindow.once('ready-to-show', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {

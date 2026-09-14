@@ -4023,18 +4023,21 @@ async function startServer() {
       if (req.method !== "GET" && req.method !== "HEAD") return next();
       if (req.path.startsWith("/api")) return next();
 
-      // ── Password Gate (only when enabled) ────────────────────────────
+      // ── Password Gate (only when enabled for remote web access) ──
       if (authConfig.enabled) {
-        const reqExt = path.extname(req.path).toLowerCase();
-        const isStaticAsset = [".js", ".css", ".png", ".ico", ".svg", ".woff", ".woff2", ".jpg", ".jpeg", ".webp"].includes(reqExt);
-        if (!isStaticAsset) {
-          const cookies = parseCookies(req.headers.cookie || "");
-          const token = cookies[AUTH_COOKIE];
-          if (!AUTH_SESSIONS.has(token)) {
-            res.setHeader("Content-Type", "text/html; charset=utf-8");
-            res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-            const sysUser = process.env.USERNAME || os.userInfo().username || "System User";
-            return res.send(getLoginPageHtml(sysUser));
+        // Desktop App (Electron) runs locally and is already authenticated by the OS desktop session
+        const isElectron = Boolean(req.headers["user-agent"]?.includes("Electron"));
+        if (!isElectron) {
+          const reqExt = path.extname(req.path).toLowerCase();
+          const isStaticAsset = [".js", ".css", ".png", ".ico", ".svg", ".woff", ".woff2", ".jpg", ".jpeg", ".webp"].includes(reqExt);
+          if (!isStaticAsset) {
+            const cookies = parseCookies(req.headers.cookie || "");
+            const token = cookies[AUTH_COOKIE];
+            if (!AUTH_SESSIONS.has(token)) {
+              res.setHeader("Content-Type", "text/html; charset=utf-8");
+              res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+              return res.send(getLoginPageHtml());
+            }
           }
         }
       }

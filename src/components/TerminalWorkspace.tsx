@@ -65,6 +65,7 @@ interface TerminalWorkspaceProps {
   onSelectTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
   onNewTab: (host?: Host, customTab?: Partial<TerminalTab>) => void;
+  onUpdateTab?: (tabId: string, updates: Partial<TerminalTab>) => void;
   onSplitPane: (tabId: string, direction: 'horizontal' | 'vertical') => void;
   onClosePane: (tabId: string, paneId: string) => void;
   onExecuteCommand: (tabId: string, command: string) => void;
@@ -80,6 +81,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
   onSelectTab,
   onCloseTab,
   onNewTab,
+  onUpdateTab,
   onSplitPane,
   onClosePane,
   onExecuteCommand,
@@ -731,13 +733,11 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
           ...prev,
           [activeTab.id]: data.session,
         }));
-        setTabs((prev) =>
-          prev.map((t) =>
-            t.id === activeTab.id
-              ? { ...t, isMultiplayerActive: true, multiplayerSessionId: data.session.id, multiplayerRole: 'host' }
-              : t
-          )
-        );
+        onUpdateTab?.(activeTab.id, {
+          isMultiplayerActive: true,
+          multiplayerSessionId: data.session.id,
+          multiplayerRole: 'host',
+        });
         connectMultiplayerWs(data.session.id, activeTab.id, 'host');
         setShareModalOpen(true);
         setTimeout(() => {

@@ -437,6 +437,12 @@ export default function App() {
     addAuditLog('SESSION_TERMINATE', `Terminal session ${tabId} closed`);
   };
 
+  const handleUpdateTab = (tabId: string, updates: Partial<TerminalTab>) => {
+    setTabs((prev) =>
+      prev.map((t) => (t.id === tabId ? { ...t, ...updates } : t))
+    );
+  };
+
   const handleSplitPane = (tabId: string, direction: 'horizontal' | 'vertical') => {
     setTabs((prev) =>
       prev.map((t) => {
@@ -810,6 +816,7 @@ export default function App() {
             onSelectTab={setActiveTabId}
             onCloseTab={handleCloseTab}
             onNewTab={handleNewTab}
+            onUpdateTab={handleUpdateTab}
             onSplitPane={handleSplitPane}
             onClosePane={handleClosePane}
             onExecuteCommand={handleExecuteCommand}

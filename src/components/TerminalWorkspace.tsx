@@ -1016,6 +1016,27 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
     }
   };
 
+  // Update Control/Access Mode (host only)
+  const handleUpdateMode = (newControlMode: MultiplayerControlMode, newAccessMode: MultiplayerAccessMode) => {
+    const socket = wsSocketsRef.current[activeTabId];
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'session:update-mode', controlMode: newControlMode, accessMode: newAccessMode }));
+    }
+    // Optimistically update local state
+    setMultiplayerSessions((prev) => {
+      const sess = prev[activeTabId];
+      if (!sess) return prev;
+      return {
+        ...prev,
+        [activeTabId]: {
+          ...sess,
+          controlMode: newControlMode,
+          accessMode: newAccessMode,
+        },
+      };
+    });
+  };
+
   // Request Control (Participant)
   const handleRequestControl = () => {
     const socket = wsSocketsRef.current[activeTabId];
@@ -1894,6 +1915,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
           session={currentSession}
           isOpen={shareModalOpen}
           onClose={() => setShareModalOpen(false)}
+          onUpdateMode={handleUpdateMode}
         />
       )}
 

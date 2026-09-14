@@ -60,9 +60,9 @@ export const ShareSessionModal: React.FC<ShareSessionModalProps> = ({
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  const handleSaveMode = () => {
+  const handleSaveMode = (newControlMode: MultiplayerControlMode, newAccessMode: MultiplayerAccessMode) => {
     if (onUpdateMode) {
-      onUpdateMode(controlMode, accessMode);
+      onUpdateMode(newControlMode, newAccessMode);
     }
   };
 
@@ -138,7 +138,10 @@ export const ShareSessionModal: React.FC<ShareSessionModalProps> = ({
             </label>
             <div className="grid grid-cols-2 gap-2">
               <div
-                onClick={() => { setControlMode('one_controller'); handleSaveMode(); }}
+                onClick={() => {
+                  setControlMode('one_controller');
+                  handleSaveMode('one_controller', accessMode);
+                }}
                 className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
                   controlMode === 'one_controller'
                     ? 'bg-emerald-500/10 border-emerald-500/50 text-white'
@@ -150,7 +153,10 @@ export const ShareSessionModal: React.FC<ShareSessionModalProps> = ({
               </div>
 
               <div
-                onClick={() => { setControlMode('host_only'); handleSaveMode(); }}
+                onClick={() => {
+                  setControlMode('host_only');
+                  handleSaveMode('host_only', accessMode);
+                }}
                 className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
                   controlMode === 'host_only'
                     ? 'bg-emerald-500/10 border-emerald-500/50 text-white'

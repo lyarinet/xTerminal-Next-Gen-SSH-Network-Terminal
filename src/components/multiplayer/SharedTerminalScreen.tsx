@@ -86,12 +86,15 @@ export const SharedTerminalScreen: React.FC<SharedTerminalScreenProps> = ({
   const wsRef = useRef<WebSocket | null>(null);
   const tabId = `shared-session-${cleanSessionId}`;
 
-  // Check if current user has controller rights
+  // Check if current user has input rights based on controlMode
   const isController = Boolean(
-    session &&
-      (session.controllerId === currentUserId ||
-        session.controlMode === 'shared' ||
-        session.hostUserId === currentUserId)
+    session && (() => {
+      if (session.controlMode === 'read_only') return false;
+      if (session.controlMode === 'host_only') return session.hostUserId === currentUserId;
+      if (session.controlMode === 'shared') return true;
+      // one_controller: only the current designated controller or host
+      return session.controllerId === currentUserId || session.hostUserId === currentUserId;
+    })()
   );
 
   const isHost = Boolean(session && session.hostUserId === currentUserId);
@@ -273,6 +276,23 @@ export const SharedTerminalScreen: React.FC<SharedTerminalScreenProps> = ({
                 tabId,
                 data: `\r\n\x1b[33;1mℹ Interactive terminal control was returned to Host.\x1b[0m\r\n`,
               },
+            })
+          );
+          return;
+        }
+
+        if (msg.type === 'session:mode-updated') {
+          setSession((prev) => {
+            if (!prev) return prev;
+            return { ...prev, controlMode: msg.controlMode, accessMode: msg.accessMode };
+          });
+          const modeLabel = msg.controlMode === 'host_only' ? 'Host Only (view-only mode)'
+            : msg.controlMode === 'shared' ? 'Shared (everyone can type)'
+            : msg.controlMode === 'read_only' ? 'Read Only'
+            : 'One Controller';
+          window.dispatchEvent(
+            new CustomEvent('xterminal:terminal-write', {
+              detail: { tabId, data: `\r\n\x1b[36;1mℹ Session mode changed: ${modeLabel}\x1b[0m\r\n` },
             })
           );
           return;

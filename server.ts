@@ -4296,8 +4296,19 @@ async function startServer() {
           }
 
           if (msg.type === "terminal:input") {
-            // Check if sender has control permission
-            const hasControl = session.controlMode === "shared" || session.controllerId === currentUserId;
+            // Check if sender has control permission based on controlMode
+            let hasControl = false;
+            if (session.controlMode === "shared") {
+              hasControl = true; // everyone can type
+            } else if (session.controlMode === "host_only") {
+              hasControl = currentUserId === session.hostUserId; // ONLY host
+            } else if (session.controlMode === "read_only") {
+              hasControl = false; // nobody
+            } else {
+              // one_controller: only current controller
+              hasControl = session.controllerId === currentUserId;
+            }
+
             if (hasControl && msg.data) {
               // Broadcast input to room, particularly to host terminal
               broadcastToSession(session, {

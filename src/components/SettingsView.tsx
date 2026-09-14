@@ -919,7 +919,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="text-xs text-gray-400 font-mono">DevOps &amp; SSH Mobile Workstation</div>
             </div>
             <span className="px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold">
-              v1.3.1
+              v1.3.2
             </span>
           </div>
           <div className="text-[11px] text-gray-500 font-mono flex items-center justify-between border-t border-[#1C1C1E] pt-2">

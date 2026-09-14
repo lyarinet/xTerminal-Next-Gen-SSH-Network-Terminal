@@ -179,8 +179,8 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
   const currentHost = activeTab?.host || hosts.find((h) => h.id === activeTab?.hostId);
   const currentSession =
     multiplayerSessions[activeTabId] ||
-    Object.values(multiplayerSessions).find((s) => s.status === 'active') ||
-    Object.values(multiplayerSessions)[0];
+    (Object.values(multiplayerSessions) as MultiplayerSession[]).find((s) => s.status === 'active') ||
+    (Object.values(multiplayerSessions) as MultiplayerSession[])[0];
 
   // Session Recording State
   const [activeRecording, setActiveRecording] = useState<{
@@ -296,7 +296,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
     const handleOpenChat = () => setSidebarOpen(true);
     const handleRequestRemoteSnapshot = () => {
       const sendReq = () => {
-        Object.values(wsSocketsRef.current).forEach((ws) => {
+        (Object.values(wsSocketsRef.current) as WebSocket[]).forEach((ws) => {
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'terminal:request-snapshot' }));
           }
@@ -316,7 +316,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
         currentUserAvatarRef.current = e.detail.avatar;
       }
       // Broadcast live user update to open sessions
-      Object.values(wsSocketsRef.current).forEach((ws) => {
+      (Object.values(wsSocketsRef.current) as WebSocket[]).forEach((ws) => {
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(
             JSON.stringify({
@@ -809,7 +809,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
     // Check if this is a multiplayer session tab
     const sess =
       multiplayerSessions[tabId] ||
-      Object.values(multiplayerSessions).find((s) => s.tabId === tabId || s.id === tabId);
+      (Object.values(multiplayerSessions) as MultiplayerSession[]).find((s) => s.tabId === tabId || s.id === tabId);
 
     if (targetTab.multiplayerSessionId || sess) {
       const sessionId = targetTab.multiplayerSessionId || sess?.id;
@@ -1185,7 +1185,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
     // Prevents Windows PowerShell (tab-local) from leaking output to remote mobile client
     const session =
       sessions[tabId] ||
-      Object.values(sessions).find((s) => s.tabId === tabId || s.id === tabId);
+      (Object.values(sessions) as MultiplayerSession[]).find((s) => s.tabId === tabId || s.id === tabId);
     if (!session) return;
 
     // Send on the open multiplayer WebSocket for THIS session
@@ -1203,15 +1203,15 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
     const sessions = multiplayerSessionsRef.current;
     const session =
       sessions[tabId] ||
-      Object.values(sessions).find((s) => s.hostUserId === currentUserId) ||
-      Object.values(sessions)[0];
+      (Object.values(sessions) as MultiplayerSession[]).find((s) => s.hostUserId === currentUserId) ||
+      (Object.values(sessions) as MultiplayerSession[])[0];
 
     if (!session) return;
 
     const socket =
       wsSocketsRef.current[tabId] ||
       wsSocketsRef.current[session.tabId] ||
-      Object.values(wsSocketsRef.current).find((ws) => ws.readyState === WebSocket.OPEN);
+      (Object.values(wsSocketsRef.current) as WebSocket[]).find((ws) => ws.readyState === WebSocket.OPEN);
 
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'terminal:typing', cursor, isTyping }));
@@ -1224,7 +1224,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
     : true;
   const currentTypingBadge =
     typingBadges[activeTabId] ||
-    Object.values(typingBadges).find((b) => b.isTyping);
+    (Object.values(typingBadges) as Array<{ name: string; avatar: string; color: string; cursor: { x: number; y: number }; isTyping: boolean }>).find((b) => b.isTyping);
 
   // Discover live sessions on the network not hosted by this client
   const activeUnjoinedSession = discoveredSessions.find(

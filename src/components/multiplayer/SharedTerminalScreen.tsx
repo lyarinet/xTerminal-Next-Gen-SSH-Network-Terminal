@@ -13,7 +13,6 @@ import {
   Check,
   LogIn,
   AlertCircle,
-  LayoutGrid,
   ShieldCheck,
   RefreshCw
 } from 'lucide-react';
@@ -32,7 +31,6 @@ import { DEFAULT_TERMINAL_SETTINGS } from '../../lib/storage';
 
 interface SharedTerminalScreenProps {
   sessionId: string;
-  onExitToWorkstation?: () => void;
 }
 
 const DEFAULT_AVATAR =
@@ -40,7 +38,6 @@ const DEFAULT_AVATAR =
 
 export const SharedTerminalScreen: React.FC<SharedTerminalScreenProps> = ({
   sessionId: initialSessionId,
-  onExitToWorkstation,
 }) => {
   const cleanSessionId = initialSessionId.trim().toUpperCase();
 
@@ -257,12 +254,31 @@ export const SharedTerminalScreen: React.FC<SharedTerminalScreenProps> = ({
           return;
         }
 
-        if (msg.type === 'control:granted') {
+        if (msg.type === 'session:controller-changed' || msg.type === 'control:granted') {
+          const newControllerId = msg.controllerId || (msg.type === 'control:granted' ? currentUserId : undefined);
+          setSession((prev) => {
+            if (!prev) return prev;
+            const cid = newControllerId || prev.controllerId;
+            return {
+              ...prev,
+              controllerId: cid,
+              pendingRequests: (prev.pendingRequests || []).filter((r) => r.userId !== cid),
+              participants: (prev.participants || []).map((p) => ({
+                ...p,
+                isController: p.id === cid,
+                role: p.id === cid ? 'controller' : (p.id === prev.hostUserId ? 'host' : 'participant'),
+              })),
+            };
+          });
+
+          const isMe = newControllerId === currentUserId || msg.type === 'control:granted';
           window.dispatchEvent(
             new CustomEvent('xterminal:terminal-write', {
               detail: {
                 tabId,
-                data: `\r\n\x1b[32;1m✔ You have been granted interactive terminal control.\x1b[0m\r\n`,
+                data: isMe
+                  ? `\r\n\x1b[32;1m✔ Interactive terminal control granted to YOU! You can now type directly.\x1b[0m\r\n`
+                  : `\r\n\x1b[36;1mℹ Interactive control transferred to ${msg.controllerName || 'Collaborator'}.\x1b[0m\r\n`,
               },
             })
           );
@@ -270,6 +286,18 @@ export const SharedTerminalScreen: React.FC<SharedTerminalScreenProps> = ({
         }
 
         if (msg.type === 'control:revoked') {
+          setSession((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              controllerId: prev.hostUserId,
+              participants: (prev.participants || []).map((p) => ({
+                ...p,
+                isController: p.id === prev.hostUserId,
+                role: p.id === prev.hostUserId ? 'host' : 'participant',
+              })),
+            };
+          });
           window.dispatchEvent(
             new CustomEvent('xterminal:terminal-write', {
               detail: {
@@ -278,6 +306,76 @@ export const SharedTerminalScreen: React.FC<SharedTerminalScreenProps> = ({
               },
             })
           );
+          return;
+        }
+
+        if (msg.type === 'control:requested') {
+          setSession((prev) => {
+            if (!prev) return prev;
+            const existing = prev.pendingRequests || [];
+            if (existing.some((r) => r.userId === msg.request?.userId)) return prev;
+            return {
+              ...prev,
+              pendingRequests: [...existing, msg.request],
+            };
+          });
+          return;
+        }
+
+        if (msg.type === 'control:denied') {
+          setSession((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              pendingRequests: (prev.pendingRequests || []).filter((r) => r.userId !== msg.targetUserId),
+            };
+          });
+          if (msg.targetUserId === currentUserId) {
+            window.dispatchEvent(
+              new CustomEvent('xterminal:terminal-write', {
+                detail: {
+                  tabId,
+                  data: `\r\n\x1b[31;1m✖ Host declined your request for interactive terminal control.\x1b[0m\r\n`,
+                },
+              })
+            );
+          }
+          return;
+        }
+
+        if (msg.type === 'participants:update') {
+          setSession((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              participants: msg.participants,
+            };
+          });
+          return;
+        }
+
+        if (msg.type === 'participant:joined') {
+          setSession((prev) => {
+            if (!prev) return prev;
+            const filtered = (prev.participants || []).filter((p) => p.id !== msg.participant.id);
+            return {
+              ...prev,
+              participants: [...filtered, msg.participant],
+            };
+          });
+          return;
+        }
+
+        if (msg.type === 'participant:left') {
+          setSession((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              participants: (prev.participants || []).map((p) =>
+                p.id === msg.userId ? { ...p, isOnline: false } : p
+              ),
+            };
+          });
           return;
         }
 
@@ -543,18 +641,6 @@ export const SharedTerminalScreen: React.FC<SharedTerminalScreenProps> = ({
               <Maximize2 className="w-3.5 h-3.5" />
             )}
           </button>
-
-          {/* Optional: Go to full workstation app if authorized */}
-          {onExitToWorkstation && (
-            <button
-              onClick={onExitToWorkstation}
-              className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#1C1C1E] hover:bg-[#252528] text-gray-400 hover:text-white border border-[#2B2B30] text-[11px] transition-colors"
-              title="Switch to full xTerminal Workstation"
-            >
-              <LayoutGrid className="w-3.5 h-3.5 text-gray-400" />
-              <span className="hidden lg:inline">Workstation</span>
-            </button>
-          )}
         </div>
       </header>
 

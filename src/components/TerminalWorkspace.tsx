@@ -547,7 +547,7 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
           // Host receives remote controller keystrokes and forwards ONLY to the matching session tab
           window.dispatchEvent(
             new CustomEvent('xterminal:remote-input', {
-              detail: { data: msg.data, tabId },
+              detail: { data: msg.data, tabId: msg.tabId || tabId },
             })
           );
           return;
@@ -731,6 +731,13 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
           ...prev,
           [activeTab.id]: data.session,
         }));
+        setTabs((prev) =>
+          prev.map((t) =>
+            t.id === activeTab.id
+              ? { ...t, isMultiplayerActive: true, multiplayerSessionId: data.session.id, multiplayerRole: 'host' }
+              : t
+          )
+        );
         connectMultiplayerWs(data.session.id, activeTab.id, 'host');
         setShareModalOpen(true);
         setTimeout(() => {
@@ -930,7 +937,9 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
 
   // Grant Control to participant
   const handleGrantControl = (targetUserId: string) => {
-    const socket = wsSocketsRef.current[activeTabId];
+    const session = (Object.values(multiplayerSessions) as MultiplayerSession[]).find((s) => s.pendingRequests?.some((r) => r.userId === targetUserId));
+    const targetTabId = session ? session.tabId : activeTabId;
+    const socket = wsSocketsRef.current[targetTabId] || wsSocketsRef.current[activeTabId] || Object.values(wsSocketsRef.current)[0];
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'control:grant', targetUserId }));
     }
@@ -964,16 +973,18 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
 
   // Deny Control
   const handleDenyControl = (targetUserId: string) => {
-    const socket = wsSocketsRef.current[activeTabId];
+    const session = (Object.values(multiplayerSessions) as MultiplayerSession[]).find((s) => s.pendingRequests?.some((r) => r.userId === targetUserId));
+    const targetTabId = session ? session.tabId : activeTabId;
+    const socket = wsSocketsRef.current[targetTabId] || wsSocketsRef.current[activeTabId] || Object.values(wsSocketsRef.current)[0];
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'control:deny', targetUserId }));
     }
     setMultiplayerSessions((prev) => {
-      const sess = prev[activeTabId];
+      const sess = prev[targetTabId] || prev[activeTabId];
       if (!sess) return prev;
       return {
         ...prev,
-        [activeTabId]: {
+        [targetTabId || activeTabId]: {
           ...sess,
           pendingRequests: (sess.pendingRequests || []).filter((r) => r.userId !== targetUserId),
         },
@@ -1883,6 +1894,52 @@ export const TerminalWorkspace: React.FC<TerminalWorkspaceProps> = ({
           })}
         </div>
       </div>
+
+      {/* Floating Host Notification for Incoming Control Requests */}
+      {isCurrentHost && currentSession?.pendingRequests && currentSession.pendingRequests.length > 0 && (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-40 flex flex-col gap-2 max-w-md w-full px-4 animate-in fade-in slide-in-from-top-3 duration-200 pointer-events-auto">
+          {currentSession.pendingRequests.map((req) => (
+            <div
+              key={req.userId}
+              className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#141416]/95 border border-emerald-500/40 shadow-2xl backdrop-blur-md text-xs"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="relative shrink-0">
+                  <img
+                    src={req.userAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'}
+                    alt={req.userName}
+                    className="w-8 h-8 rounded-full object-cover border border-emerald-500/50"
+                  />
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-[#141416]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-semibold text-white truncate">
+                    {req.userName || 'Collaborator'}
+                  </div>
+                  <div className="text-[11px] text-emerald-400">
+                    Requested keyboard control
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={() => handleGrantControl(req.userId)}
+                  className="px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+                >
+                  Grant Control
+                </button>
+                <button
+                  onClick={() => handleDenyControl(req.userId)}
+                  className="px-2 py-1.5 rounded-lg bg-[#222226] hover:bg-[#2c2c32] text-gray-400 hover:text-white transition-all active:scale-95 cursor-pointer"
+                >
+                  Deny
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Multiplayer Collaboration Sidebar (Slide-Over Drawer Overlay) */}
       {currentSession && sidebarOpen && (

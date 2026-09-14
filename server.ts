@@ -4027,7 +4027,9 @@ async function startServer() {
       if (authConfig.enabled) {
         // Desktop App (Electron) runs locally and is already authenticated by the OS desktop session
         const isElectron = Boolean(req.headers["user-agent"]?.includes("Electron"));
-        if (!isElectron) {
+        // Shared multiplayer sessions are authenticated via room passcode / invite session token
+        const isMultiplayerInvite = Boolean(req.url && req.url.includes("session="));
+        if (!isElectron && !isMultiplayerInvite) {
           const reqExt = path.extname(req.path).toLowerCase();
           const isStaticAsset = [".js", ".css", ".png", ".ico", ".svg", ".woff", ".woff2", ".jpg", ".jpeg", ".webp"].includes(reqExt);
           if (!isStaticAsset) {
@@ -4408,6 +4410,8 @@ async function startServer() {
                 type: "terminal:input",
                 data: msg.data,
                 fromUserId: currentUserId,
+                tabId: session.tabId,
+                sessionId: session.id,
               }, ws);
 
               // Live typing indication broadcasted to all peers including host
@@ -4494,6 +4498,10 @@ async function startServer() {
                 session.controllerId = targetUserId;
                 session.pendingRequests = session.pendingRequests.filter((r) => r.userId !== targetUserId);
 
+                if (session.controlMode === "host_only" || session.controlMode === "read_only") {
+                  session.controlMode = "one_controller";
+                }
+
                 session.participants.forEach((p) => {
                   p.isController = (p.id === targetUserId);
                   if (p.id === targetUserId) {
@@ -4514,10 +4522,24 @@ async function startServer() {
                 session.activityLog.unshift(grantEvent);
                 if (session.activityLog.length > 100) session.activityLog.pop();
 
+                // Send direct control:granted message to the grantee
+                if (target.ws && target.ws.readyState === WebSocket.OPEN) {
+                  target.ws.send(JSON.stringify({
+                    type: "control:granted",
+                    controllerId: targetUserId,
+                    controllerName: target.name,
+                  }));
+                }
+
                 broadcastToSession(session, {
                   type: "session:controller-changed",
                   controllerId: targetUserId,
                   controllerName: target.name,
+                });
+                broadcastToSession(session, {
+                  type: "session:mode-updated",
+                  controlMode: session.controlMode,
+                  accessMode: session.accessMode,
                 });
                 broadcastToSession(session, {
                   type: "participants:update",

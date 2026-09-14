@@ -26,6 +26,8 @@ import {
   Pin,
 } from 'lucide-react';
 import { TerminalSettings, VaultSettings } from '../types';
+import { WebAccessProtection } from './WebAccessProtection';
+
 
 interface SettingsViewProps {
   settings: TerminalSettings;
@@ -879,6 +881,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Web Access Protection */}
+        <div className="bg-[#111112] border border-[#222224] rounded-xl p-5 space-y-4">
+          <div className="flex items-center gap-2 font-semibold text-white text-sm">
+            <Lock className="w-4 h-4 text-sky-400" />
+            <span>Web Access Protection</span>
+          </div>
+          <WebAccessProtection />
         </div>
 
         {/* Reset / Maintenance */}

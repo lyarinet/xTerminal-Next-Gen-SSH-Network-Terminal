@@ -24,6 +24,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { SerialPortConfig } from '../types';
+import { getBackendHttpUrl } from '../lib/networkConfig';
 
 export interface SerialTerminalSettings {
   fontFamily: string;
@@ -220,25 +221,40 @@ export const SerialSettingsModal: React.FC<SerialSettingsModalProps> = ({
     const saved = localStorage.getItem('nexusterm_serial_remote_port');
     return saved ? Number(saved) : 3000;
   });
+  const [globalPublicUrl, setGlobalPublicUrl] = useState<string>('');
   const [isDetectingIp, setIsDetectingIp] = useState(false);
   const [customIp, setCustomIp] = useState('');
 
   const handleDetectIps = () => {
     setIsDetectingIp(true);
-    fetch('/api/system/network-info')
+    fetch(getBackendHttpUrl('/api/serial-bridge/config'))
+      .then((r) => r.json())
+      .then((cfg) => {
+        if (cfg) {
+          if (cfg.publicBaseUrl) setGlobalPublicUrl(cfg.publicBaseUrl);
+          if (cfg.host) {
+            setAssignedIp(cfg.host);
+            localStorage.setItem('nexusterm_serial_remote_ip', cfg.host);
+          }
+          if (cfg.port) {
+            setAssignedPort(cfg.port);
+            localStorage.setItem('nexusterm_serial_remote_port', String(cfg.port));
+          }
+        }
+      })
+      .catch(() => {});
+
+    fetch(getBackendHttpUrl('/api/system/network-info'))
       .then((r) => r.json())
       .then((data) => {
         if (data.addresses) {
           setDetectedIps(data.addresses);
-          if (!assignedIp) {
+          const saved = localStorage.getItem('nexusterm_serial_remote_ip');
+          if (!saved && !assignedIp) {
             const p = data.primaryIp || data.addresses[0]?.address || '127.0.0.1';
             setAssignedIp(p);
             localStorage.setItem('nexusterm_serial_remote_ip', p);
           }
-        }
-        if (data.port) {
-          setAssignedPort(data.port);
-          localStorage.setItem('nexusterm_serial_remote_port', String(data.port));
         }
       })
       .catch(() => {})
@@ -262,6 +278,11 @@ export const SerialSettingsModal: React.FC<SerialSettingsModalProps> = ({
     if (assignedIp) {
       localStorage.setItem('nexusterm_serial_remote_ip', assignedIp);
       localStorage.setItem('nexusterm_serial_remote_port', String(assignedPort));
+      fetch(getBackendHttpUrl('/api/serial-bridge/config'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host: assignedIp, port: assignedPort }),
+      }).catch(() => {});
     }
     onSaveSettings(tempSettings, tempConfig);
     setSavedSuccess(true);

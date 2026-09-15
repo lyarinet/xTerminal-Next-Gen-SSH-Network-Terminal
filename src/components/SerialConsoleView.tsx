@@ -34,6 +34,7 @@ import {
   SerialTerminalSettings,
   DEFAULT_SERIAL_SETTINGS,
 } from './SerialSettingsModal';
+import { getBackendHttpUrl, getBackendWsUrl } from '../lib/networkConfig';
 
 interface SerialLogEntry {
   id: string;
@@ -247,33 +248,43 @@ export const SerialConsoleView: React.FC = () => {
     const saved = localStorage.getItem('nexusterm_serial_remote_port');
     return saved ? Number(saved) : 3000;
   });
+  const [globalPublicUrl, setGlobalPublicUrl] = useState<string>('');
   const [useHttps, setUseHttps] = useState<boolean>(true);
   const [detectedHostIps, setDetectedHostIps] = useState<Array<{ iface: string; address: string }>>([]);
   const remoteBridgeWsRef = useRef<WebSocket | null>(null);
 
-  // Sync Remote Host IP from Settings & Config
+  // Sync Remote Host IP from Global Config & Settings
   useEffect(() => {
-    const savedIp = localStorage.getItem('nexusterm_serial_remote_ip');
-    if (savedIp) {
-      setRemoteHostIp(savedIp);
-    }
-    const savedPort = localStorage.getItem('nexusterm_serial_remote_port');
-    if (savedPort) {
-      setRemoteHostPort(Number(savedPort));
-    }
-    fetch('/api/system/network-info')
+    // 1. Fetch persistent global config
+    fetch(getBackendHttpUrl('/api/serial-bridge/config'))
+      .then((r) => r.json())
+      .then((cfg) => {
+        if (cfg) {
+          if (cfg.publicBaseUrl) setGlobalPublicUrl(cfg.publicBaseUrl);
+          if (cfg.host) {
+            setRemoteHostIp(cfg.host);
+            localStorage.setItem('nexusterm_serial_remote_ip', cfg.host);
+          }
+          if (cfg.port) {
+            setRemoteHostPort(cfg.port);
+            localStorage.setItem('nexusterm_serial_remote_port', String(cfg.port));
+          }
+        }
+      })
+      .catch(() => {});
+
+    // 2. Fetch network info for interface detection
+    fetch(getBackendHttpUrl('/api/system/network-info'))
       .then((r) => r.json())
       .then((data) => {
         if (data.addresses && Array.isArray(data.addresses)) {
           setDetectedHostIps(data.addresses);
-          if (!savedIp) {
+          const savedIp = localStorage.getItem('nexusterm_serial_remote_ip');
+          if (!savedIp && !remoteHostIp) {
             const primary = data.primaryIp || data.addresses[0]?.address || '127.0.0.1';
             setRemoteHostIp(primary);
             localStorage.setItem('nexusterm_serial_remote_ip', primary);
           }
-        }
-        if (data.port) {
-          setRemoteHostPort(data.port);
         }
       })
       .catch(() => {});
@@ -888,7 +899,7 @@ export const SerialConsoleView: React.FC = () => {
   const handleCreateRemoteSession = async () => {
     try {
       setIsRemoteCreating(true);
-      const res = await fetch('/api/serial-bridge/create', {
+      const res = await fetch(getBackendHttpUrl('/api/serial-bridge/create'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -903,23 +914,30 @@ export const SerialConsoleView: React.FC = () => {
         return;
       }
 
-      const rawHost = (remoteHostIp || localStorage.getItem('nexusterm_serial_remote_ip') || window.location.hostname).trim();
-      const targetHost = rawHost.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-      const isLocal = targetHost === 'localhost' || targetHost === '127.0.0.1';
-      const isDomain = !isLocal && !/^(\d{1,3}\.){3}\d{1,3}$/.test(targetHost);
-      const proto = (useHttps && !isLocal) ? 'https:' : (window.location.protocol === 'https:' ? 'https:' : 'http:');
-      
-      // When a domain is used (e.g. Nginx Proxy Manager / Cloudflare), NPM listens on standard 443/80
-      let portPart = '';
-      if (isDomain) {
-        if (remoteHostPort && remoteHostPort !== 80 && remoteHostPort !== 443 && remoteHostPort !== 3000 && remoteHostPort !== 3443) {
-          portPart = `:${remoteHostPort}`;
+      let shareUrl = data.fullShareUrl;
+      if (!shareUrl) {
+        if (globalPublicUrl && globalPublicUrl.trim()) {
+          const base = globalPublicUrl.trim().replace(/\/+$/, '');
+          shareUrl = `${base}${data.sharePath}`;
+        } else {
+          const rawHost = (remoteHostIp || localStorage.getItem('nexusterm_serial_remote_ip') || window.location.hostname).trim();
+          const targetHost = rawHost.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+          const isLocal = targetHost === 'localhost' || targetHost === '127.0.0.1';
+          const isDomain = !isLocal && !/^(\d{1,3}\.){3}\d{1,3}$/.test(targetHost);
+          const proto = (useHttps && !isLocal) ? 'https:' : (window.location.protocol === 'https:' ? 'https:' : 'http:');
+          
+          let portPart = '';
+          if (isDomain) {
+            if (remoteHostPort && remoteHostPort !== 80 && remoteHostPort !== 443 && remoteHostPort !== 3000 && remoteHostPort !== 3443) {
+              portPart = `:${remoteHostPort}`;
+            }
+          } else {
+            const port = (useHttps && !isLocal) ? '3443' : (remoteHostPort || '3000');
+            portPart = port ? `:${port}` : '';
+          }
+          shareUrl = `${proto}//${targetHost}${portPart}${data.sharePath}`;
         }
-      } else {
-        const port = (useHttps && !isLocal) ? '3443' : (remoteHostPort || '3000');
-        portPart = port ? `:${port}` : '';
       }
-      const shareUrl = `${proto}//${targetHost}${portPart}${data.sharePath}`;
       setRemoteShareUrl(shareUrl);
       setRemoteSessionId(data.session.id);
 
@@ -928,8 +946,7 @@ export const SerialConsoleView: React.FC = () => {
         try { remoteBridgeWsRef.current.close(); } catch {}
       }
 
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${wsProtocol}//${window.location.host}/ws/serial-bridge`;
+      const wsUrl = getBackendWsUrl('/ws/serial-bridge');
       const ws = new WebSocket(wsUrl);
       remoteBridgeWsRef.current = ws;
 

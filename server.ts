@@ -2830,6 +2830,45 @@ interface SerialBridgeSession {
   rxBytes: number;
 }
 
+export interface SerialBridgeGlobalConfig {
+  publicBaseUrl?: string;
+  host?: string;
+  port?: number;
+  useHttps?: boolean;
+  defaultBaudRate?: number;
+  defaultPasscode?: string;
+  updatedAt?: number;
+}
+
+const SERIAL_BRIDGE_CONFIG_FILE = path.join(process.cwd(), ".serial-bridge-config.json");
+
+function getSerialBridgeGlobalConfig(): SerialBridgeGlobalConfig {
+  try {
+    if (fs.existsSync(SERIAL_BRIDGE_CONFIG_FILE)) {
+      const raw = fs.readFileSync(SERIAL_BRIDGE_CONFIG_FILE, "utf8");
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    console.warn("[Serial Bridge] Error reading global config:", err);
+  }
+  return {
+    publicBaseUrl: "",
+    host: "",
+    port: 3000,
+    useHttps: true,
+    defaultBaudRate: 9600,
+    defaultPasscode: "",
+  };
+}
+
+function saveSerialBridgeGlobalConfig(cfg: SerialBridgeGlobalConfig): void {
+  try {
+    fs.writeFileSync(SERIAL_BRIDGE_CONFIG_FILE, JSON.stringify(cfg, null, 2), "utf8");
+  } catch (err) {
+    console.error("[Serial Bridge] Error saving global config:", err);
+  }
+}
+
 const activeSerialBridges = new Map<string, SerialBridgeSession>();
 
 // Cleanup stale bridges after 2 hours
@@ -2847,6 +2886,26 @@ setInterval(() => {
     }
   }
 }, 60 * 1000);
+
+// Get Global Serial Bridge Config
+app.get("/api/serial-bridge/config", (_req, res) => {
+  res.json(getSerialBridgeGlobalConfig());
+});
+
+// Update Global Serial Bridge Config
+app.post("/api/serial-bridge/config", (req, res) => {
+  const current = getSerialBridgeGlobalConfig();
+  const updated: SerialBridgeGlobalConfig = {
+    ...current,
+    ...req.body,
+    updatedAt: Date.now(),
+  };
+  if (typeof updated.port === "string") {
+    updated.port = Number(updated.port) || 3000;
+  }
+  saveSerialBridgeGlobalConfig(updated);
+  res.json({ success: true, config: updated });
+});
 
 // Create Serial Bridge Session
 app.post("/api/serial-bridge/create", (req, res) => {
@@ -2868,6 +2927,36 @@ app.post("/api/serial-bridge/create", (req, res) => {
   };
 
   activeSerialBridges.set(sessionId, bridge);
+
+  const globalCfg = getSerialBridgeGlobalConfig();
+  const sharePath = `/serial-bridge.html?session=${sessionId}&baud=${bridge.baudRate}`;
+
+  // Build canonical fullShareUrl from global configuration
+  let fullShareUrl = "";
+  if (globalCfg.publicBaseUrl && globalCfg.publicBaseUrl.trim()) {
+    let base = globalCfg.publicBaseUrl.trim().replace(/\/+$/, "");
+    if (!base.startsWith("http://") && !base.startsWith("https://")) {
+      base = `https://${base}`;
+    }
+    fullShareUrl = `${base}${sharePath}`;
+  } else {
+    const rawHost = globalCfg.host || req.hostname || "127.0.0.1";
+    const cleanHost = rawHost.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+    const isDomain = !["localhost", "127.0.0.1"].includes(cleanHost) && !/^(\d{1,3}\.){3}\d{1,3}$/.test(cleanHost);
+    const useHttps = globalCfg.useHttps ?? (req.protocol === "https");
+    const proto = useHttps ? "https:" : "http:";
+    let portPart = "";
+    if (isDomain) {
+      if (globalCfg.port && globalCfg.port !== 80 && globalCfg.port !== 443 && globalCfg.port !== 3000) {
+        portPart = `:${globalCfg.port}`;
+      }
+    } else {
+      const port = useHttps ? (globalCfg.port === 3443 ? "3443" : String(globalCfg.port || 3443)) : String(globalCfg.port || 3000);
+      portPart = port ? `:${port}` : "";
+    }
+    fullShareUrl = `${proto}//${cleanHost}${portPart}${sharePath}`;
+  }
+
   res.json({
     success: true,
     session: {
@@ -2879,7 +2968,9 @@ app.post("/api/serial-bridge/create", (req, res) => {
       hasPasscode: Boolean(bridge.passcode),
       status: bridge.status,
     },
-    sharePath: `/serial-bridge.html?session=${sessionId}&baud=${bridge.baudRate}`,
+    sharePath,
+    fullShareUrl,
+    globalConfig: globalCfg,
   });
 });
 

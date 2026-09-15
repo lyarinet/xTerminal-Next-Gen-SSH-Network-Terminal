@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { TerminalSettings, VaultSettings } from '../types';
 import { WebAccessProtection } from './WebAccessProtection';
+import { getBackendHttpUrl } from '../lib/networkConfig';
 
 
 interface SettingsViewProps {
@@ -109,25 +110,50 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const saved = localStorage.getItem('nexusterm_serial_remote_port');
     return saved ? Number(saved) : 3000;
   });
+  const [globalPublicUrl, setGlobalPublicUrl] = useState<string>('');
   const [customIpInput, setCustomIpInput] = useState<string>('');
   const [isDetectingIp, setIsDetectingIp] = useState<boolean>(false);
   const [ipDetectMessage, setIpDetectMessage] = useState<string>('');
+
+  const saveGlobalSerialConfig = async (update: { publicBaseUrl?: string; host?: string; port?: number; useHttps?: boolean }) => {
+    try {
+      const res = await fetch(getBackendHttpUrl('/api/serial-bridge/config'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(update),
+      });
+      const data = await res.json();
+      if (data.success && data.config) {
+        if (data.config.publicBaseUrl !== undefined) setGlobalPublicUrl(data.config.publicBaseUrl);
+        if (data.config.host) {
+          setAssignedIp(data.config.host);
+          localStorage.setItem('nexusterm_serial_remote_ip', data.config.host);
+        }
+        if (data.config.port) {
+          setAssignedPort(data.config.port);
+          localStorage.setItem('nexusterm_serial_remote_port', String(data.config.port));
+        }
+        window.dispatchEvent(new CustomEvent('xterminal:serial-bridge-config-changed', { detail: data.config }));
+      }
+    } catch (e) {
+      console.error('Failed to persist global serial config:', e);
+    }
+  };
 
   const handleDetectIps = async () => {
     try {
       setIsDetectingIp(true);
       setIpDetectMessage('Scanning PC network interfaces...');
-      const res = await fetch('/api/system/network-info');
+      const res = await fetch(getBackendHttpUrl('/api/system/network-info'));
       const data = await res.json();
       if (data.addresses && Array.isArray(data.addresses)) {
         setDetectedIps(data.addresses);
-        if (data.port) setAssignedPort(data.port);
-        // If no IP is assigned yet, default to primaryIp
+        // Only set default assignedIp if none exists
         if (!assignedIp) {
           const primary = data.primaryIp || data.addresses[0]?.address || '127.0.0.1';
           setAssignedIp(primary);
           localStorage.setItem('nexusterm_serial_remote_ip', primary);
-          localStorage.setItem('nexusterm_serial_remote_port', String(data.port || 3000));
+          saveGlobalSerialConfig({ host: primary, port: assignedPort || data.port || 3000 });
         }
         setIpDetectMessage(`Auto-detected ${data.addresses.length} active interface(s).`);
       }
@@ -141,6 +167,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   useEffect(() => {
+    // Load global persistent configuration from server
+    fetch(getBackendHttpUrl('/api/serial-bridge/config'))
+      .then((r) => r.json())
+      .then((cfg) => {
+        if (cfg) {
+          if (cfg.publicBaseUrl) setGlobalPublicUrl(cfg.publicBaseUrl);
+          if (cfg.host) {
+            setAssignedIp(cfg.host);
+            localStorage.setItem('nexusterm_serial_remote_ip', cfg.host);
+          }
+          if (cfg.port) {
+            setAssignedPort(cfg.port);
+            localStorage.setItem('nexusterm_serial_remote_port', String(cfg.port));
+          }
+        }
+      })
+      .catch(() => {});
     handleDetectIps();
   }, []);
 
@@ -150,6 +193,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setAssignedIp(cleanIp);
     localStorage.setItem('nexusterm_serial_remote_ip', cleanIp);
     localStorage.setItem('nexusterm_serial_remote_port', String(assignedPort));
+    saveGlobalSerialConfig({ host: cleanIp, port: assignedPort });
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 2000);
+  };
+
+  const handleSaveGlobalPublicUrl = (url: string) => {
+    const cleanUrl = url.trim();
+    setGlobalPublicUrl(cleanUrl);
+    saveGlobalSerialConfig({ publicBaseUrl: cleanUrl });
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 2000);
+  };
+
+  const handleUpdatePort = (portNum: number) => {
+    setAssignedPort(portNum);
+    localStorage.setItem('nexusterm_serial_remote_port', String(portNum));
+    saveGlobalSerialConfig({ port: portNum });
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2000);
   };
@@ -703,36 +763,87 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
             )}
 
+            {/* Global Public URL Configuration */}
+            <div className="p-3.5 rounded-lg bg-[#0E0F12] border border-sky-500/30 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-sky-400 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-sky-400" />
+                  Global Public Share URL (Reverse Proxy / Domain / Cloud)
+                </span>
+                <span className="px-2 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20 font-mono text-[10px]">
+                  {globalPublicUrl ? 'Global Override Active' : 'Default / Auto'}
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-400">
+                When set, xTerminal will always generate serial bridge links using this base URL globally across all browsers, sessions, and mobile clients.
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="e.g. https://serial.example.com or https://192.168.1.38:3443"
+                  value={globalPublicUrl}
+                  onChange={(e) => setGlobalPublicUrl(e.target.value)}
+                  className="flex-1 px-3 py-1.5 rounded-md bg-[#1C1C1E] border border-[#222224] text-gray-100 font-mono text-xs focus:outline-hidden focus:border-sky-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleSaveGlobalPublicUrl(globalPublicUrl)}
+                  className="px-3 py-1.5 rounded-md bg-sky-500 hover:bg-sky-400 text-black text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Save Global URL
+                </button>
+                {globalPublicUrl && (
+                  <button
+                    type="button"
+                    onClick={() => handleSaveGlobalPublicUrl('')}
+                    className="px-2.5 py-1.5 rounded-md bg-[#222328] hover:bg-red-500/20 hover:text-red-300 text-gray-400 text-xs font-medium transition-colors cursor-pointer"
+                    title="Clear Global Override"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Currently Assigned IP / Domain Display */}
             {(() => {
               const isDomain = assignedIp && !['localhost', '127.0.0.1'].includes(assignedIp) && !/^(\d{1,3}\.){3}\d{1,3}$/.test(assignedIp);
               return (
-                <div className="p-3 rounded-lg bg-[#0E0F12] border border-[#1E1F24] flex items-center justify-between">
+                <div className="p-3 rounded-lg bg-[#0E0F12] border border-[#1E1F24] flex items-center justify-between flex-wrap gap-2">
                   <div>
                     <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">
-                      {isDomain ? 'Assigned Remote TTY Domain (NPM / Reverse Proxy)' : 'Assigned Remote TTY URL'}
+                      {globalPublicUrl ? 'Active Global Public URL' : isDomain ? 'Assigned Remote TTY Domain (NPM)' : 'Assigned Remote TTY URL'}
                     </span>
                     <div className="text-xs font-mono font-bold text-emerald-400 mt-0.5 flex items-center gap-1.5">
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
                       <span>
-                        {isDomain
+                        {globalPublicUrl
+                          ? `${globalPublicUrl.replace(/\/+$/, '')}/serial-bridge.html?...`
+                          : isDomain
                           ? `https://${assignedIp}/serial-bridge.html?...`
                           : `https://${assignedIp || '127.0.0.1'}:3443/serial-bridge.html?...`}
                       </span>
                     </div>
                     <div className="text-[10px] font-mono text-gray-500 mt-0.5">
-                      {isDomain
-                        ? 'Clean HTTPS URL on Port 443 (NPM terminates SSL -> forwards to :3000)'
-                        : `HTTP: http://${assignedIp || '127.0.0.1'}:${assignedPort}/serial-bridge.html?...`}
+                      Port: <span className="text-amber-400">{assignedPort}</span> &bull; Host: <span className="text-sky-300">{assignedIp || '127.0.0.1'}</span>
                     </div>
                   </div>
-                  <span className={`px-2 py-0.5 rounded font-mono text-[10px] ${
-                    isDomain
-                      ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
-                      : 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
-                  }`}>
-                    {isDomain ? 'NPM Domain Active' : 'Active'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-gray-400">Port:</span>
+                    <input
+                      type="number"
+                      value={assignedPort}
+                      onChange={(e) => handleUpdatePort(Number(e.target.value) || 3000)}
+                      className="w-20 px-2 py-1 rounded bg-[#1C1C1E] border border-[#2A2B32] text-xs font-mono text-amber-300"
+                    />
+                    <span className={`px-2 py-0.5 rounded font-mono text-[10px] ${
+                      globalPublicUrl || isDomain
+                        ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                        : 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
+                    }`}>
+                      {globalPublicUrl ? 'Global Active' : isDomain ? 'NPM Domain Active' : 'Active'}
+                    </span>
+                  </div>
                 </div>
               );
             })()}

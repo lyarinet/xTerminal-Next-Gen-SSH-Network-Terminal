@@ -613,45 +613,72 @@
           return;
         }
 
-        try {
-          connectBtn.disabled = true;
-          setStatus("connecting", "Requesting serial port...");
-          appendLog("Opening browser port picker...");
+        let currentPortLabel = "USB Serial Port";
+        let serialWriter = null;
+        const writeQueue = [];
+        let isWriting = false;
+        let isReading = false;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 12;
+        let reconnectTimer = null;
+        let isExplicitDisconnect = false;
 
-          // Request port from user
-          serialPort = await navigator.serial.requestPort();
-          const info = serialPort.getInfo();
-          const portLabel = (info.usbVendorId ? `USB Device (VID: 0x${info.usbVendorId.toString(16)})` : "USB Serial Port");
-          portStatusName.textContent = portLabel;
+        async function processWriteQueue() {
+          if (isWriting) return;
+          isWriting = true;
+          while (writeQueue.length > 0) {
+            const chunk = writeQueue.shift();
+            try {
+              if (!serialWriter && serialPort && serialPort.writable) {
+                serialWriter = serialPort.writable.getWriter();
+              }
+              if (serialWriter) {
+                await serialWriter.write(chunk);
+                txCount += chunk.byteLength;
+                updateTraffic();
+              }
+            } catch (err) {
+              console.error("Serial write error:", err);
+              if (serialWriter) {
+                try { serialWriter.releaseLock(); } catch {}
+                serialWriter = null;
+              }
+              await new Promise((r) => setTimeout(r, 40));
+            }
+          }
+          isWriting = false;
+        }
 
-          const currentBaud = parseInt(baudSelect.value, 10) || 9600;
-          appendLog(`Opening port with Baud: ${currentBaud}...`);
+        function queueSerialData(text) {
+          if (!text) return;
+          const encoder = new TextEncoder();
+          const data = encoder.encode(text);
+          writeQueue.push(data);
+          processWriteQueue();
+        }
 
-          await serialPort.open({
-            baudRate: currentBaud,
-            dataBits: 8,
-            stopBits: 1,
-            parity: "none",
-            bufferSize: 16384,
-            flowControl: "none",
-          });
+        function connectWebSocket() {
+          if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+          }
 
-          appendLog(`Port successfully opened! Establishing bridge to engineer...`);
-          setStatus("connecting", "Connecting to xTerminal tunnel...");
-
-          // Connect WebSocket to server
           const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
           const wsUrl = `${wsProtocol}//${window.location.host}/ws/serial-bridge`;
+          setStatus("connecting", reconnectAttempts > 0 ? `Reconnecting tunnel (${reconnectAttempts}/${maxReconnectAttempts})...` : "Connecting to xTerminal tunnel...");
+          appendLog(reconnectAttempts > 0 ? `Reconnecting tunnel (attempt ${reconnectAttempts})...` : `Connecting tunnel: ${wsUrl}...`);
+
           ws = new WebSocket(wsUrl);
 
           ws.onopen = () => {
+            reconnectAttempts = 0;
             appendLog("WebSocket tunnel connected. Registering as client...");
             const passcode = passcodeInput ? passcodeInput.value.trim() : "";
             ws.send(JSON.stringify({
               type: "join",
               sessionId: sessionId,
               role: "client",
-              portInfo: portLabel,
+              portInfo: currentPortLabel,
               passcode: passcode || undefined,
             }));
           };
@@ -667,17 +694,13 @@
                 appendLog("✅ Tunnel live! Bi-directional serial bridge active.");
 
                 // Start streams
-                startSerialReader();
+                if (!isReading) {
+                  startSerialReader();
+                }
               } else if (msg.type === "serial:data") {
-                // Incoming data from engineer -> Send to physical switch
-                if (serialPort && serialPort.writable && msg.data) {
-                  const encoder = new TextEncoder();
-                  const data = encoder.encode(msg.data);
-                  const writer = serialPort.writable.getWriter();
-                  await writer.write(data);
-                  writer.releaseLock();
-                  txCount += data.byteLength;
-                  updateTraffic();
+                // Incoming data from engineer -> queue to physical switch
+                if (msg.data) {
+                  queueSerialData(msg.data);
                 }
               } else if (msg.type === "serial:config") {
                 // Engineer requested new baud rate
@@ -689,29 +712,71 @@
               } else if (msg.type === "engineer:disconnected") {
                 appendLog("[INFO] Engineer disconnected or closed tab.");
                 setStatus("connecting", "Waiting for engineer to reconnect...");
+              } else if (msg.type === "session:terminated") {
+                appendLog(`[INFO] ${msg.message || "Engineer closed session"}`);
+                disconnect();
               } else if (msg.type === "error") {
                 appendLog(`[ERROR] Server error: ${msg.message}`);
                 alert(`Error: ${msg.message}`);
                 disconnect();
               }
             } catch (err) {
-              console.error("WS error:", err);
+              console.error("WS message error:", err);
             }
           };
 
           ws.onerror = (err) => {
             console.error("WS error:", err);
-            appendLog("[ERROR] WebSocket connection failed.");
+            appendLog("[ERROR] WebSocket connection error.");
             appendLog("💡 TIP: If you are using Nginx Proxy Manager or Cloudflare, ensure 'Websockets Support' is toggled ON in Proxy Host settings.");
-            setStatus("", "Tunnel connection error (Proxy / WS)");
           };
 
           ws.onclose = () => {
-            appendLog("WebSocket closed.");
-            if (isBridgeActive) {
-              disconnect();
+            appendLog("WebSocket tunnel closed.");
+            if (isExplicitDisconnect) return;
+
+            if (isBridgeActive && reconnectAttempts < maxReconnectAttempts) {
+              reconnectAttempts++;
+              const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 8000);
+              setStatus("connecting", `Reconnecting tunnel in ${(delay / 1000).toFixed(1)}s (attempt ${reconnectAttempts}/${maxReconnectAttempts})...`);
+              reconnectTimer = setTimeout(() => {
+                if (!isExplicitDisconnect) {
+                  connectWebSocket();
+                }
+              }, delay);
+            } else if (reconnectAttempts >= maxReconnectAttempts) {
+              appendLog("[ERROR] Tunnel reconnection failed after maximum attempts. Please click Disconnect and try again.");
+              setStatus("", "Tunnel disconnected");
             }
           };
+        }
+
+        try {
+          connectBtn.disabled = true;
+          setStatus("connecting", "Requesting serial port...");
+          appendLog("Opening browser port picker...");
+
+          // Request port from user
+          serialPort = await navigator.serial.requestPort();
+          const info = serialPort.getInfo();
+          currentPortLabel = (info.usbVendorId ? `USB Device (VID: 0x${info.usbVendorId.toString(16)})` : "USB Serial Port");
+          portStatusName.textContent = currentPortLabel;
+
+          const currentBaud = parseInt(baudSelect.value, 10) || 9600;
+          appendLog(`Opening port with Baud: ${currentBaud}...`);
+
+          await serialPort.open({
+            baudRate: currentBaud,
+            dataBits: 8,
+            stopBits: 1,
+            parity: "none",
+            bufferSize: 16384,
+            flowControl: "none",
+          });
+
+          appendLog(`Port successfully opened! Establishing bridge to engineer...`);
+          isExplicitDisconnect = false;
+          connectWebSocket();
 
         } catch (err) {
           console.error("Serial error:", err);
@@ -723,7 +788,9 @@
 
       // Stream data from local serial port -> WebSocket -> Engineer
       async function startSerialReader() {
-        const textDecoder = new TextDecoder();
+        if (isReading) return;
+        isReading = true;
+        const textDecoder = new TextDecoder("utf-8", { fatal: false });
         try {
           while (serialPort && serialPort.readable && isBridgeActive) {
             portReader = serialPort.readable.getReader();
@@ -734,7 +801,7 @@
                 if (value) {
                   rxCount += value.byteLength;
                   updateTraffic();
-                  const str = textDecoder.decode(value);
+                  const str = textDecoder.decode(value, { stream: true });
                   // Preview output in log (first 40 chars)
                   if (str.trim().length > 0) {
                     appendLog(`[Switch >> Engineer]: ${str.replace(/[\r\n]+/g, " ").substring(0, 50)}`);
@@ -748,24 +815,39 @@
                 }
               }
             } finally {
-              portReader.releaseLock();
+              try { portReader.releaseLock(); } catch {}
+              portReader = null;
             }
           }
         } catch (err) {
           if (isBridgeActive) {
             appendLog(`[Serial Read Error]: ${err.message}`);
-            disconnect();
           }
+        } finally {
+          isReading = false;
         }
       }
 
       async function disconnect() {
+        isExplicitDisconnect = true;
         isBridgeActive = false;
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
         setStatus("", "Disconnected");
         connectBtn.classList.remove("hidden");
         connectBtn.disabled = false;
         disconnectBtn.classList.add("hidden");
         portStatusName.textContent = "No Port Connected";
+
+        try {
+          if (serialWriter) {
+            try { await serialWriter.close(); } catch {}
+            try { serialWriter.releaseLock(); } catch {}
+            serialWriter = null;
+          }
+        } catch {}
 
         try {
           if (portReader) {
@@ -788,6 +870,9 @@
           }
         } catch {}
 
+        writeQueue.length = 0;
+        isWriting = false;
+        isReading = false;
         appendLog("Bridge safely closed and USB port released.");
       }
 
